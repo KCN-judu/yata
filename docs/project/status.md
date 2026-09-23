@@ -9,15 +9,17 @@ area: process
 What exists right now. Edited in place when something lands. "Implemented" means
 present at HEAD with a test that exercises it — nothing weaker.
 
-The repository tooling and the soul rules in `yata-core` are implemented.
-Everything else reads _designed_ or _accepted_.
+The repository tooling, the soul rules in `yata-core`, and the store
+instructions in `yata-store` are implemented. Everything else reads _designed_
+or _accepted_.
 
 ## Status table
 
 | Area                                              | State       | What exists                                                                                        | What does not                                                                                     | Evidence                                               |
 | ------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | pure core (ADR-0001), crate boundaries (ADR-0005) | implemented | workspace; `yata-core` with its effect lints; `crate-graph` check                                  | `yata-protocol`, `yata-store`, `yata-daemon`                                                      | `crates/yata-core/clippy.toml`, `scripts/preflight.py` |
-| fact log + projection (ADR-0002, ADR-0019)        | accepted    | ADRs, spec/fact-format.md                                                                          | `yata-store`, SQLite executor, fold, compaction                                                   | —                                                      |
+| fact log + projection (ADR-0002, ADR-0019)        | accepted    | ADRs, spec/fact-format.md                                                                          | fact codec, SQLite executor, fold, compaction                                                     | —                                                      |
+| store instructions (ADR-0019)                     | tested      | `yata-store`: instruction set, schema, plans, interpretation                                       | the executor in `yata-daemon`; a run against SQLite                                               | [evidence/testing.md](../evidence/testing.md)          |
 | two-pass scoring (ADR-0003)                       | accepted    | ADR, scoring spec                                                                                  | scoring in yata-core                                                                              | —                                                      |
 | Flutter↔Rust boundary (ADR-0004)                  | accepted    | ADR, spec/core-protocol.md                                                                         | yata-protocol, yata-daemon, the schema file, generated bindings                                   | —                                                      |
 | probe wire format (ADR-0006)                      | accepted    | ADR, spec/probe-protocol.md                                                                        | the schema file, the codec, any fixture                                                           | —                                                      |

@@ -21,17 +21,27 @@ tables. Only the first three are durable truth; the fourth is a cache. Every
 table is `STRICT`, and SQLite sees only integers and bytes: no column holds a
 field of a fact.
 
-| Table              | Key                | Value                                    | Durable                 |
-| ------------------ | ------------------ | ---------------------------------------- | ----------------------- |
-| `meta`             | fixed keys         | store format version, store id           | yes                     |
-| `log`              | `seq: u64`         | one encoded commit                       | yes                     |
-| `blobs`            | `digest: [u8; 32]` | raw snapshot bytes, compressed           | yes, prunable by policy |
-| `projection_cache` | `seq: u64`         | a serialized projection as of that `seq` | no                      |
+| Table              | Key                | Value                                                              | Durable                 |
+| ------------------ | ------------------ | ------------------------------------------------------------------ | ----------------------- |
+| `meta`             | fixed keys         | store format version, store id                                     | yes                     |
+| `log`              | `seq: u64`         | one encoded commit                                                 | yes                     |
+| `blobs`            | `digest: [u8; 32]` | raw snapshot bytes, compressed                                     | yes, prunable by policy |
+| `projection_cache` | `seq: u64`         | the fold code version and a serialized projection as of that `seq` | no                      |
 
 The tables, and every statement that touches them, exist only in `yata-store`,
 which translates the store's instructions into SQL (ADR-0019). The daemon's
 store module encodes facts and runs `yata-store`'s plans; the rest of the code
 sees a log of facts and a blob lookup.
+
+- `meta` values are bytes: the store format version as a 4-byte big-endian
+  integer, the store id as 16 random bytes. Both are written once, when the
+  store is created.
+- A file is a Yata store when SQLite's `application_id` header field is
+  `0x59415441` ("YATA"). An empty file is initialized; any other file is refused
+  and left untouched.
+- **Appending keeps the log dense.** A commit is inserted only if its `seq` is
+  the last `seq` plus one; otherwise nothing is written and the append fails.
+  Commits read back are checked to be dense as well.
 
 ## Commits and sequence numbers
 

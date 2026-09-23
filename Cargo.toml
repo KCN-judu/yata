@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/yata-core"]
+members = ["crates/yata-core", "crates/yata-store"]
 
 [workspace.package]
 version = "0.1.0"
@@ -12,6 +12,7 @@ repository = "https://github.com/KCN-judu/yata"
 [workspace.dependencies]
 # internal crates by path, then external crates pinned to a minor version
 yata-core = { path = "crates/yata-core" }
+yata-store = { path = "crates/yata-store" }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
