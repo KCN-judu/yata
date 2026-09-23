@@ -24,5 +24,5 @@ mod statement;
 pub use instruction::{Digest, Instruction, MetaKey, StoreId};
 pub use interpret::{CacheEntry, Output, StoreError, StoreKind};
 pub use plan::{Plan, plan};
-pub use schema::{APPLICATION_ID, SCHEMA_VERSION, connection_settings};
+pub use schema::{APPLICATION_ID, SCHEMA_VERSION, check_settings, connection_settings};
 pub use statement::{Batch, Param, Statement, StatementResult, Value};

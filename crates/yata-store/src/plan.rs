@@ -4,11 +4,25 @@ use std::ops::Range;
 
 use crate::instruction::{Instruction, MetaKey};
 use crate::interpret::StoreError;
-use crate::schema::CREATE_TABLES;
+use crate::schema::CREATE_SCHEMA;
 use crate::statement::{Batch, Param, Statement};
 
 // PRAGMA takes no bound parameters, so the id is a literal; a test ties it to APPLICATION_ID.
 const SET_APPLICATION_ID: &str = "PRAGMA application_id = 1497453633";
+
+impl Plan {
+    /// The error a guarded statement's failure means, given its index in the batch.
+    pub fn guard_error(&self, statement: usize) -> StoreError {
+        let owner = self.spans.iter().position(|s| s.contains(&statement));
+        match owner.map(|i| &self.instructions[i]) {
+            Some(Instruction::AppendCommit { seq, .. }) => StoreError::SeqNotNext { seq: *seq },
+            _ => StoreError::Shape {
+                instruction: "guard",
+                detail: "a statement without a guard reported a guard failure",
+            },
+        }
+    }
+}
 
 /// The instructions, the one batch that carries them out, and which statements belong to which
 /// instruction, so [`Plan::interpret`] can read the results back.
@@ -63,7 +77,7 @@ fn statements_for(instruction: &Instruction) -> Result<Vec<Statement>, StoreErro
             store_id,
             store_format_version,
         } => {
-            let mut out: Vec<Statement> = CREATE_TABLES
+            let mut out: Vec<Statement> = CREATE_SCHEMA
                 .iter()
                 .map(|sql| Statement::new(sql, vec![]))
                 .collect();
@@ -81,12 +95,14 @@ fn statements_for(instruction: &Instruction) -> Result<Vec<Statement>, StoreErro
             "SELECT value FROM meta WHERE key = ?1",
             vec![Param::Text(key.as_str())],
         ),
-        AppendCommit { seq, commit } => one(
-            // The guard keeps the log dense: the row lands only at the last seq plus one.
+        AppendCommit { seq, commit } => Ok(vec![Statement::guarded(
+            // The row lands only at the last seq plus one, and the guard voids the whole batch
+            // otherwise, so the log stays dense and no blob of a failed commit is kept.
             "INSERT INTO log (seq, commit_bytes) SELECT ?1, ?2 \
              WHERE ?1 = (SELECT coalesce(max(seq), 0) + 1 FROM log)",
             vec![seq_param(*seq)?, Param::Blob(commit.clone())],
-        ),
+            1,
+        )]),
         LastSeq => one("SELECT coalesce(max(seq), 0) FROM log", vec![]),
         ReadCommits { from, limit } => one(
             "SELECT seq, commit_bytes FROM log WHERE seq >= ?1 ORDER BY seq LIMIT ?2",
@@ -179,7 +195,25 @@ mod tests {
         .expect("plannable");
         let s = &p.batch().statements()[0];
         assert!(s.sql().contains("max(seq), 0) + 1"));
+        assert_eq!(s.must_change(), Some(1));
         assert_eq!(s.params(), &[Param::Integer(42), Param::Blob(vec![1, 2])]);
+    }
+
+    #[test]
+    fn a_failed_append_guard_means_the_seq_was_not_next() {
+        let p = plan(vec![
+            Instruction::PutBlob {
+                digest: [1; 32],
+                bytes: vec![],
+            },
+            Instruction::AppendCommit {
+                seq: 9,
+                commit: vec![],
+            },
+        ])
+        .expect("plannable");
+        assert_eq!(p.guard_error(1), StoreError::SeqNotNext { seq: 9 });
+        assert!(matches!(p.guard_error(0), StoreError::Shape { .. }));
     }
 
     #[test]
@@ -206,9 +240,9 @@ mod tests {
             sql.iter().filter(|q| q.starts_with("CREATE TABLE")).count(),
             4
         );
-        assert_eq!(sql[4], SET_APPLICATION_ID);
+        assert_eq!(sql[CREATE_SCHEMA.len()], SET_APPLICATION_ID);
         assert_eq!(
-            p.batch().statements()[5].params(),
+            p.batch().statements()[CREATE_SCHEMA.len() + 1].params(),
             &[
                 Param::Text("store_format_version"),
                 Param::Blob(vec![0, 0, 0, 1])
@@ -261,12 +295,9 @@ mod tests {
         ];
         for sql in sql_of(&plan(every).expect("plannable")) {
             let upper = sql.to_ascii_uppercase();
-            assert!(!upper.contains("UPDATE"), "{sql}");
-            assert!(
-                !(upper.contains("DELETE") && upper.contains(" LOG")),
-                "{sql}"
-            );
-            assert!(!upper.contains("DROP"), "{sql}");
+            assert!(!upper.starts_with("UPDATE"), "{sql}");
+            assert!(!upper.starts_with("DELETE FROM LOG"), "{sql}");
+            assert!(!upper.starts_with("DROP"), "{sql}");
         }
     }
 }

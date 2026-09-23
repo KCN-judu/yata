@@ -56,6 +56,11 @@ pub enum StoreError {
     },
     /// Commits read back are not dense.
     LogGap { expected: u64, found: u64 },
+    /// SQLite did not take a connection setting (`found` is what it reported).
+    Setting {
+        setting: &'static str,
+        found: String,
+    },
 }
 
 impl Plan {

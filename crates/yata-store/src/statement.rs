@@ -21,11 +21,26 @@ pub enum Value {
 pub struct Statement {
     sql: &'static str,
     params: Vec<Param>,
+    must_change: Option<u64>,
 }
 
 impl Statement {
     pub(crate) fn new(sql: &'static str, params: Vec<Param>) -> Statement {
-        Statement { sql, params }
+        Statement {
+            sql,
+            params,
+            must_change: None,
+        }
+    }
+
+    /// A statement whose batch is void unless it changes exactly `rows` rows. The executor
+    /// checks it and rolls the whole batch back, so a guarded write never lands half a plan.
+    pub(crate) fn guarded(sql: &'static str, params: Vec<Param>, rows: u64) -> Statement {
+        Statement {
+            sql,
+            params,
+            must_change: Some(rows),
+        }
     }
 
     pub fn sql(&self) -> &'static str {
@@ -34,6 +49,11 @@ impl Statement {
 
     pub fn params(&self) -> &[Param] {
         &self.params
+    }
+
+    /// The exact number of rows this statement must change, if it is guarded.
+    pub fn must_change(&self) -> Option<u64> {
+        self.must_change
     }
 }
 

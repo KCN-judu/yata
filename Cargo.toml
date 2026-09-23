@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/yata-core", "crates/yata-store"]
+members = ["crates/yata-core", "crates/yata-store", "crates/yata-daemon"]
 
 [workspace.package]
 version = "0.1.0"
@@ -13,6 +13,9 @@ repository = "https://github.com/KCN-judu/yata"
 # internal crates by path, then external crates pinned to a minor version
 yata-core = { path = "crates/yata-core" }
 yata-store = { path = "crates/yata-store" }
+getrandom = "0.4"
+# SQLite built in, so every platform runs the same version (ADR-0019)
+rusqlite = { version = "0.40", features = ["bundled"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

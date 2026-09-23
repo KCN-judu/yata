@@ -42,6 +42,11 @@ sees a log of facts and a blob lookup.
 - **Appending keeps the log dense.** A commit is inserted only if its `seq` is
   the last `seq` plus one; otherwise nothing is written and the append fails.
   Commits read back are checked to be dense as well.
+- **The log is append-only in the database itself.** Triggers abort any `UPDATE`
+  or `DELETE` on `log`, beneath the instruction set, which offers neither.
+- **A write that fails voids its whole commit.** Every instruction of a commit
+  runs in one transaction; if the append is refused, the blobs written with it
+  are rolled back too.
 
 ## Commits and sequence numbers
 

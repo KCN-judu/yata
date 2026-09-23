@@ -1,0 +1,16 @@
+[package]
+name = "yata-daemon"
+description = "Yata's core process: the protocol session, the store, and every effect"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+getrandom = { workspace = true }
+rusqlite = { workspace = true }
+yata-store = { workspace = true }
+
+[lints]
+workspace = true
