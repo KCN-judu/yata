@@ -1,0 +1,8 @@
+# Only Markdown is formatted by Prettier; everything else has its own formatter.
+target/
+app/build/
+app/.dart_tool/
+research/
+local-assets/
+.claude/
+**/node_modules/

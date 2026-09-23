@@ -1,0 +1,229 @@
+---
+kind: spec
+status: current
+area: domain
+---
+
+# Scheme code
+
+The domain model of a scheme code, what it means to evaluate one against a soul,
+and the rules the codec must follow. The byte layout and its evidence are kept
+in the project's local research record `research/scheme-code-protocol.md` (not
+published). The architectural decision is ADR-0009.
+
+There is one wire format, the game's official one (ADR-0009). There is no
+project-defined format.
+
+The model follows the wire, not the reverse. The game's editor is a set of
+checkbox groups — which souls, which slots, which stars, which main attributes,
+include or exclude per sub-attribute, which level bands — and the model is those
+groups. A clause/operator/operand model would need a lossy translation in both
+directions, because nothing in the game's format has that shape.
+
+## The model
+
+```text
+SchemeCode =
+    Discard(DiscardScheme)
+  | Strengthening(StrengtheningSchemeSet)
+
+DiscardScheme {
+  name      : string
+  selection : SoulSelection
+  preserved : Preserved
+}
+
+StrengtheningSchemeSet {
+  plans     : [StrengtheningPlan]      // in code order
+  preserved : Preserved
+}
+
+StrengtheningPlan {
+  name      : string
+  selection : SoulSelection
+  preserved : Preserved
+}
+```
+
+### The game's panel
+
+The model mirrors the game's soul filter panel (整理 → 筛选). The maintainer's
+screenshots from 2026-09-23 establish its groups, their order, and their
+dependencies:
+
+| Order | Group (in game) | Choices                                                          | Depends on                                                |
+| ----- | --------------- | ---------------------------------------------------------------- | --------------------------------------------------------- |
+| 1     | 类型            | 全部, or a set of souls chosen in a picker                       | —                                                         |
+| 2     | 位置            | 壹 贰 叁 肆 伍 陆                                                | —                                                         |
+| 3     | 星级            | 1星 … 6星                                                        | —                                                         |
+| 4     | 等级            | 0–2, 3–5, 6–8, 9–11, 12–14, 15                                   | —                                                         |
+| 5     | 主属性          | the main attributes the chosen slots can roll                    | 位置: disabled with 「请选择位置」 until a slot is chosen |
+| 6     | 固有属性        | the innate attributes of the chosen boss souls                   | 类型: disabled with 「请选择御魂」 until a soul is chosen |
+| 7     | 副属性          | 11 attributes, each ○ (include) or ✕ (exclude), neither = ignore | —                                                         |
+| 8     | 数量            | 不足2条, 2条, 3条, 4条                                           | —                                                         |
+
+The panel sits beside the soul grid, in a right-hand pane with the
+tabs 筛选 and 方案, and has「存为方案」 and 「重置」 at its foot.
+
+Groups 6 and 8 are in the game's panel but not yet in `SoulSelection`, because
+their scheme-code bits are not solved (below). Filtering by them inside this
+application does not need those bits: the reader reads each soul's innate
+attribute and sub-attribute count directly. Only exporting a selection that uses
+them waits on the wire format.
+
+### SoulSelection
+
+The part of a scheme or plan that picks souls. ADR-0009 names it; its shape is
+the game's.
+
+```text
+SoulSelection {
+  sets             : SetChoice
+  slots            : { SoulSlot }
+  stars            : { 1..6 }
+  main_attributes  : { SoulAttribute }
+  sub_attributes   : SoulAttribute → SubAttributeMode    // absent key = Ignore
+  levels           : { LevelBand }
+}
+
+SetChoice        = AnySet | Sets({ SoulSet })
+SubAttributeMode = Ignore | Include | Exclude
+LevelBand        = L0to2 | L3to5 | L6to8 | L9to11 | L12to14 | L15
+```
+
+**`AnySet` and `Sets(every set)` are different values.** The game's
+strengthening editor has a distinct "all souls" choice that is not the same as
+ticking every set by hand (`research/scheme-code-protocol.md`). Collapsing them
+would make a decode–encode round trip change the user's scheme. `AnySet` is
+valid only in a strengthening plan; in a discard scheme it is an encode error
+until the discard editor is shown to have the same choice.
+
+**`SoulSet` identity is the game's suit code**, the id every soul record
+carries. The scheme bit and the UI order are both mappings from it, recorded in
+`research/scheme-code-protocol.md`; the codec converts suit code to scheme bit,
+and the UI presents sets in ascending suit code.
+
+**Fields the model does not have yet.** Sub-attribute count, "legs", rescue
+count, and innate attribute exist in the game's editor, but their bits are not
+solved. They are not in the model and live in `preserved` until they are. A
+field enters `SoulSelection` only when every value it can take has a ✓ or ◎ bit.
+
+### Preserved
+
+`Preserved` is everything the codec read and does not understand: header bytes,
+framing, and every filter bit marked ◇ or ?. It is opaque to every layer but the
+codec. Two facts about it are exposed:
+
+- `has_unknown_conditions: bool` — whether any preserved filter bit is set, i.e.
+  whether the scheme selects on something the model cannot see
+- nothing else; the UI never renders preserved content
+
+## Evaluation
+
+```text
+matches : (SoulSelection, Soul) -> bool
+```
+
+A total, pure function in `yata-core` (ADR-0001), and the only place a scheme's
+meaning is computed. The Flutter layer never evaluates a scheme; a query that
+filters by scheme calls this function (`query.md`, `MatchesScheme`).
+
+A soul matches when every group matches. The per-group rules:
+
+| Group                                         | A soul matches when                        | Mark |
+| --------------------------------------------- | ------------------------------------------ | ---- |
+| `sets`                                        | `AnySet`, or its set is in the chosen sets | ✓    |
+| `slots`, `stars`, `main_attributes`, `levels` | its value is in the chosen set             | ✓    |
+| a group with nothing chosen                   | ? — see below                              | ?    |
+| `sub_attributes`, `Include`                   | ? — see below                              | ?    |
+| `sub_attributes`, `Exclude`                   | it does not have that sub-attribute        | ◎    |
+
+Three semantic questions are open, and `matches` cannot be written until the
+game answers them:
+
+1. **An empty group.** Whether ticking nothing in a group means "no constraint"
+   or "match nothing".
+2. **Several includes.** Whether `Include` on two sub-attributes requires both
+   (AND) or either (OR).
+3. **Include and a count condition together**, once the sub-attribute count
+   field is solved.
+
+These are questions about the game's behaviour, not about bytes; they are
+settled by applying a scheme in the game and observing which souls it picks.
+
+**A scheme with unknown conditions is evaluated partially.** When
+`has_unknown_conditions` is true, `matches` evaluates the known groups only,
+which selects a superset of what the game would select. Every result derived
+from such a scheme carries that fact, and the UI says so; it is never presented
+as the game's own selection.
+
+## Codec
+
+```text
+decode : (QR image | Base64 text) -> Result<SchemeCode, DecodeError>
+encode : (SchemeCode)             -> Result<EncodedScheme, EncodeError>
+
+EncodedScheme { text: string, qr: QrMatrix }
+```
+
+The game presents a scheme code as a QR code
+(`research/scheme-code-protocol.md`, "Encoding layers"). Both ends of the QR
+layer are in Rust, in `yata-daemon` (ADR-0005); the payload codec underneath is
+pure and lives in `yata-core`:
+
+- **Decode** accepts an image (a file, a clipboard image, a screenshot region)
+  or the Base64 text directly. Locating and reading the QR code is a pure
+  function over the image bytes.
+- **Encode** returns the Base64 text and the QR module matrix. The Flutter layer
+  draws the matrix; it does not generate a QR code, because generating one is
+  encoding and encoding is not presentation.
+
+### Codec rules
+
+- **Marked bits only.** The codec reads and writes only what
+  `research/scheme-code-protocol.md` marks ✓ or ◎. Every other bit is carried in
+  `Preserved`: kept on decode, written back unchanged on encode. Never cleared,
+  never guessed.
+- **Mapped bits only.** A soul mask is built through the suit code → scheme bit
+  table, never from suit-code order or UI index.
+- **Round-trip is lossless.** `encode(decode(code))` reproduces the decompressed
+  payload byte for byte. Every sample in the corpus is a fixture asserting it.
+- **Unknown format is an error.** Input that is not a scheme code is
+  `decode.unknown_format`, never a best-effort parse.
+
+Codecs are reached through the `SchemeCodec` registry interface (ADR-0009),
+which carries a `SchemeCode`. There is one registered codec.
+
+### Encoder stages
+
+The encoder is built in three stages, each gated on the wire page:
+
+| Stage                       | Produces                                                              | Gated on                               |
+| --------------------------- | --------------------------------------------------------------------- | -------------------------------------- |
+| 1. template edit            | a code derived from a decoded code, with only modelled fields changed | nothing further; designable now        |
+| 2. single plan from scratch | a strengthening plan with no template                                 | plan framing and boundary              |
+| 3. whole set from scratch   | a complete strengthening scheme set                                   | container header, plan count, metadata |
+
+Until stage 2, **authoring a new scheme starts from a template**: a known-good
+code from the corpus, bundled with the application, whose preserved content is
+known to be neutral. The user edits a `SoulSelection`; the encoder writes it
+into the template's structure.
+
+A discard scheme is closer to stage 3 than a strengthening set, because its
+framing is simpler; it may reach from-scratch encoding first.
+
+## Open questions
+
+- how a decoder tells a discard code from a strengthening code, before the
+  header is solved
+- whether the game's import accepts Base64 text as well as a QR code
+- the three evaluation questions above
+
+## Related
+
+- The wire format: `research/scheme-code-protocol.md` (local research, not
+  published)
+- Decision: [ADR-0009](../decisions/0009-scheme-code-model-and-format.md)
+- Filtering souls by scheme: [query.md](query.md)
+- Saved schemes: [fact-format.md](fact-format.md)
+- Attribute and slot vocabulary: [glossary.md](glossary.md)

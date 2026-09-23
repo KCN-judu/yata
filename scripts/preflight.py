@@ -1,0 +1,479 @@
+"""Every check this repository runs, as one named list run by profile.
+
+What `just fast` and `just check` run locally is what CI runs: each CI job is one profile of
+this script (docs/project/ci.md). The requirements are docs/guides/engineering-requirements.md.
+
+- Read-only: nothing is formatted or rewritten, except by the `fix` profile, which says so.
+- Standard library only; tracked files come from `git ls-files` in a repository, otherwise from
+  a walk of the tree filtered by .gitignore.
+- A check whose tool is missing is skipped, not failed. A check that has nothing to check yet
+  (no Cargo.toml, no app/) passes and says so.
+
+Usage: python scripts/preflight.py [fast|full|fix|<ci profile>|<check>...] [--verbose]
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import importlib.util
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+PRETTIER = "prettier@3.9.9"
+MARKDOWNLINT = "markdownlint-cli2@0.23.3"
+
+MAX_LINES = 1000
+# path -> (line ceiling, reason). A ceiling, so an exempt file cannot keep growing.
+LENGTH_ALLOWLIST: dict[str, tuple[int, str]] = {}
+GENERATED = ("/gen/", "/generated/", ".pb.dart", ".pbenum.dart", ".pbjson.dart", ".pbserver.dart")
+
+# Every workspace crate and its class (ADR-0005). A crate missing here fails `crate-graph`.
+CRATE_CLASS: dict[str, str] = {
+    "yata-core": "pure",
+    "yata-protocol": "pure",
+    "yata-store": "pure",
+    "yata-daemon": "effectful",
+}
+
+# ADR-0019: SQL lives only in yata-store; rusqlite only in the daemon's executor module.
+SQL_CRATE = "crates/yata-store/"
+EXECUTOR = "crates/yata-daemon/src/store/executor.rs"
+SQL_LITERAL = re.compile(r'"[^"\n]*\b(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|PRAGMA|BEGIN|COMMIT)\b[^"\n]*"')
+SQL_CALL = re.compile(r"\.(execute|execute_batch|prepare|prepare_cached|query_row|query_map)\s*\(")
+
+# ADR-0017: the SVG profile of committed icons.
+ICON_ROOT = "app/assets/icons/"
+ICON_PATH = re.compile(r"^app/assets/icons/(soul-set|shikigami)/(emblem|portrait)/\d+\.svg$")
+SVG_FORBIDDEN = re.compile(r"<(text|script|foreignObject|image|style|animate\w*|set|filter|use)\b|href\s*=\s*\"(?!#)")
+
+
+@dataclass
+class Result:
+    ok: bool
+    output: str = ""
+    skipped: bool = False
+
+
+@dataclass
+class Check:
+    name: str
+    description: str
+    run: Callable[[], Result]
+    tools: tuple[str, ...]
+    hint: str
+
+
+# ---------------------------------------------------------------- files
+
+
+def _ignore_patterns() -> list[str]:
+    gi = ROOT / ".gitignore"
+    if not gi.exists():
+        return []
+    lines = gi.read_text(encoding="utf-8").splitlines()
+    return [ln.strip() for ln in lines if ln.strip() and not ln.lstrip().startswith(("#", "!"))]
+
+
+def _ignored(relpath: str, is_dir: bool, patterns: list[str]) -> bool:
+    name = relpath.rsplit("/", 1)[-1]
+    for pat in patterns:
+        dir_only = pat.endswith("/")
+        p = pat.rstrip("/")
+        if dir_only and not is_dir:
+            continue
+        if "/" in p:
+            if fnmatch.fnmatch(relpath, p.lstrip("/")):
+                return True
+        elif fnmatch.fnmatch(name, p):
+            return True
+    return False
+
+
+def tracked_files() -> list[str]:
+    """Paths relative to the root, POSIX style: what is or would be committed."""
+    if (ROOT / ".git").exists() and shutil.which("git"):
+        out = subprocess.run(
+            ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            check=True,
+        ).stdout
+        return sorted(ln for ln in out.splitlines() if ln and (ROOT / ln).is_file())
+    patterns = [*_ignore_patterns(), ".git/"]
+    found: list[str] = []
+    for dirpath, dirnames, filenames in os.walk(ROOT):
+        base = Path(dirpath).relative_to(ROOT).as_posix()
+        base = "" if base == "." else base + "/"
+        dirnames[:] = sorted(d for d in dirnames if not _ignored(base + d, True, patterns))
+        found.extend(base + f for f in filenames if not _ignored(base + f, False, patterns))
+    return sorted(found)
+
+
+def markdown_files() -> list[str]:
+    return [f for f in tracked_files() if f.endswith(".md")]
+
+
+def _run(cmd: list[str], cwd: Path = ROOT) -> Result:
+    exe = shutil.which(cmd[0]) or cmd[0]
+    proc = subprocess.run([exe, *cmd[1:]], cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return Result(proc.returncode == 0, (proc.stdout + proc.stderr).strip())
+
+
+def _has_rust() -> bool:
+    return (ROOT / "Cargo.toml").exists()
+
+
+def _has_app() -> bool:
+    return (ROOT / "app" / "pubspec.yaml").exists()
+
+
+def _read(f: str) -> str:
+    return (ROOT / f).read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------- repository checks
+
+
+def python_location() -> Result:
+    bad = [f for f in tracked_files() if f.endswith(".py") and not f.startswith("scripts/")]
+    return Result(not bad, "\n".join(f"{f}: Python outside scripts/ (ADR-0013)" for f in bad))
+
+
+def publication() -> Result:
+    """Nothing ADR-0016 or ADR-0017 keeps local is about to be committed."""
+    local = ("research/", ".claude/", "local-assets/")
+    bad = [f"{f}: local-only path (ADR-0016, ADR-0017)" for f in tracked_files() if f.startswith(local)]
+    bad += [f"{f}: CLAUDE.md is agent tooling (ADR-0016)" for f in tracked_files() if f.endswith("CLAUDE.md")]
+    bad += [
+        f"{f}: raster icon in the tracked tree; project icons are SVG (ADR-0017)"
+        for f in tracked_files()
+        if f.startswith(ICON_ROOT) and not f.endswith(".svg")
+    ]
+    return Result(not bad, "\n".join(bad))
+
+
+def file_length() -> Result:
+    bad: list[str] = []
+    for f in tracked_files():
+        if not f.endswith((".rs", ".dart", ".py")) or any(g in f for g in GENERATED):
+            continue
+        if f.startswith("tests/") or "/tests/" in f or "/test/" in f:
+            continue
+        n = len(_read(f).splitlines())
+        limit, reason = LENGTH_ALLOWLIST.get(f, (MAX_LINES, ""))
+        if n > limit:
+            note = f" (allowlisted to {limit}: {reason})" if reason else ""
+            bad.append(f"{f}: {n} lines > {limit}{note}")
+    return Result(not bad, "\n".join(bad))
+
+
+def docs_validate() -> Result:
+    return _run([sys.executable, "scripts/validate_docs.py"])
+
+
+def status_shape() -> Result:
+    page = ROOT / "docs" / "project" / "status.md"
+    if not page.exists():
+        return Result(False, "docs/project/status.md: missing")
+    lines = page.read_text(encoding="utf-8").splitlines()
+    bad: list[str] = []
+    snap = next((i for i, ln in enumerate(lines) if ln.startswith("**Snapshot:**")), None)
+    if snap is not None:
+        n = 0
+        while snap + n < len(lines) and lines[snap + n].strip():
+            n += 1
+        if n > 3:
+            bad.append(f"status.md: snapshot is {n} lines > 3")
+    header: list[str] = []
+    for i, ln in enumerate(lines, 1):
+        if not ln.startswith("|"):
+            header = [] if not ln.strip() else header
+            continue
+        if re.match(r"^\|[\s|:-]+\|$", ln):
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if not header:
+            header = [c.lower() for c in cells]
+            continue
+        row = dict(zip(header, cells, strict=False))
+        bad += [f"status.md:{i}: cell of {len(c)} characters > 300" for c in cells if len(c) > 300]
+        state, evidence = row.get("state", ""), row.get("evidence", "")
+        if state in {"implemented", "tested"} and evidence in {"", "—"}:
+            bad.append(f"status.md:{i}: '{state}' with no evidence")
+    return Result(not bad, "\n".join(bad))
+
+
+def docs_format() -> Result:
+    return _run(["npx", "--yes", PRETTIER, "--check", *markdown_files()])
+
+
+def docs_lint() -> Result:
+    return _run(["npx", "--yes", MARKDOWNLINT, *markdown_files()])
+
+
+def _module(name: str, *args: str) -> Result:
+    """A Python tool run as `python -m`, skipped when it is not installed."""
+    if importlib.util.find_spec(name) is None:
+        return Result(True, f"{name} not installed (pip install -r requirements-dev.txt)", skipped=True)
+    return _run([sys.executable, "-m", name, *args])
+
+
+def python_lint() -> Result:
+    a = _module("ruff", "check", "scripts")
+    b = _module("ruff", "format", "--check", "scripts")
+    return Result(a.ok and b.ok, "\n".join(x for x in (a.output, b.output) if x), a.skipped)
+
+
+def python_types() -> Result:
+    return _module("mypy", "--strict", "scripts")
+
+
+# ---------------------------------------------------------------- Rust
+
+
+def _rust(cmd: list[str]) -> Result:
+    if not _has_rust():
+        return Result(True, "no Cargo.toml yet", skipped=True)
+    return _run(cmd)
+
+
+def rust_format() -> Result:
+    return _rust(["cargo", "fmt", "--all", "--check"])
+
+
+def rust_check() -> Result:
+    return _rust(["cargo", "check", "--workspace", "--all-targets", "--locked"])
+
+
+def rust_clippy() -> Result:
+    return _rust(["cargo", "clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"])
+
+
+def rust_test() -> Result:
+    return _rust(["cargo", "test", "--workspace", "--locked"])
+
+
+def crate_graph() -> Result:
+    """Every crate is classed; no pure crate depends on an effectful one; lints are inherited."""
+    if not _has_rust():
+        return Result(True, "no Cargo.toml yet", skipped=True)
+    proc = subprocess.run(
+        [shutil.which("cargo") or "cargo", "metadata", "--format-version", "1", "--no-deps"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if proc.returncode != 0:
+        return Result(False, proc.stderr.strip())
+    meta = json.loads(proc.stdout)
+    bad: list[str] = []
+    members = {p["name"]: p for p in meta["packages"]}
+    for name, pkg in sorted(members.items()):
+        cls = CRATE_CLASS.get(name)
+        if cls is None:
+            bad.append(f"{name}: not classed pure or effectful in preflight CRATE_CLASS (ADR-0005)")
+            continue
+        for dep in pkg["dependencies"]:
+            if dep["name"] in members and cls == "pure" and CRATE_CLASS.get(dep["name"]) != "pure":
+                bad.append(f"{name}: pure crate depends on effectful {dep['name']} (ADR-0005)")
+        manifest = Path(pkg["manifest_path"]).read_text(encoding="utf-8")
+        lints = re.search(r"^\[lints\]\s*\n(.*?)(?=^\[|\Z)", manifest, re.S | re.M)
+        if not lints or lints.group(1).strip() != "workspace = true":
+            bad.append(f"{name}: [lints] must be exactly 'workspace = true' (ADR-0005)")
+        if re.search(r"^\[lints\.", manifest, re.M):
+            bad.append(f"{name}: re-declares lints (ADR-0005)")
+        if cls == "pure" and not (Path(pkg["manifest_path"]).parent / "clippy.toml").exists():
+            bad.append(f"{name}: pure crate without clippy.toml disallowing effects (ADR-0005)")
+    return Result(not bad, "\n".join(bad))
+
+
+def sql_boundary() -> Result:
+    bad: list[str] = []
+    for f in tracked_files():
+        if not f.endswith((".rs", ".toml")):
+            continue
+        text = _read(f)
+        if f.endswith(".toml"):
+            if "rusqlite" in text and f not in ("Cargo.toml", "crates/yata-daemon/Cargo.toml"):
+                bad.append(f"{f}: depends on rusqlite outside the daemon (ADR-0019)")
+            continue
+        if not f.startswith(SQL_CRATE):
+            for n, line in enumerate(text.splitlines(), 1):
+                if SQL_LITERAL.search(line):
+                    bad.append(f"{f}:{n}: SQL text outside yata-store (ADR-0019)")
+        if f != EXECUTOR:
+            if re.search(r"\brusqlite\b", text):
+                bad.append(f"{f}: uses rusqlite outside the executor module (ADR-0019)")
+            if f.startswith("crates/yata-daemon/") and SQL_CALL.search(text):
+                bad.append(f"{f}: runs statements outside the executor module (ADR-0019)")
+    return Result(not bad, "\n".join(bad))
+
+
+# ---------------------------------------------------------------- Flutter
+
+
+def _app(cmd: list[str]) -> Result:
+    if not _has_app():
+        return Result(True, "no app/ yet", skipped=True)
+    return _run(cmd, ROOT / "app")
+
+
+def dart_format() -> Result:
+    return _app(["dart", "format", "--page-width", "100", "--output=none", "--set-exit-if-changed", "lib", "test"])
+
+
+def flutter_analyze() -> Result:
+    return _app(["flutter", "analyze"])
+
+
+def flutter_test() -> Result:
+    return _app(["flutter", "test"])
+
+
+def dart_layers() -> Result:
+    bad: list[str] = []
+    for f in tracked_files():
+        if f.startswith("app/lib/ui/") and f.endswith(".dart") and re.search(r"import\s+'[^']*daemon/", _read(f)):
+            bad.append(f"{f}: ui/ imports daemon/ (ADR-0012)")
+    return Result(not bad, "\n".join(bad))
+
+
+def icon_profile() -> Result:
+    bad: list[str] = []
+    for f in tracked_files():
+        if not f.startswith(ICON_ROOT) or not f.endswith(".svg"):
+            continue
+        if not ICON_PATH.match(f):
+            bad.append(f"{f}: not <kind>/<role>/<id>.svg (ADR-0017)")
+        text = _read(f)
+        m = SVG_FORBIDDEN.search(text)
+        if m:
+            bad.append(f"{f}: '{m.group(0)}' is outside the icon SVG profile (ADR-0017)")
+        vb = re.search(r'viewBox="\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)\s*"', text)
+        if not vb or vb.group(1) != vb.group(2):
+            bad.append(f"{f}: needs a square viewBox (ADR-0017)")
+    return Result(not bad, "\n".join(bad))
+
+
+# ---------------------------------------------------------------- mutating
+
+
+def fix_formatting() -> Result:
+    print("fix: rewriting files with cargo fmt, dart format, prettier, markdownlint --fix, ruff format")
+    steps: list[Result] = []
+    if _has_rust() and shutil.which("cargo"):
+        steps.append(_run(["cargo", "fmt", "--all"]))
+    if _has_app() and shutil.which("dart"):
+        steps.append(_run(["dart", "format", "--page-width", "100", "lib", "test"], ROOT / "app"))
+    if shutil.which("npx"):
+        md = markdown_files()
+        steps.append(_run(["npx", "--yes", PRETTIER, "--write", *md]))
+        steps.append(_run([sys.executable, "scripts/md_normalize.py", *md]))
+        steps.append(_run(["npx", "--yes", MARKDOWNLINT, "--fix", *md]))
+    if importlib.util.find_spec("ruff") is not None:
+        steps.append(_run([sys.executable, "-m", "ruff", "format", "scripts"]))
+    return Result(all(s.ok for s in steps), "\n".join(s.output for s in steps if s.output))
+
+
+CHECKS = [
+    Check("python-location", "no .py outside scripts/", python_location, (), "move it to scripts/ (ADR-0013)"),
+    Check("publication", "no local-only file is tracked", publication, (), "keep it in research/ or local-assets/"),
+    Check("file-length", "no hand-written file over 1 000 lines", file_length, (), "split by responsibility"),
+    Check("docs-validate", "engineering records are well-formed", docs_validate, (), "python scripts/validate_docs.py"),
+    Check("status-shape", "status.md is scannable; claims carry evidence", status_shape, (), "shorten the cell"),
+    Check("docs-format", "Prettier would change no Markdown", docs_format, ("npx",), "just fmt"),
+    Check("docs-lint", "markdownlint reports nothing", docs_lint, ("npx",), "just fmt, then fix what remains"),
+    Check("python-lint", "ruff clean on scripts/", python_lint, (), "ruff check --fix scripts; just fmt"),
+    Check("python-types", "mypy --strict clean on scripts/", python_types, (), "annotate; narrow Any"),
+    Check("rust-format", "cargo fmt would change nothing", rust_format, ("cargo",), "cargo fmt --all"),
+    Check("rust-check", "the workspace builds", rust_check, ("cargo",), "cargo check --workspace --all-targets"),
+    Check("rust-clippy", "clippy with -D warnings is clean", rust_clippy, ("cargo",), "fix the lint, never allow it"),
+    Check("rust-test", "workspace tests pass", rust_test, ("cargo",), "cargo test --workspace"),
+    Check("crate-graph", "crates classed; pure not on effectful; lints inherited", crate_graph, ("cargo",), "ADR-0005"),
+    Check("sql-boundary", "SQL only in yata-store; rusqlite only in the executor", sql_boundary, (), "ADR-0019"),
+    Check("dart-format", "dart format would change nothing", dart_format, (), "just fmt"),
+    Check("flutter-analyze", "flutter analyze is clean", flutter_analyze, (), "fix the analyzer finding"),
+    Check("flutter-test", "Flutter tests pass", flutter_test, (), "cd app; flutter test"),
+    Check("dart-layers", "app/lib/ui never imports app/lib/daemon", dart_layers, (), "go through state/ (ADR-0012)"),
+    Check("icon-profile", "committed icons follow the SVG profile and layout", icon_profile, (), "ADR-0017"),
+    Check("fix-formatting", "MUTATES: runs every formatter", fix_formatting, (), "fix what the formatters report"),
+]
+STRUCTURE = [
+    "python-location",
+    "publication",
+    "file-length",
+    "docs-validate",
+    "status-shape",
+    "sql-boundary",
+    "dart-layers",
+    "icon-profile",
+]
+DOCS = ["docs-format", "docs-lint"]
+PYTHON = ["python-lint", "python-types"]
+RUST_FAST = ["rust-format", "crate-graph", "rust-check"]
+RUST_FULL = ["rust-format", "crate-graph", "rust-clippy", "rust-test"]
+FLUTTER = ["dart-format", "flutter-analyze", "flutter-test"]
+PROFILES = {
+    "fast": STRUCTURE + DOCS + PYTHON + RUST_FAST + ["dart-format", "flutter-analyze"],
+    "full": STRUCTURE + DOCS + PYTHON + RUST_FULL + FLUTTER,
+    "docs-ci": STRUCTURE + DOCS + PYTHON,
+    "rust-ci": RUST_FULL,
+    "flutter-ci": FLUTTER,
+    "fix": ["fix-formatting"],
+}
+
+
+def main(argv: list[str]) -> int:
+    verbose = "--verbose" in argv or bool(os.environ.get("GITHUB_ACTIONS"))
+    args = [a for a in argv if not a.startswith("--")] or ["fast"]
+    by_name = {c.name: c for c in CHECKS}
+    names: list[str] = []
+    for a in args:
+        if a in PROFILES:
+            names += PROFILES[a]
+        elif a in by_name:
+            names.append(a)
+        else:
+            print(f"unknown profile or check '{a}'; profiles: {', '.join(PROFILES)}; checks: {', '.join(by_name)}")
+            return 2
+    failed: list[str] = []
+    timings: list[tuple[float, str]] = []
+    for name in dict.fromkeys(names):
+        c = by_name[name]
+        missing = [t for t in c.tools if shutil.which(t) is None]
+        if missing:
+            print(f"  skip  {name:<16} {', '.join(missing)} not installed")
+            continue
+        t0 = time.perf_counter()
+        r = c.run()
+        dt = time.perf_counter() - t0
+        timings.append((dt, name))
+        tag = "skip" if r.skipped else "ok" if r.ok else "FAIL"
+        print(f"  {tag:<5} {name:<16} {dt:5.2f}s  {c.description}")
+        if (not r.ok or verbose) and r.output:
+            print("\n".join("        " + ln for ln in r.output.splitlines()))
+        if not r.ok:
+            print(f"        hint: {c.hint}")
+            failed.append(name)
+    slow = [f"{n} {t:.1f}s" for t, n in sorted(timings, reverse=True) if t > 5.0]
+    if slow:
+        print(f"slow: {', '.join(slow)}")
+    print(f"preflight: {len(failed)} failed: {', '.join(failed)}" if failed else "preflight: all passed")
+    return 1 if failed else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

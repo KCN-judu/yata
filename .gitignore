@@ -1,0 +1,25 @@
+# OS and editor droppings
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Rust build output
+target/
+
+# Flutter build output; app/.gitignore from `flutter create` covers the rest
+app/.dart_tool/
+app/build/
+
+# Python glue lives only in scripts/ (ADR-0013); its bytecode cache is not source
+scripts/__pycache__/
+
+# Local research records, kept out of the public repository (ADR-0016)
+research/
+
+# Agent tooling and local working notes, never committed
+CLAUDE.md
+.claude/
+
+# The official game icons used during development: NetEase artwork, never committed (ADR-0017)
+local-assets/
