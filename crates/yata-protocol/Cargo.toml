@@ -1,0 +1,11 @@
+[package]
+name = "yata-protocol"
+description = "Yata's wire: the frame codec and the protocol message types, shared with yata-reader"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lints]
+workspace = true

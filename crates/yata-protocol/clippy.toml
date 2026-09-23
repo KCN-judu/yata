@@ -1,0 +1,26 @@
+# A pure crate performs no effect (ADR-0001, ADR-0005): these entry points are lint errors here.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+disallowed-methods = [
+  { path = "std::time::SystemTime::now", reason = "the core reads no clock (ADR-0001)" },
+  { path = "std::time::Instant::now", reason = "the core reads no clock (ADR-0001)" },
+  { path = "std::thread::spawn", reason = "the core spawns nothing (ADR-0001)" },
+  { path = "std::env::var", reason = "the core reads no environment (ADR-0001)" },
+  { path = "std::env::var_os", reason = "the core reads no environment (ADR-0001)" },
+  { path = "std::env::vars", reason = "the core reads no environment (ADR-0001)" },
+  { path = "std::env::args", reason = "the core reads no environment (ADR-0001)" },
+  { path = "std::fs::read", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::fs::read_to_string", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::fs::write", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::io::stdin", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::io::stdout", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::io::stderr", reason = "the core performs no I/O (ADR-0001)" },
+]
+disallowed-types = [
+  { path = "std::fs::File", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::fs::OpenOptions", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::net::TcpStream", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::net::TcpListener", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::net::UdpSocket", reason = "the core performs no I/O (ADR-0001)" },
+  { path = "std::process::Command", reason = "the core spawns nothing (ADR-0001)" },
+]

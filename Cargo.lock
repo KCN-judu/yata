@@ -312,5 +312,9 @@ dependencies = [
 ]
 
 [[package]]
+name = "yata-protocol"
+version = "0.1.0"
+
+[[package]]
 name = "yata-store"
 version = "0.1.0"

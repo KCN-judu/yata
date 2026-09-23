@@ -61,6 +61,17 @@ SQLite file under a directory whose name has Chinese characters and a space
 | a file that is not a database is refused and left untouched          | `a_foreign_file_is_refused_and_left_untouched`  |
 | an empty file is initialized only on request                         | `an_empty_file_is_initialized_only_on_request`  |
 
+## Frame codec — `yata-protocol`
+
+| Claim in [core-protocol.md](../spec/core-protocol.md), § Frame | Test in `frame::tests`                                    |
+| -------------------------------------------------------------- | --------------------------------------------------------- |
+| the prefix is the payload length, big-endian, excluding itself | `the_prefix_is_the_payload_length_big_endian`             |
+| an empty payload or a zero prefix is a protocol error          | `an_empty_payload_is_not_a_message`                       |
+| the maximum is 16 MiB, inclusive                               | `the_maximum_is_sixteen_mebibytes_inclusive`              |
+| an oversized prefix is rejected before its bytes are awaited   | `an_oversized_prefix_is_rejected_before_its_bytes_arrive` |
+| frames arriving in pieces decode whole and in order            | `frames_arriving_in_pieces_decode_whole_and_in_order`     |
+| a recording cut inside a frame is truncated, not ended         | `a_recording_cut_inside_a_frame_is_truncated_not_ended`   |
+
 ## Not covered
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
