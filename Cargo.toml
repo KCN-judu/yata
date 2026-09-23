@@ -15,6 +15,9 @@ yata-core = { path = "crates/yata-core" }
 yata-protocol = { path = "crates/yata-protocol" }
 yata-store = { path = "crates/yata-store" }
 getrandom = "0.4"
+prost = "0.14"
+prost-build = "0.14"
+protox = "0.9"
 # SQLite built in, so every platform runs the same version (ADR-0019)
 rusqlite = { version = "0.40", features = ["bundled"] }
 

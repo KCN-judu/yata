@@ -72,6 +72,13 @@ SQLite file under a directory whose name has Chinese characters and a space
 | frames arriving in pieces decode whole and in order            | `frames_arriving_in_pieces_decode_whole_and_in_order`     |
 | a recording cut inside a frame is truncated, not ended         | `a_recording_cut_inside_a_frame_is_truncated_not_ended`   |
 
+## Probe schema — `yata-protocol`
+
+| Claim                                                              | Test in `tests` (crate root)                   |
+| ------------------------------------------------------------------ | ---------------------------------------------- |
+| a probe message survives encoding, framing, and decoding unchanged | `a_probe_message_survives_a_frame`             |
+| an unrecorded roll count is distinct from zero rolls on the wire   | `an_absent_roll_count_differs_from_zero_rolls` |
+
 ## Not covered
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not

@@ -48,7 +48,10 @@ into the wrong field. The schema file marks retired numbers in a comment.
 
 ## Probe protocol — daemon ↔ `yata-reader`
 
-Schema: `docs/spec/probe-protocol.md`. Schema file: not yet written.
+Schema: `docs/spec/probe-protocol.md`. Schema file:
+`crates/yata-protocol/proto/probe.proto`, drafted 2026-09-24. Version 1 stays
+reserved until the reader's first recordings confirm or correct the soul record;
+it turns current when both sides build against the confirmed file.
 
 | Version | Status   | Date       | What it introduced                                                                          | Refused below |
 | ------- | -------- | ---------- | ------------------------------------------------------------------------------------------- | ------------- |
