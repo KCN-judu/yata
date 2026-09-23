@@ -135,6 +135,13 @@ Design questions with unknown answers. Close with `resolved` or `deferred`.
 - [issues/0006-soul-and-shikigami-icon-source.md](issues/0006-soul-and-shikigami-icon-source.md)
   — where soul and Shikigami icons come from; **resolved** by ADR-0017
 
+## Evidence — `evidence/`
+
+Which test backs which claim.
+
+- [evidence/testing.md](evidence/testing.md) — the test suites, and the tests
+  behind each implemented rule
+
 ## Guides — `guides/`
 
 How to work in this repository. Edited in place.

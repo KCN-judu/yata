@@ -12,8 +12,10 @@ predicates (双速, 拉满, 真 17 速) by these rules and by nothing else. A ca
 rules do not cover is a gap in this page, to be filled here; it is never settled
 in code.
 
-These rules describe the game. Their implementation in the core is _designed_,
-not _implemented_.
+These rules describe the game. They are _implemented_ in `yata-core`
+(`mechanics`), and every rule is _tested_; the tests are listed in
+[../evidence/testing.md](../evidence/testing.md). The roll and acquisition
+probabilities are implemented only as far as § Roll distribution states them.
 
 Each rule's source and evidence level is kept in
 `research/soul-mechanics-sources.md` (local research, not published). Where a
@@ -45,6 +47,13 @@ Max(a)    = 6 · hi(a)           the theoretical maximum of a at 6★
 Values are in the unit the game displays: points for `Spd` and the flat
 attributes, percentage points for the rest (`Crit` 2.4 means 2.4%). `S(a)` is
 always the stored value, never the displayed one (§ Display).
+
+**Comparing values.** The tables are exact decimals. A stored value arrives as a
+binary floating-point number, which cannot hold most decimals exactly. Every
+comparison between a stored value and a bound from the tables (`hits · lo`,
+`hits · hi`, `n` in `true`, `Max − 1`) therefore allows a tolerance of `10⁻⁶` in
+display units, in the direction that admits the value. The smallest step between
+table values is `0.1`, so no two distinct bounds are closer than the tolerance.
 
 A soul records sub-attributes and their values. Whether the game also records
 `c`, or only lets it be inferred, is open (§ Open); the rules below hold either
@@ -149,7 +158,7 @@ shared equally by its members:
 
 | Utility attributes among the three | `q(S)` | `q(S)⁵` | About one in |
 | ---------------------------------- | ------ | ------- | ------------ |
-| 0                                  | 0.2700 | 0.144%  | 697          |
+| 0                                  | 0.2700 | 0.143%  | 697          |
 | 1                                  | 0.2733 | 0.153%  | 655          |
 | 2                                  | 0.2767 | 0.162%  | 617          |
 | 3                                  | 0.2800 | 0.172%  | 581          |
