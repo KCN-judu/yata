@@ -17,13 +17,15 @@
   for a payload and writes a scannable QR code.
 - `yata-daemon scheme plans <code>` lists a code's kind and plans, marking open
   bits with `*`; the account is never printed.
-- `yata-daemon scheme retarget <code> <account-code> [<qr.png>]` gives a code
-  the account of another code, changing nothing else.
-- `yata-daemon scheme build <account-code> <plans.txt> [<qr.png>]` builds a
+- `yata-daemon scheme retarget <code> <header-code> [<qr.png>]` gives a code the
+  header segment of another code, changing nothing else.
+- `yata-daemon scheme build <header-code> <plans.txt> [<qr.png>]` builds a
   strengthening set from a plan file (`name | souls | solved filter bits` per
-  line) for that account. Open bits cannot be written.
-- `yata-daemon scheme build-discard <account-code> <plans.txt> [<qr.png>]`
-  builds a discard code of every plan in a plan file; each must name its souls.
+  line) with that segment. Open bits cannot be written.
+- `yata-daemon scheme build-discard <header-code> <plans.txt> [<qr.png>]` builds
+  a discard code of every plan in a plan file; each must name its souls.
+- Every `<header-code>` may be `const`: the code carries the constant header
+  segment, which any user can import (ADR-0022).
 
 ## Compatibility and migration
 

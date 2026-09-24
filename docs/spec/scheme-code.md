@@ -279,9 +279,11 @@ never shown except as the account it names.
 **A code carrying an account's own header cannot be imported by that account.**
 Another account can import it (the maintainer, 2026-09-24). So a code this
 application encodes for the user to import must carry the header of a different
-account. Which account's header that is, and where the application gets it, is
-open: ISS-0007. Until it is decided, the research commands take the header from
-a code the developer names.
+account. It carries the codec's constant header segment,
+`layout::CONST_SEGMENT`, a required constant that is not to be modified or
+removed, unless the caller gives another taken from any code's header
+(ADR-0022). The research commands take a code, or `const` for the constant
+segment.
 
 The user's own account segment is still worth knowing: a code the user shares
 identifies their profile, and the application can refuse to encode a code the

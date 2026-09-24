@@ -8,7 +8,9 @@ use std::process::ExitCode;
 
 use yata_core::scheme::RawSchemePayload;
 use yata_core::scheme::inspect::diff;
-use yata_core::scheme::layout::{SchemeKind, SchemeLayout, header_of, parse, serialize};
+use yata_core::scheme::layout::{
+    AccountSegment, CONST_SEGMENT, SchemeKind, SchemeLayout, header_of, parse, serialize,
+};
 use yata_core::scheme::transport;
 use yata_daemon::qr;
 use yata_daemon::scheme::{
@@ -25,14 +27,15 @@ commands:
   scheme decode <code> <payload.bin>      write a scheme code's payload to a file
   scheme encode <payload.bin> [<qr.png>]  print the scheme text for a payload; write its QR code
   scheme plans <code>                     list a code's kind and plans; `*` marks an open bit
-  scheme retarget <code> <account-code> [<qr.png>]
-                                          the same code carrying the account of <account-code>
-  scheme build <account-code> <plans.txt> [<qr.png>]
-                                          a strengthening set from a plan file, for that account
-  scheme build-discard <account-code> <plans.txt> [<qr.png>]
+  scheme retarget <code> <header-code> [<qr.png>]
+                                          the same code carrying the header segment of <header-code>
+  scheme build <header-code> <plans.txt> [<qr.png>]
+                                          a strengthening set from a plan file, with that segment
+  scheme build-discard <header-code> <plans.txt> [<qr.png>]
                                           a discard code of every plan in a plan file
 
 A <code> is a PNG image holding one QR code, or a text file holding the Base64 text.
+A <header-code> is a <code>, or `const` for the constant header segment (ADR-0022).
 A plan file has one plan per line: name | souls (all, or soul bits) | solved filter bits.";
 
 /// Pixels per module of a written QR code: large enough to scan from a screen.
@@ -101,23 +104,23 @@ fn encode(payload_path: &Path, png: Option<&Path>) -> ExitCode {
     }
 }
 
-/// `<code>` with the account of `<account-code>`: the plans byte for byte, the header's account
+/// `<code>` with the header segment of `<header-code>`: the plans byte for byte, the segment
 /// replaced.
-fn retarget(code: &Path, account_code: &Path, png: Option<&Path>) -> ExitCode {
+fn retarget(code: &Path, header_code: &Path, png: Option<&Path>) -> ExitCode {
     let layout = read_code(code)
         .map_err(|e| format!("{e:?}"))
         .and_then(|p| parse(&p).map_err(|e| format!("{e:?}")));
-    let account = account_of(account_code);
-    match (layout, account) {
-        (Ok(layout), Ok(account)) => write_layout(&layout.with_account(account), png),
+    let segment = segment_of(header_code);
+    match (layout, segment) {
+        (Ok(layout), Ok(segment)) => write_layout(&layout.with_account(segment), png),
         (Err(e), _) | (_, Err(e)) => fail(e),
     }
 }
 
-/// A scheme built from a plan file, carrying the account of `<account-code>`: a strengthening
+/// A scheme built from a plan file, carrying the header segment of `<header-code>`: a strengthening
 /// set, or a discard code, of every plan in the file.
-fn build(account_code: &Path, plans: &Path, png: Option<&Path>, kind: SchemeKind) -> ExitCode {
-    let account = match account_of(account_code) {
+fn build(header_code: &Path, plans: &Path, png: Option<&Path>, kind: SchemeKind) -> ExitCode {
+    let segment = match segment_of(header_code) {
         Ok(a) => a,
         Err(e) => return fail(e),
     };
@@ -125,9 +128,9 @@ fn build(account_code: &Path, plans: &Path, png: Option<&Path>, kind: SchemeKind
         .map_err(|e| format!("{}: {e}", plans.display()))
         .and_then(|text| parse_plan_file(&text).map_err(|e| format!("{e:?}")));
     let layout = records.and_then(|records| match kind {
-        SchemeKind::Strengthening => Ok(SchemeLayout::strengthening(account, records)),
+        SchemeKind::Strengthening => Ok(SchemeLayout::strengthening(segment, records)),
         SchemeKind::Discard => {
-            SchemeLayout::discard(account, records).map_err(|e| format!("{e:?}"))
+            SchemeLayout::discard(segment, records).map_err(|e| format!("{e:?}"))
         }
     });
     match layout {
@@ -136,7 +139,11 @@ fn build(account_code: &Path, plans: &Path, png: Option<&Path>, kind: SchemeKind
     }
 }
 
-fn account_of(code: &Path) -> Result<yata_core::scheme::layout::AccountSegment, String> {
+/// The header segment named by `<header-code>`: the segment of a code's header, or the constant.
+fn segment_of(code: &Path) -> Result<AccountSegment, String> {
+    if code.as_os_str() == "const" {
+        return Ok(AccountSegment::from_bytes(CONST_SEGMENT));
+    }
     read_code(code)
         .map_err(|e| format!("{e:?}"))
         .and_then(|p| header_of(&p).map_err(|e| format!("{e:?}")))

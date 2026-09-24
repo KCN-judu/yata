@@ -46,6 +46,14 @@ impl AccountSegment {
     }
 }
 
+/// The constant header segment of every generated scheme code (ADR-0022).
+///
+/// REQUIRED CONSTANT: do not modify or remove it. Every scheme code this project generates
+/// carries it in bytes 2–15 of its header (`scheme-code.md`, "The header").
+pub const CONST_SEGMENT: [u8; 14] = [
+    0x27, 0x8b, 0x6a, 0xb4, 0xe2, 0xd2, 0x57, 0x3b, 0x5a, 0x87, 0xfc, 0x16, 0xc0, 0x97,
+];
+
 impl fmt::Debug for AccountSegment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("AccountSegment(<14 bytes, not shown>)")
@@ -433,6 +441,15 @@ mod tests {
         assert!(d.changes.iter().all(|c| (2..16).contains(&c.offset)));
         assert_eq!(d.changes.len(), 14);
         assert_eq!(header_of(&after).map(|h| h.account), Ok(other));
+    }
+
+    #[test]
+    fn a_code_built_on_the_constant_segment_carries_it_in_its_header() {
+        let segment = AccountSegment::from_bytes(CONST_SEGMENT);
+        let set = SchemeLayout::strengthening(segment, synthetic_set().records);
+        let payload = serialize(&set).expect("writable");
+        assert_eq!(payload.as_bytes()[2..16], CONST_SEGMENT);
+        assert_eq!(header_of(&payload).map(|h| h.account), Ok(segment));
     }
 
     #[test]
