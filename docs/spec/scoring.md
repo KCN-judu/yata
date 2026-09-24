@@ -36,13 +36,13 @@ a score without its parameter set is not a value this system produces.
 A `ParamSet` carries an identity, a version, and everything the three functions
 read:
 
-| Field           | Meaning                                                                                                                                   |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`            | a stable identifier for this set (`legacy-compatible`, `speed-farming`, …)                                                                |
-| `version`       | bumped whenever any weight or floor in the set changes                                                                                    |
-| `quality_model` | the pass-1 model and its parameters: `yata-quality-v1`, whose catalogue, anchors, and thresholds are [quality-model.md](quality-model.md) |
-| `need_profiles` | the profiles `fit` and `match` score against                                                                                              |
-| `quality_floor` | the pass-1 threshold below which `match` will not consider a soul, per need                                                               |
+| Field           | Meaning                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | a stable identifier for this set (`legacy-compatible`, `speed-farming`, …)                                                                  |
+| `version`       | bumped whenever any weight or floor in the set changes                                                                                      |
+| `quality_model` | the pass-1 model and its parameters: `yata-quality-v1.1`, whose catalogue, anchors, and thresholds are [quality-model.md](quality-model.md) |
+| `need_profiles` | the profiles `fit` and `match` score against                                                                                                |
+| `quality_floor` | the pass-1 threshold below which `match` will not consider a soul, per need                                                                 |
 
 Two results are **comparable** only if produced by an equal `(id, version)`. The
 system never merges results across parameter versions, and never displays a
@@ -165,8 +165,8 @@ distinct from `Inventory` (a fact).
 
 ## Worked example
 
-The shape of the inversion, with arbitrary numbers rather than `yata-quality-v1`
-scores, for the test suite to instantiate:
+The shape of the inversion, with arbitrary numbers rather than
+`yata-quality-v1.1` scores, for the test suite to instantiate:
 
 ```text
 soul A   slot 6, Crit DMG main, sub: Crit +18, Atk% +5, Def +30, HP +100
