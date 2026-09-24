@@ -24,7 +24,7 @@ directions, because nothing in the game's format has that shape.
 
 ```text
 SchemeCode =
-    Discard(DiscardScheme)
+    Discard([DiscardScheme])             // one or more, in code order
   | Strengthening(StrengtheningSchemeSet)
 
 DiscardScheme {
@@ -35,7 +35,6 @@ DiscardScheme {
 
 StrengtheningSchemeSet {
   plans     : [StrengtheningPlan]      // in code order
-  preserved : Preserved
 }
 
 StrengtheningPlan {
@@ -44,6 +43,13 @@ StrengtheningPlan {
   preserved : Preserved
 }
 ```
+
+A discard code holds one or more discard schemes back to back: the game exported
+one with two on 2026-09-24. The header (account and kind) belongs to the layout,
+not to the model; encoding is given the account to write.
+
+The model is implemented in `yata-core::scheme`: `code` holds the containers,
+`selection` the selection and its codec, `evaluate` the verdict.
 
 ### The game's panel
 
@@ -103,7 +109,17 @@ until the discard editor is shown to have the same choice.
 **`SoulSet` identity is the game's suit code**, the id every soul record
 carries. The scheme bit and the UI order are both mappings from it, recorded in
 `research/scheme-code-protocol.md`; the codec converts suit code to scheme bit,
-and the UI presents sets in ascending suit code.
+and the UI presents sets in ascending suit code. A suit code with no scheme bit
+is an encode error. The evidence has two links of different strength: which soul
+each scheme bit selects is confirmed by import for all 70 bits, but the suit
+code of each soul comes from the prior tool, a hypothesis until a reader
+recording re-establishes it (ADR-0014).
+
+**One table places every value.** `yata-core::scheme::mapping` is the only code
+that knows a bit position: the soul-mask bit of each suit code, and the filter
+bit of each slot, star, main attribute, sub-attribute ○ and ✕, count, level
+band, and innate attribute. The selection codec and the research tool's bit
+editor both read it; nothing above it sees a bit.
 
 **Every field of the editor is in the model.** A "rescue count" (救几次) seen in
 some plan names is not an editor option: the maintainer confirmed on 2026-09-24
@@ -112,52 +128,96 @@ above) is preserved, never modelled.
 
 ### Preserved
 
-`Preserved` is everything the codec read and does not understand: header bytes,
-framing, and every filter bit marked ◇ or ?. It is opaque to every layer but the
-codec. Two facts about it are exposed:
+`Preserved` is what a record held that the selection does not: its soul mask and
+filter as read, whose unmapped bits (soul bits 70 and above, filter bits 61 and
+above) and field lengths the codec writes back. Two preserved values are equal
+when they hold the same unmapped bits. It is opaque to every layer but the
+codec. One fact about it is exposed:
 
-- `has_unknown_conditions: bool` — whether any preserved filter bit is set, i.e.
-  whether the scheme selects on something the model cannot see
+- `has_unknown_conditions: bool` — whether any unmapped bit is set, i.e. whether
+  the scheme selects on something the model cannot see
 - nothing else; the UI never renders preserved content
+
+**Writing a selection over a record** sets every mapped bit to the selection's
+value and touches nothing else: unmapped bits stay, a field keeps its length,
+and grows only for a set bit beyond its end. So a record decoded and written
+back with no edit is the same bytes, and an edit to one group changes only that
+group's bits. A selection with nothing preserved is trimmed to its highest set
+bit, as the game writes one.
+
+**Records the model refuses.** A record with both ○ and ✕ set for one attribute
+has no selection: the editor cannot show it. A discard record with an empty soul
+mask has none either: the strengthening editor writes "all souls" that way, and
+what it means in a discard scheme is open. On encode, `AnySet` in a discard
+scheme, `Sets` of nothing, an unmapped suit code, a star outside 1–6, and a plan
+name the game refuses on import are errors.
 
 ## Evaluation
 
 ```text
-matches : (SoulSelection, Soul) -> bool
+matches : (SoulSelection, Soul) -> Verdict
+
+Verdict  = Matches | DoesNotMatch | Undetermined([OpenRule])
+OpenRule = EmptyGroup(Group) | SeveralIncludes | SubCount | Innate
+         | UnknownConditions
 ```
 
-A total, pure function in `yata-core` (ADR-0001), and the only place a scheme's
-meaning is computed. The Flutter layer never evaluates a scheme; a query that
-filters by scheme calls this function (`query.md`, `MatchesScheme`).
+A total, pure function in `yata-core::scheme::evaluate` (ADR-0001), and the only
+place a scheme's meaning is computed. It evaluates the game's filter and nothing
+else: no score, no affinity, no UI or store state, no header. The Flutter layer
+never evaluates a scheme; a query that filters by scheme calls this function
+(`query.md`, `MatchesScheme`).
 
-A soul matches when every group matches. The per-group rules:
+**The verdict says what the evidence decides.** `Matches` and `DoesNotMatch` are
+the game's own answer. `Undetermined` means that no decided rule rules the soul
+out and the answer rests on the open rules it names. A plain boolean would hide
+that difference, and a caller would show a guess as the game's selection.
 
-| Group                                         | A soul matches when                        | Mark |
-| --------------------------------------------- | ------------------------------------------ | ---- |
-| `sets`                                        | `AnySet`, or its set is in the chosen sets | ✓    |
-| `slots`, `stars`, `main_attributes`, `levels` | its value is in the chosen set             | ✓    |
-| a group with nothing chosen                   | ? — see below                              | ?    |
-| `sub_attributes`, `Include`                   | ? — see below                              | ?    |
-| `sub_attributes`, `Exclude`                   | it does not have that sub-attribute        | ◎    |
+Groups combine by AND (◎, the panel's design; every experiment below also checks
+it): a soul is picked only when every group picks it. So one decided group that
+rules a soul out makes the verdict `DoesNotMatch`, whatever the open rules would
+say. The per-group rules:
 
-Three semantic questions are open, and `matches` cannot be written until the
-game answers them:
+| Group                                                 | A soul passes when                                             | Mark |
+| ----------------------------------------------------- | -------------------------------------------------------------- | ---- |
+| `sets`                                                | `AnySet`, or its set is in the chosen sets                     | ✓    |
+| `slots`, `stars`, `main_attributes`, `levels`         | its value is in the chosen set; a level above 15 is in no band | ✓    |
+| `sub_attributes`, `Exclude`                           | it does not have that sub-attribute                            | ◎    |
+| `sub_attributes`, `Include`, with `sub_counts` empty  | it has every included attribute; with none of them it fails    | ✓    |
+| a group with nothing chosen                           | ? — question 1                                                 | ?    |
+| `sub_attributes`, `Include`, some but not all present | ? — question 2                                                 | ?    |
+| `sub_counts`, alone or with `Include`                 | ? — question 3                                                 | ?    |
+| `innate`                                              | ? — a `Soul` does not carry its innate attribute yet           | ?    |
+
+The ✓ for includes holds because both readings of question 2 agree there: a soul
+with every included attribute passes under AND and under OR, and one with none
+fails under both.
+
+Three semantic questions are open. They are about the game's behaviour, not
+about bytes, and are settled by filtering souls in the game and observing which
+it picks. The experiments are kept in local research
+(`research/experiments/2026-09-24-filter-semantics/`, not published).
 
 1. **An empty group.** Whether ticking nothing in a group means "no constraint"
-   or "match nothing".
+   or "match nothing". Until it is answered almost every verdict is
+   `Undetermined`, since most schemes leave 固有属性 or 数量 empty.
 2. **Several includes.** Whether `Include` on two sub-attributes requires both
    (AND) or either (OR).
-3. **Include and a count condition together**, once the sub-attribute count
-   field is solved.
+3. **What 数量 counts**: all of a soul's sub-attributes, or only the included
+   ones ("legs" in the community's sense), and so how it combines with
+   `Include`.
 
-These are questions about the game's behaviour, not about bytes; they are
-settled by applying a scheme in the game and observing which souls it picks.
+**`innate` waits on the soul model.** The reader records a soul's innate
+attribute where present (`probe-protocol.md`), but `Soul` does not hold it until
+its meaning for non-boss souls is established; a chosen innate attribute gives
+`Undetermined(Innate)`.
 
-**A scheme with unknown conditions is evaluated partially.** When
-`has_unknown_conditions` is true, `matches` evaluates the known groups only,
-which selects a superset of what the game would select. Every result derived
-from such a scheme carries that fact, and the UI says so; it is never presented
-as the game's own selection.
+**A scheme with unknown conditions is never exact.** When
+`has_unknown_conditions` is true, a plan's or discard scheme's verdict is never
+`Matches`: what would be `Matches` is `Undetermined(UnknownConditions)`. A
+decided `DoesNotMatch` stands, since an unknown condition can only narrow the
+selection further. Every result derived from such a scheme carries that fact,
+and the UI says so; it is never presented as the game's own selection.
 
 ## Codec
 
@@ -292,7 +352,8 @@ user could not import.
 ## Open questions
 
 - whether the game's import accepts Base64 text as well as a QR code
-- the three evaluation questions above
+- the three evaluation questions above, and a soul's innate attribute
+- the suit code of each soul, to be re-established by a reader recording
 
 ## Related
 

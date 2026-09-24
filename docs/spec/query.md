@@ -152,7 +152,9 @@ and is presented as the advanced filter.
 scheme is a strengthening scheme set. When the scheme has unknown conditions,
 the result is a superset of the game's selection, and the page says so. A query
 never re-implements a scheme's condition logic as an `Expr`; it asks the one
-evaluator that exists.
+evaluator that exists. `matches` gives a three-way verdict (`scheme-code.md`,
+"Evaluation"); how a query treats an `Undetermined` soul is decided with the
+query evaluator.
 
 ## Sort
 
