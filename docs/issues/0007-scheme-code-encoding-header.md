@@ -1,9 +1,9 @@
 ---
 id: ISS-0007
-state: open
+state: resolved
 area: domain
 opened: 2026-09-24
-resolved-by: []
+resolved-by: [ADR-0022]
 related: [ADR-0009, ADR-0016]
 ---
 
@@ -35,8 +35,8 @@ and, if bundled, publishes.
 
 ## Candidate answers
 
-1. **A constant segment.** The application ships one fixed header segment.
-   Every user can import the codes.
+1. **A constant segment.** The application ships one fixed header segment. Every
+   user can import the codes.
 2. **A header the user supplies.** The user shares any code exported by another
    account (a friend's, a community code), and the application keeps its header
    for encoding. Nothing is bundled, but the user holds another player's account
@@ -48,3 +48,9 @@ and, if bundled, publishes.
 
 The maintainer's choice among the candidates. For candidate 1, a segment to
 ship.
+
+## Resolution
+
+Resolved 2026-09-24 by
+[ADR-0022](../decisions/0022-constant-scheme-code-segment.md): candidate 3. A
+generated code carries the constant segment unless the caller gives another.

@@ -111,6 +111,9 @@ rewrite.
   repository
 - [decisions/0021-conventional-commits.md](decisions/0021-conventional-commits.md)
   — commit messages follow Conventional Commits 1.0.0, in every Yata repository
+- [decisions/0022-constant-scheme-code-segment.md](decisions/0022-constant-scheme-code-segment.md)
+  — a generated scheme code carries a constant header segment by default; a
+  caller may give another
 
 ## Proposals — `proposals/`
 
@@ -141,7 +144,7 @@ Design questions with unknown answers. Close with `resolved` or `deferred`.
   — where soul and Shikigami icons come from; **resolved** by ADR-0017
 - [issues/0007-scheme-code-encoding-header.md](issues/0007-scheme-code-encoding-header.md)
   — which account's header a generated scheme code carries, since a code with
-  the importer's own header is refused; **open**
+  the importer's own header is refused; **resolved** by ADR-0022
 
 ## Evidence — `evidence/`
 
