@@ -6,3 +6,6 @@ research/
 local-assets/
 .claude/
 **/node_modules/
+# Chinese manuscripts: Prettier would wrap CJK prose, and a wrap inside inline math can start a
+# line with "=" and turn a paragraph into a heading. They keep one paragraph per line.
+papers/**/*.zh.md

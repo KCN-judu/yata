@@ -89,3 +89,15 @@ standard's structural claims hold for all souls, not a sample.
 five gigabytes of cached build. The `formal` CI job downloads that cache. A
 definition changed in the spec must be changed in the Lean files and in the
 calibration program in the same change, or preflight fails.
+
+## Amendment 2026-09-25
+
+Papers are built as KCN-judu/BDL_FV builds its papers: Markdown through Pandoc
+to Typst, then to PDF, by `scripts/build_papers.py` (`just papers`). The
+generated Typst bodies and the PDFs are committed, and a third check,
+`papers-current`, fails when a body is stale; it is in the `full` and
+`formal-ci` profiles and is skipped on a host without Pandoc. A paper explains
+one version: when the standard moves to a new version, the paper of the old one
+is kept, frozen, and the new version gets its own. Frozen papers move to
+`papers/archive/`; the v1.1 paper that ADR-0024 and ADR-0025 cite is there
+(`papers/README.md`).

@@ -20,6 +20,10 @@ check:
 fmt:
     {{python}} scripts/preflight.py fix
 
+# REWRITES FILES: the papers' Typst bodies and PDFs, with Pandoc and Typst (papers/README.md)
+papers:
+    {{python}} scripts/build_papers.py
+
 # one named check or profile
 run +names:
     {{python}} scripts/preflight.py {{names}}

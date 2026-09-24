@@ -54,7 +54,11 @@ SQL_CALL = re.compile(r"\.(execute|execute_batch|prepare|prepare_cached|query_ro
 # ADR-0023: the quality standard's formal artifacts, and the documents holding generated numbers.
 LEAN_DIR = "formal/lean"
 CALIBRATION = "formal/calibration/Cargo.toml"
-QUALITY_DOCS = ("docs/spec/quality-model.md", "papers/quality-model-v1/paper.md")
+QUALITY_DOCS = (
+    "docs/spec/quality-model.md",
+    "papers/quality-model-v2/paper.md",
+    "papers/quality-model-v2/paper.zh.md",
+)
 
 # ADR-0017: the SVG profile of committed icons.
 ICON_ROOT = "app/assets/icons/"
@@ -303,6 +307,11 @@ def quality_calibration() -> Result:
     return Result(all(s.ok for s in steps), "\n".join(s.output for s in steps if not s.ok and s.output))
 
 
+def papers_current() -> Result:
+    """Every paper's generated Typst body matches its Markdown source (ADR-0023)."""
+    return _run([sys.executable, "scripts/build_papers.py", "--check"])
+
+
 def crate_graph() -> Result:
     """Every crate is classed; no pure crate depends on an effectful one; lints are inherited."""
     if not _has_rust():
@@ -455,6 +464,7 @@ CHECKS = [
         (),
         "cargo run --manifest-path formal/calibration/Cargo.toml --release -- render <documents>",
     ),
+    Check("papers-current", "every paper's Typst body matches its source", papers_current, (), "just papers"),
     Check("fix-formatting", "MUTATES: runs every formatter", fix_formatting, (), "fix what the formatters report"),
 ]
 STRUCTURE = [
@@ -472,7 +482,7 @@ PYTHON = ["python-lint", "python-types"]
 RUST_FAST = ["rust-format", "crate-graph", "rust-check"]
 RUST_FULL = ["rust-format", "crate-graph", "rust-clippy", "rust-test"]
 FLUTTER = ["dart-format", "flutter-analyze", "flutter-test"]
-FORMAL = ["lean-build", "quality-calibration"]
+FORMAL = ["lean-build", "quality-calibration", "papers-current"]
 PROFILES = {
     "fast": STRUCTURE + DOCS + PYTHON + RUST_FAST + ["dart-format", "flutter-analyze"],
     "full": STRUCTURE + DOCS + PYTHON + RUST_FULL + FLUTTER + FORMAL,
