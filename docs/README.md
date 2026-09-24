@@ -208,6 +208,8 @@ What changed for someone. Append-only; one fragment per change.
   — Quality Model v1 defined, proved, and calibrated; not yet implemented
 - [changes/unreleased/2026-09-quality-model-v1-1.md](changes/unreleased/2026-09-quality-model-v1-1.md)
   — Quality Model v1.1: the SSR edge moves to one perfect line
+- [changes/unreleased/2026-09-innate-attribute.md](changes/unreleased/2026-09-innate-attribute.md)
+  — a soul carries its innate attribute, and 固有属性 is evaluated
 
 ## Outside `docs/`
 
