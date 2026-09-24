@@ -12,7 +12,8 @@ the definitions.
 
 Nothing on this page is _implemented_. The functions are _designed_: the
 signatures and the comparability rules below are what the implementation must
-satisfy, and the weights and profiles are not yet authored.
+satisfy. Pass 1 is defined exactly by [quality-model.md](quality-model.md); pass
+2's need profiles are not yet authored.
 
 ## The three functions
 
@@ -35,15 +36,13 @@ a score without its parameter set is not a value this system produces.
 A `ParamSet` carries an identity, a version, and everything the three functions
 read:
 
-| Field               | Meaning                                                                                                                                                                                                  |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`                | a stable identifier for this set (`legacy-compatible`, `speed-farming`, …)                                                                                                                               |
-| `version`           | bumped whenever any weight or floor in the set changes                                                                                                                                                   |
-| `attribute_weights` | per `SoulAttribute`, the weight used by `quality`                                                                                                                                                        |
-| `roll_reference`    | per `SoulAttribute`, what a maximum-strength roll contributes — the denominator that turns an absolute value into a fraction of reachable; the sourced ranges are in [soul-mechanics](soul-mechanics.md) |
-| `concentration`     | how `quality` trades breadth against depth (see below)                                                                                                                                                   |
-| `need_profiles`     | the profiles `fit` and `match` score against                                                                                                                                                             |
-| `quality_floor`     | the pass-1 threshold below which `match` will not consider a soul, per need                                                                                                                              |
+| Field           | Meaning                                                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | a stable identifier for this set (`legacy-compatible`, `speed-farming`, …)                                                                |
+| `version`       | bumped whenever any weight or floor in the set changes                                                                                    |
+| `quality_model` | the pass-1 model and its parameters: `yata-quality-v1`, whose catalogue, anchors, and thresholds are [quality-model.md](quality-model.md) |
+| `need_profiles` | the profiles `fit` and `match` score against                                                                                              |
+| `quality_floor` | the pass-1 threshold below which `match` will not consider a soul, per need                                                               |
 
 Two results are **comparable** only if produced by an equal `(id, version)`. The
 system never merges results across parameter versions, and never displays a
@@ -57,45 +56,32 @@ to bother" is a property of a need, not of a soul.
 ## Pass 1 — `QualityScore`
 
 Answers: _is this Soul good in itself, with no holder in mind?_ The input
-contains no Shikigami.
+contains no Shikigami. The exact definition is
+[quality-model.md](quality-model.md) (ADR-0024); this section states only what
+pass 2 relies on.
 
-| Field           | Meaning                                                                                                                 |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `total`         | the single comparable number, 0–100, for sorting and thresholds                                                         |
-| `by_attribute`  | contribution of each `SoulAttribute` to `total`, for explanation                                                        |
-| `depth`         | how much of `total` comes from the strongest one or two sub-attributes                                                  |
-| `breadth`       | how much comes from a spread across all of them                                                                         |
-| `slot_fit`      | whether the main attribute is one the soul's slot can even roll, and how valuable that main attribute is under `params` |
-| `roll_headroom` | for an unstrengthened Soul, how much value is plausibly still reachable                                                 |
-| `flags`         | structural facts: `four_sub_attributes`, `max_roll_on`, `set_incomplete`, …                                             |
+| Field       | Meaning                                                                                         |
+| ----------- | ----------------------------------------------------------------------------------------------- |
+| `total`     | 0–100, the single comparable number, for sorting and thresholds                                 |
+| `tier`      | N, R, SR, SSR, SP or UR                                                                         |
+| `archetype` | the best-fit archetype of the published catalogue, and the score under every accepted archetype |
+| `depth`     | the deepest useful line against its attainable maximum; explanatory                             |
+| `breadth`   | how many useful lines carry the utility; explanatory                                            |
+| `slot_fit`  | which archetypes accept the soul's main attribute                                               |
+| `growth`    | below +15, the score of the expected +15 soul                                                   |
 
-Three definitions this page fixes because they are the ones the legacy model got
-wrong:
+What pass 2 may rely on:
 
-**Raw contribution is relative, not absolute.** An attribute's contribution is
-its value divided by the maximum a single roll of that attribute can produce
-(`roll_reference`), weighted. Without this, HP flat (which rolls in the
-hundreds) dominates Crit (which rolls in single digits) in a weighted sum, and
-the total becomes a measure of how much HP a soul has. The legacy model had this
-defect and it is the reason its scores did not track user intuition.
-
-**`depth` and `breadth` are reported separately, never averaged into `total`.**
-A soul with four sub-attributes at +3 each and a soul with one at +18 and three
-at +0 are different objects with different futures, and which is better depends
-on the holder. Reporting both and letting pass 2 decide is the whole point of
-having two passes; collapsing them into one number in pass 1 is the legacy
-averaging failure at a smaller scale.
-
-**`slot_fit` is a fact about the slot, not a preference.** Slot 2 is the only
-slot that can roll SPD as a main attribute; Slot 6 is the only one that can roll
-Crit or Crit DMG. An `Spd` main on Slot 4 is not a low-quality speed head — it
-cannot exist, and if the decoder produced it, that is a decode bug. `slot_fit`
-states the legal combinations (`glossary.md#soul-slot-main-attribute-rules`) and
-penalizes only the legal-but-weak ones.
-
-`total` is a monotone function of `by_attribute` and the concentration
-parameters. Its exact formula is an implementation choice within this shape, not
-an architectural one.
+- **Values are relative to a roll, not absolute.** A sub-attribute counts as its
+  value over its largest single increment, so HP flat, which rolls in the
+  hundreds, does not outweigh Crit. The legacy model had this defect.
+- **`depth` and `breadth` explain `total`; they are never added into it.** Which
+  shape is better depends on the holder, and that is pass 2's question.
+- **The main attribute gates, it does not score.** `slot_fit` states which
+  archetypes can use the main attribute. A main attribute illegal for its slot
+  is a decode error, never a low score.
+- **`total` is monotone.** A soul no worse on every useful sub-attribute never
+  scores lower, and never takes a lower tier.
 
 ## Pass 2 — `NeedProfile` and `AffinityScore`
 
@@ -179,8 +165,8 @@ distinct from `Inventory` (a fact).
 
 ## Worked example
 
-The shape of the inversion, with arbitrary numbers, for the test suite to
-instantiate:
+The shape of the inversion, with arbitrary numbers rather than `yata-quality-v1`
+scores, for the test suite to instantiate:
 
 ```text
 soul A   slot 6, Crit DMG main, sub: Crit +18, Atk% +5, Def +30, HP +100
@@ -217,11 +203,10 @@ because a score the user cannot interpret is worse than no score:
 
 ## Not decided here
 
-- the numeric weights, and the minimum evidence for changing them
+- the minimum evidence for changing the quality model's parameters
 - how `derived` need profiles are computed from the game's damage model
 - how `authored` profiles are created, reviewed, and versioned
 - the matching algorithm and its complexity bound
-- the `total` formula within the shape fixed above
 
 Each is a future entry on this page or a decision record, not an architectural
 gap.
