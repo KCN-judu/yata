@@ -36,13 +36,13 @@ a score without its parameter set is not a value this system produces.
 A `ParamSet` carries an identity, a version, and everything the three functions
 read:
 
-| Field           | Meaning                                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`            | a stable identifier for this set (`legacy-compatible`, `speed-farming`, …)                                                                  |
-| `version`       | bumped whenever any weight or floor in the set changes                                                                                      |
-| `quality_model` | the pass-1 model and its parameters: `yata-quality-v1.1`, whose catalogue, anchors, and thresholds are [quality-model.md](quality-model.md) |
-| `need_profiles` | the profiles `fit` and `match` score against                                                                                                |
-| `quality_floor` | the pass-1 threshold below which `match` will not consider a soul, per need                                                                 |
+| Field           | Meaning                                                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | a stable identifier for this set (`legacy-compatible`, `speed-farming`, …)                                                                |
+| `version`       | bumped whenever any weight or floor in the set changes                                                                                    |
+| `quality_model` | the pass-1 model and its parameters: `yata-quality-v2`, whose catalogue, anchors, and thresholds are [quality-model.md](quality-model.md) |
+| `need_profiles` | the profiles `fit` and `match` score against                                                                                              |
+| `quality_floor` | the pass-1 threshold below which `match` will not consider a soul, per need                                                               |
 
 Two results are **comparable** only if produced by an equal `(id, version)`. The
 system never merges results across parameter versions, and never displays a
@@ -57,18 +57,18 @@ to bother" is a property of a need, not of a soul.
 
 Answers: _is this Soul good in itself, with no holder in mind?_ The input
 contains no Shikigami. The exact definition is
-[quality-model.md](quality-model.md) (ADR-0024); this section states only what
-pass 2 relies on.
+[quality-model.md](quality-model.md) (ADR-0024, ADR-0027); this section states
+only what pass 2 relies on.
 
-| Field       | Meaning                                                                                         |
-| ----------- | ----------------------------------------------------------------------------------------------- |
-| `total`     | 0–100, the single comparable number, for sorting and thresholds                                 |
-| `tier`      | N, R, SR, SSR, SP or UR                                                                         |
-| `archetype` | the best-fit archetype of the published catalogue, and the score under every accepted archetype |
-| `depth`     | the deepest useful line against its attainable maximum; explanatory                             |
-| `breadth`   | how many useful lines carry the utility; explanatory                                            |
-| `slot_fit`  | which archetypes accept the soul's main attribute                                               |
-| `growth`    | below +15, the score of the expected +15 soul                                                   |
+| Field       | Meaning                                                                                          |
+| ----------- | ------------------------------------------------------------------------------------------------ |
+| `total`     | 0–100, the single comparable number, for sorting and thresholds                                  |
+| `tier`      | N, R, SR, SSR, SP or UR                                                                          |
+| `archetype` | the best-fit archetype of the published catalogue, and the score under every candidate archetype |
+| `depth`     | the deepest useful line against its attainable maximum; explanatory                              |
+| `breadth`   | how many useful lines carry the utility; explanatory                                             |
+| `slot_fit`  | which archetypes accept the soul's main attribute, and which of them are eligible                |
+| `growth`    | below +15, the score of the expected +15 soul                                                    |
 
 What pass 2 may rely on:
 
@@ -80,6 +80,10 @@ What pass 2 may rely on:
 - **The main attribute gates, it does not score.** `slot_fit` states which
   archetypes can use the main attribute. A main attribute illegal for its slot
   is a decode error, never a low score.
+- **A soul may be unrated.** A slot 4 EffectRes soul whose Speed is below the
+  `speed` gate has no candidate archetype; its `QualityScore` is absent, not 0.
+  How a need's `quality_floor` treats an absent score is an open question of
+  pass 2.
 - **`total` is monotone.** A soul no worse on every useful sub-attribute never
   scores lower, and never takes a lower tier.
 
@@ -165,8 +169,8 @@ distinct from `Inventory` (a fact).
 
 ## Worked example
 
-The shape of the inversion, with arbitrary numbers rather than
-`yata-quality-v1.1` scores, for the test suite to instantiate:
+The shape of the inversion, with arbitrary numbers rather than `yata-quality-v2`
+scores, for the test suite to instantiate:
 
 ```text
 soul A   slot 6, Crit DMG main, sub: Crit +18, Atk% +5, Def +30, HP +100
