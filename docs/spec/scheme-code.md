@@ -226,18 +226,16 @@ boss soul is chosen, as it enables 主属性 only once a slot is):
   not counted.
 
 So the innate attribute is not a sub-attribute, and `Soul` holds it apart from
-`subs`, as `innate`. **Extrapolated** from ○: 副属性 X ✕ does not see it either.
+`subs`, in its kind: `SoulKind::Ordinary`, or `SoulKind::Boss` with the innate
+attribute (ADR-0029). **Extrapolated** from ○: 副属性 X ✕ does not see it
+either.
 
-`Soul::innate` is `Absent`, `Present(attribute)`, or `Unknown`. Two cases stay
-`Undetermined(Innate)`:
-
-- the soul's innate attribute is `Unknown`. No reader recording yet shows how a
-  reading carries it, so decode maps a missing field to `Unknown`, never to
-  `Absent`, until one does (`probe-protocol.md`);
-- a boss soul whose own set is not chosen (`AnySet`) and whose innate attribute
-  is not chosen. The editor cannot write a chosen innate attribute there, so the
-  game's reading of one is not observed; a chosen attribute picks the soul
-  either way.
+There is no unknown kind: a reading that cannot tell which a soul is, is refused
+before it becomes a soul (ADR-0029). One case stays `Undetermined(Innate)`: a
+boss soul whose own set is not chosen (`AnySet`, or no set) and whose innate
+attribute is not chosen. The editor cannot write a chosen innate attribute
+there, so the game's reading of one is not observed; a chosen attribute picks
+the soul either way.
 
 An empty 固有属性 is no constraint, like any empty group.
 

@@ -231,7 +231,8 @@ recognised the objects as souls. The rules for the daemon:
   export, and never raised by the daemon. Only the reader, after a recorded
   experiment, moves a field from inherited to established.
 - A field that is mapped and absent from a record means the record lacks it: for
-  `innate`, a soul without an innate attribute.
+  `innate`, an ordinary soul. A record whose `innate` is not mapped cannot be a
+  row, because nothing then says whether it is a boss soul (ADR-0029).
 
 ### Observed records
 

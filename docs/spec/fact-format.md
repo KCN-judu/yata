@@ -229,13 +229,14 @@ levels, which fail differently:
   `import.malformed_reading`.
 - **A record that cannot be a row is kept and reported.** A row needs its set,
   slot, star, level, main attribute, and sub-attributes, each established by the
-  reading and present on the record; then the premises of W-Soul that need no
-  code table (`soul-mechanics.md`: star, level, at most four sub-attributes, no
-  attribute twice, finite non-negative values, recorded rolls within the nodes
-  reached). The innate attribute and the lock and discard flags are carried as
-  read. A record that fails is not a row (`query.md`) and is listed with the
-  import and the inventory. The blob keeps it as read; nothing is guessed or
-  repaired.
+  reading and present on the record, and its innate attribute established,
+  present or not, because it decides whether the soul is a boss soul (ADR-0029);
+  then the premises of W-Soul that need no code table (`soul-mechanics.md`:
+  star, level, at most four sub-attributes, no attribute twice, finite
+  non-negative values, recorded rolls within the nodes reached). The lock and
+  discard flags are carried as read. A record that fails is not a row
+  (`query.md`) and is listed with the import and the inventory. The blob keeps
+  it as read; nothing is guessed or repaired.
 
 Until the reader establishes these fields, every real reading is refused at the
 first level. That is the intended state: the store holds no soul whose identity
