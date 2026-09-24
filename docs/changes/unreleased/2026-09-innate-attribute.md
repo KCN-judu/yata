@@ -14,8 +14,9 @@
   passes, and a boss soul passes exactly when its innate attribute is chosen.
 - `OpenRule::Innate` remains, only for an `Unknown` innate attribute and for a
   boss soul under `AnySet` whose innate attribute is not chosen.
-- Several innate choices together are membership, extrapolated
-  (`scheme-code.md`, "Evaluation").
+- Several innate choices together pick a boss soul carrying any of them,
+  and 数量 does not count the innate attribute; both observed (`scheme-code.md`,
+  "Evaluation").
 
 ## Compatibility and migration
 
