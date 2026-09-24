@@ -138,6 +138,9 @@ rewrite.
 - [decisions/0028-pass-2-affinity-contract.md](decisions/0028-pass-2-affinity-contract.md)
   — pass 2 evaluates one soul, one loadout, and one swap; hard requirements gate
   and never score; set use only adds keep suggestions
+- [decisions/0029-ordinary-or-boss-soul.md](decisions/0029-ordinary-or-boss-soul.md)
+  — a soul is ordinary or a boss soul with its innate attribute; a reading that
+  cannot tell is bad data
 
 ## Proposals — `proposals/`
 
