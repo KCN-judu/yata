@@ -1,12 +1,17 @@
 //! Yata's wire, shared by the daemon and `yata-reader` (ADR-0004, ADR-0006).
 //!
 //! - [`frame`]: the one frame codec both channels use, as `core-protocol.md`, § Frame states it.
-//! - [`probe`]: the probe protocol's messages, generated from `proto/probe.proto`.
+//! - [`probe`]: the probe protocol's messages, generated from `proto/probe.proto`, with their
+//!   proto3 JSON mapping, the error codes, and the reader's exit codes.
+//! - [`discipline`]: the request discipline, one state machine both peers run.
+//! - [`export`]: the export file, a `ProbeExport` in proto3 JSON (ADR-0008).
 //!
 //! The crate is pure and depends on no workspace crate, so the reader can depend on it without
 //! compiling the domain (ADR-0005, trigger 3). It moves bytes between frames and payloads and
 //! does no I/O: the daemon and the reader read and write the pipes, and feed the bytes here.
 
+pub mod discipline;
+pub mod export;
 pub mod frame;
 
 /// The probe protocol (`probe-protocol.md`), generated from `proto/probe.proto` at build time.
@@ -17,9 +22,63 @@ pub mod frame;
 )]
 pub mod probe {
     include!(concat!(env!("OUT_DIR"), "/yata.probe.v1.rs"));
+    include!(concat!(env!("OUT_DIR"), "/yata.probe.v1.serde.rs"));
 
     /// The probe protocol version this build speaks (`protocol-versions.md`).
     pub const VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
+
+    /// Whether a peer's or a file's version is read by this build: the same major, any minor
+    /// (`protocol-versions.md`, "Compatibility rule").
+    pub fn accepts(version: ProtocolVersion) -> bool {
+        version.major == VERSION.major
+    }
+
+    /// The stable `probe.` error codes (`probe-protocol.md`, "Error codes").
+    pub mod code {
+        /// No running process matched the reader's discovery rules, or the chosen pid.
+        pub const NOT_FOUND: &str = "probe.not_found";
+        /// More than one process matched; the candidates are in the error.
+        pub const AMBIGUOUS_TARGET: &str = "probe.ambiguous_target";
+        /// The game is elevated and the reader is not: restart the reader elevated.
+        pub const ELEVATION_REQUIRED: &str = "probe.elevation_required";
+        /// The reader is elevated and still may not read the game.
+        pub const ACCESS_DENIED: &str = "probe.access_denied";
+        /// The process exited while the reader held it, or between discovery and opening it.
+        pub const PROCESS_EXITED: &str = "probe.process_exited";
+        /// The host or the target is one the reader has no read strategy for.
+        pub const UNSUPPORTED_ENVIRONMENT: &str = "probe.unsupported_environment";
+        /// The target's memory does not have the layout the reader expects: a changed or
+        /// unknown game build.
+        pub const LAYOUT_MISMATCH: &str = "probe.layout_mismatch";
+        /// A request was abandoned at the daemon's `Cancel`.
+        pub const CANCELLED: &str = "probe.cancelled";
+        /// The peer speaks a protocol major version this build does not.
+        pub const PROTOCOL_UNSUPPORTED: &str = "probe.protocol_unsupported";
+        /// The peer broke the request discipline or sent an undecodable frame.
+        pub const PROTOCOL_ERROR: &str = "probe.protocol_error";
+        /// A request for a scope the reader does not read.
+        pub const SCOPE_UNSUPPORTED: &str = "probe.scope_unsupported";
+        /// A request arrived before the reader attached to a game.
+        pub const NOT_ATTACHED: &str = "probe.not_attached";
+        /// A failure inside the reader, with the reason in its log file.
+        pub const INTERNAL: &str = "probe.internal";
+    }
+
+    /// The reader's process exit codes (`probe-protocol.md`, "Frame").
+    pub mod exit {
+        /// Clean shutdown, requested by the daemon.
+        pub const CLEAN: u8 = 0;
+        /// Could not attach: the game was not found, was ambiguous, exited, or refused access.
+        pub const NOT_ATTACHED: u8 = 1;
+        /// The target was found but no read strategy matched it.
+        pub const NO_STRATEGY: u8 = 2;
+        /// The daemon sent a frame the reader could not decode, or broke the discipline.
+        pub const PROTOCOL: u8 = 3;
+        /// An internal failure, with the reason in the reader's log file.
+        pub const INTERNAL: u8 = 4;
+        /// The game is elevated and the reader is not.
+        pub const ELEVATION_REQUIRED: u8 = 5;
+    }
 }
 
 #[cfg(test)]
@@ -35,11 +94,11 @@ mod tests {
     #[test]
     fn a_probe_message_survives_a_frame() {
         let soul = SoulRecord {
-            soul_id: "a1".into(),
-            suit_code: 30,
-            star: 6,
-            slot: 2,
-            level: 15,
+            soul_id: Some("a1".into()),
+            suit_code: Some(30),
+            star: Some(6),
+            slot: Some(2),
+            level: Some(15),
             main: Some(AttributeValue {
                 attribute_code: 7,
                 value: 57.0,
@@ -50,8 +109,9 @@ mod tests {
                 roll_count: None,
             }],
             innate: None,
-            locked: true,
-            discarded: false,
+            locked: Some(true),
+            discarded: Some(false),
+            observed: None,
         };
         let message = ProbeMessage {
             kind: Some(Kind::ReadResult(ReadResult {

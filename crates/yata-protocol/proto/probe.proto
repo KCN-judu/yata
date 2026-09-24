@@ -6,8 +6,10 @@
 // existing tag is never allowed. Every field is public, because the export file is this schema
 // in proto3 JSON.
 //
-// The soul record is a first draft from the project's documented hypotheses about the game's
-// records. The reader's first recordings confirm or correct it before version 1 is current.
+// Version 1 is still reserved: the soul record's typed fields are filled only as far as the
+// reader's layout is known, and each carries its evidence (FieldEvidence). What the reader saw
+// travels verbatim beside them (ObservedRecord), so a recording made today can be re-read when
+// more of the layout is known.
 
 syntax = "proto3";
 
@@ -60,6 +62,9 @@ message Handshake {
   ProtocolVersion version = 1;
   // The engine the daemon believes is running; empty if it has no belief.
   string expected_engine = 2;
+  // The process to read, chosen by the user after an ambiguous discovery; 0 lets the reader
+  // choose by its own discovery rules.
+  uint32 target_pid = 3;
 }
 
 message HandshakeAck {
@@ -69,6 +74,24 @@ message HandshakeAck {
   // Moves with the reader's own code, independently of the protocol version.
   string probe_build_id = 3;
   Channel channel = 4;
+  // The process the reader attached to.
+  TargetProcess target = 5;
+}
+
+// A process the reader considered or attached to. Only what diagnosis needs: never a path, which
+// can carry the user's name.
+message TargetProcess {
+  uint32 pid = 1;
+  // The executable's file name, such as the one the reader's discovery rules match.
+  string image_name = 2;
+  // 0 when not known.
+  uint32 parent_pid = 3;
+  // The Windows session the process runs in; 0 when not known.
+  uint32 session_id = 4;
+  // Pointer width of the process: 32 or 64; 0 when not known.
+  uint32 pointer_bits = 5;
+  // Creation time in Unix milliseconds, which tells two runs of one pid apart; 0 when not known.
+  uint64 created_unix_ms = 6;
 }
 
 // Request ids are chosen by the daemon, start at 1, are unique within the session, and are
@@ -94,11 +117,16 @@ message Progress {
   uint64 total = 3;
 }
 
-// Codes are stable and `probe.`-prefixed; the message is English and never parsed.
+// Codes are stable and `probe.`-prefixed (probe-protocol.md, "Error codes"); the message is
+// English and never parsed.
 message ProbeError {
   string code = 1;
   string message = 2;
   bytes details = 3;
+  // For `probe.ambiguous_target` and `probe.not_found`: the processes discovery considered.
+  repeated TargetProcess candidates = 4;
+  // The operating system's error number behind the failure; 0 when there is none.
+  uint32 os_error = 5;
 }
 
 message Failed {
@@ -130,30 +158,70 @@ message ReadResult {
   oneof records {
     SoulRecords souls = 10;
   }
+  // How the reader knows the layout behind each typed field it fills (probe-protocol.md,
+  // "Evidence"). A typed field with no entry here is never filled.
+  repeated FieldEvidence field_evidence = 5;
+  // What the read covered, for diagnosing a partial or empty result.
+  ReadStats stats = 6;
+}
+
+// How a layout mapping is known. The reader states it; the daemon never raises it.
+enum Evidence {
+  EVIDENCE_UNSPECIFIED = 0;
+  // A hypothesis taken from the prior tool (ADR-0014), not yet re-established by this
+  // project's own recordings.
+  EVIDENCE_INHERITED = 1;
+  // Re-established by this project's own recording or single-variable test in the game, cited
+  // in `basis`.
+  EVIDENCE_ESTABLISHED = 2;
+}
+
+message FieldEvidence {
+  // The typed field, by its name in this schema, such as `SoulRecord.soul_id`. A message name
+  // alone, such as `SoulRecord`, names the rule that recognises an object as that record.
+  string field = 1;
+  Evidence evidence = 2;
+  // Where the evidence is recorded: an experiment or a recording, by name.
+  string basis = 3;
+}
+
+message ReadStats {
+  // Memory regions examined, and how many of them could not be read.
+  uint64 regions_scanned = 1;
+  uint64 regions_unreadable = 2;
+  uint64 bytes_scanned = 3;
+  // Objects that matched a record's recognition rule but failed a layout check, and were left
+  // out of the result.
+  uint64 candidates_rejected = 4;
 }
 
 message SoulRecords {
   repeated SoulRecord souls = 1;
 }
 
-// One soul, as the game stores it. Nothing is interpreted: codes are the game's codes and
-// values are the game's stored values, in the game's units. Mapping them to the domain is
-// decode, in yata-core.
+// One soul, as the game stores it. Nothing is interpreted: codes are the game's codes and values
+// are the game's stored values, in the game's units. Mapping them to the domain is decode, in
+// yata-core.
+//
+// A typed field is set only when the reader's layout maps it, with the evidence stated in
+// ReadResult.field_evidence; unset means not mapped, never zero or false.
 message SoulRecord {
   // The game's identifier for this soul.
-  string soul_id = 1;
+  optional string soul_id = 1;
   // The soul set, by the game's suit code.
-  uint32 suit_code = 2;
-  uint32 star = 3;
+  optional uint32 suit_code = 2;
+  optional uint32 star = 3;
   // The game's slot number.
-  uint32 slot = 4;
-  uint32 level = 5;
+  optional uint32 slot = 4;
+  optional uint32 level = 5;
   AttributeValue main = 6;
   repeated SubAttributeValue subs = 7;
   // Present only on souls that carry a fixed extra attribute.
   optional AttributeValue innate = 8;
-  bool locked = 9;
-  bool discarded = 10;
+  optional bool locked = 9;
+  optional bool discarded = 10;
+  // What the reader saw, verbatim, whether or not a typed field maps it.
+  ObservedRecord observed = 11;
 }
 
 message AttributeValue {
@@ -169,6 +237,81 @@ message SubAttributeValue {
   optional uint32 roll_count = 3;
 }
 
+// A record as the game's runtime holds it, before any field is mapped: every entry, in the
+// runtime's own order, with the runtime's own value kinds. Unknown entries stay here unmapped.
+message ObservedRecord {
+  // The runtime's name for the record object's type.
+  string type_name = 1;
+  // The key the record is stored under in the container that holds it; unset when the reader
+  // did not find a container.
+  RawValue container_key = 2;
+  repeated RawEntry entries = 3;
+}
+
+message RawEntry {
+  RawValue key = 1;
+  RawValue value = 2;
+}
+
+// One value as the runtime holds it. The reader decodes only the kinds below; anything else is
+// `unread`, with the runtime's type name.
+message RawValue {
+  oneof kind {
+    RawNull null = 1;
+    bool boolean = 2;
+    sint64 integer = 3;
+    double float = 4;
+    string text = 5;
+    RawSequence sequence = 6;
+    RawMapping mapping = 7;
+    RawUnread unread = 8;
+  }
+}
+
+message RawNull {}
+
+enum SequenceKind {
+  SEQUENCE_KIND_UNSPECIFIED = 0;
+  // Mutable.
+  SEQUENCE_KIND_LIST = 1;
+  // Immutable.
+  SEQUENCE_KIND_TUPLE = 2;
+}
+
+message RawSequence {
+  SequenceKind kind = 1;
+  repeated RawValue items = 2;
+  // The reader's item limit cut the sequence; `length` is its true length.
+  bool truncated = 3;
+  uint64 length = 4;
+}
+
+message RawMapping {
+  repeated RawEntry entries = 1;
+  // The reader's entry limit cut the mapping; `length` is its true length.
+  bool truncated = 2;
+  uint64 length = 3;
+}
+
+enum UnreadReason {
+  UNREAD_REASON_UNSPECIFIED = 0;
+  // A value kind the reader does not decode.
+  UNREAD_REASON_UNKNOWN_KIND = 1;
+  // Nested deeper than the reader's depth limit.
+  UNREAD_REASON_DEPTH_LIMIT = 2;
+  // Its memory could not be read.
+  UNREAD_REASON_UNREADABLE = 3;
+  // It failed a layout check: a length, a pointer, or an encoding out of range.
+  UNREAD_REASON_MALFORMED = 4;
+  // An integer outside the signed 64-bit range.
+  UNREAD_REASON_OUT_OF_RANGE = 5;
+}
+
+message RawUnread {
+  string type_name = 1;
+  UnreadReason reason = 2;
+}
+
 // A reading written to a file by the reader's export mode (ADR-0008), in proto3 JSON.
 message ProbeExport {
   ProtocolVersion protocol_version = 1;
@@ -176,4 +319,8 @@ message ProbeExport {
   string engine = 3;
   Channel channel = 4;
   repeated ReadResult results = 5;
+  // When the reading was taken, as RFC 3339 in UTC.
+  string captured_at = 6;
+  // The process read.
+  TargetProcess target = 7;
 }
