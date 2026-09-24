@@ -18,8 +18,8 @@ use super::mapping::{
 
 /// The souls a scheme picks, group by group, as the game's panel shows them.
 ///
-/// An empty group is a value like any other: whether the game reads it as "no constraint" or as
-/// "nothing" is open (`scheme-code.md`, "Evaluation"), so the selection keeps it as chosen.
+/// An empty group is kept as chosen, not filled in: the game reads it as no constraint
+/// (`scheme-code.md`, "Evaluation"), but writes it as nothing chosen.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SoulSelection {
     /// 类型.
@@ -181,6 +181,18 @@ impl SubCount {
         SubCount::Three,
         SubCount::Four,
     ];
+
+    /// The choice a soul with `subs` sub-attributes falls in, by the editor's labels; `None`
+    /// above four.
+    pub fn of(subs: usize) -> Option<SubCount> {
+        match subs {
+            0 | 1 => Some(SubCount::FewerThanTwo),
+            2 => Some(SubCount::Two),
+            3 => Some(SubCount::Three),
+            4 => Some(SubCount::Four),
+            _ => None,
+        }
+    }
 }
 
 /// What a record holds beyond its selection: its soul mask and filter as read. The semantic codec
@@ -527,6 +539,21 @@ mod tests {
             let innate = InnateAttribute::new(a);
             assert_eq!(innate.is_some(), six.contains(&a), "{a:?}");
             assert_eq!(innate.map(InnateAttribute::attribute).unwrap_or(a), a);
+        }
+    }
+
+    #[test]
+    fn sub_counts_follow_the_editor_labels() {
+        let expected = [
+            (0, Some(SubCount::FewerThanTwo)),
+            (1, Some(SubCount::FewerThanTwo)),
+            (2, Some(SubCount::Two)),
+            (3, Some(SubCount::Three)),
+            (4, Some(SubCount::Four)),
+            (5, None),
+        ];
+        for (subs, count) in expected {
+            assert_eq!(SubCount::of(subs), count, "{subs}");
         }
     }
 

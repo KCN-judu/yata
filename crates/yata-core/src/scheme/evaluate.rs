@@ -5,22 +5,22 @@
 //! does not guess; it makes the verdict [`Verdict::Undetermined`] and names the open rule, unless
 //! another group already rules the soul out.
 //!
-//! What is decided, and on what:
+//! The rules, from the game's filter experiments of 2026-09-24 (`scheme-code.md`):
 //!
-//! - groups combine by AND: a soul is picked only if every group picks it (`scheme-code.md`)
-//! - 类型, 位置, 星级, 等级, 主属性 with something chosen: the soul's value is among the choices ✓
-//! - `AnySet` picks every soul ✓
-//! - 副属性 ✕: a soul with that sub-attribute is not picked ◎
-//! - 副属性 ○, with 数量 empty: a soul with every included attribute passes, and one with none of
-//!   them fails, under either reading of several includes (AND or OR); anything between is open
+//! - groups combine by AND: a soul is picked only if every group picks it
+//! - a group with nothing chosen is no constraint (observed for 等级, 数量 and a disabled
+//!   固有属性; extrapolated to the others)
+//! - 类型, 位置, 星级, 等级, 主属性: the soul's value is among the choices; `AnySet` picks every soul
+//! - 副属性 ○: the soul has every included attribute; ✕: it has none of the excluded ones
+//! - 数量: the soul's number of sub-attributes, all of them, is among the choices
 //!
-//! Open, each an [`OpenRule`]: an empty group; several includes (AND or OR); 数量, alone or with
-//! includes; 固有属性, which a [`Soul`] does not carry yet; and a condition the model cannot see.
+//! Open, each an [`OpenRule`]: a chosen 固有属性, which a [`Soul`] does not carry yet; and a
+//! condition the model cannot see.
 
 use crate::soul::Soul;
 
 use super::code::{DiscardScheme, StrengtheningPlan};
-use super::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode};
+use super::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount};
 
 /// What the game's filter does with a soul.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -36,97 +36,45 @@ pub enum Verdict {
 /// A rule of the game's filter that the evidence does not settle yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum OpenRule {
-    /// Whether a group with nothing chosen is no constraint or picks nothing.
-    EmptyGroup(Group),
-    /// Whether several ○ require all of them (AND) or one (OR); open only for a soul with some
-    /// but not all of the included attributes.
-    SeveralIncludes,
-    /// What 数量 counts, alone and together with ○.
-    SubCount,
-    /// 固有属性: a soul's innate attribute is not in the domain model yet.
+    /// A chosen 固有属性: a soul's innate attribute is not in the domain model yet.
     Innate,
     /// The scheme selects on bits the model does not map.
     UnknownConditions,
 }
 
-/// A group of the game's panel, for naming an empty one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Group {
-    Sets,
-    Slots,
-    Stars,
-    Levels,
-    MainAttributes,
-    Innate,
-    SubCounts,
-}
-
 /// Whether the game's filter of `selection` picks `soul`, as far as the evidence decides.
 pub fn matches(selection: &SoulSelection, soul: &Soul) -> Verdict {
-    let mut open = Vec::new();
-    let mut fails = false;
-    let mut chosen = |group: Group, empty: bool, contains: bool| {
-        if empty {
-            open.push(OpenRule::EmptyGroup(group));
-        } else if !contains {
-            fails = true;
-        }
-    };
-    match &selection.sets {
-        SetChoice::AnySet => {}
-        SetChoice::Sets(sets) => chosen(Group::Sets, sets.is_empty(), sets.contains(&soul.set)),
-    }
     let s = selection;
-    chosen(
-        Group::Slots,
-        s.slots.is_empty(),
-        s.slots.contains(&soul.slot),
-    );
-    chosen(
-        Group::Stars,
-        s.stars.is_empty(),
-        s.stars.contains(&soul.star),
-    );
-    let band = LevelBand::of(soul.level);
-    chosen(
-        Group::Levels,
-        s.levels.is_empty(),
-        band.is_some_and(|b| s.levels.contains(&b)),
-    );
-    chosen(
-        Group::MainAttributes,
-        s.main_attributes.is_empty(),
-        s.main_attributes.contains(&soul.main),
-    );
-    if s.innate.is_empty() {
-        open.push(OpenRule::EmptyGroup(Group::Innate));
-    } else {
-        open.push(OpenRule::Innate);
-    }
+    // A group picks the soul when nothing is chosen in it, or when the soul's value is chosen.
+    let picks = |empty: bool, chosen: bool| empty || chosen;
+    let sets = match &s.sets {
+        SetChoice::AnySet => true,
+        SetChoice::Sets(sets) => picks(sets.is_empty(), sets.contains(&soul.set)),
+    };
     let has = |a| soul.sub(a).is_some();
-    if s.sub_attributes.with(SubAttributeMode::Exclude).any(has) {
-        fails = true;
-    }
-    let included: Vec<_> = s.sub_attributes.with(SubAttributeMode::Include).collect();
-    if s.sub_counts.is_empty() {
-        open.push(OpenRule::EmptyGroup(Group::SubCounts));
-        let present = included.iter().filter(|&&a| has(a)).count();
-        if !included.is_empty() && present == 0 {
-            fails = true;
-        } else if present < included.len() {
-            open.push(OpenRule::SeveralIncludes);
-        }
-    } else {
-        open.push(OpenRule::SubCount);
-    }
-    if fails {
+    let picked = sets
+        && picks(s.slots.is_empty(), s.slots.contains(&soul.slot))
+        && picks(s.stars.is_empty(), s.stars.contains(&soul.star))
+        && picks(
+            s.levels.is_empty(),
+            LevelBand::of(soul.level).is_some_and(|b| s.levels.contains(&b)),
+        )
+        && picks(
+            s.main_attributes.is_empty(),
+            s.main_attributes.contains(&soul.main),
+        )
+        && s.sub_attributes.with(SubAttributeMode::Include).all(has)
+        && !s.sub_attributes.with(SubAttributeMode::Exclude).any(has)
+        && picks(
+            s.sub_counts.is_empty(),
+            SubCount::of(soul.subs.len()).is_some_and(|c| s.sub_counts.contains(&c)),
+        );
+    if !picked {
         Verdict::DoesNotMatch
-    } else if open.is_empty() {
+    } else if s.innate.is_empty() {
         Verdict::Matches
     } else {
-        open.sort_unstable();
-        open.dedup();
-        Verdict::Undetermined(open)
+        Verdict::Undetermined(vec![OpenRule::Innate])
     }
 }
 
@@ -168,29 +116,35 @@ mod tests {
     use std::collections::BTreeSet;
 
     use super::super::layout::{Record, SchemeKind};
-    use super::super::selection::{InnateAttribute, SubCount, decode_selection};
+    use super::super::selection::{InnateAttribute, decode_selection};
     use super::*;
     use crate::soul::{SoulAttribute, SoulSet, SoulSlot, SubAttribute};
 
     use SoulAttribute::*;
 
-    /// 破势 (30), slot 2, 6★, +15, main Spd; subs Crit, CritDmg, AtkPercent.
-    fn soul() -> Soul {
+    /// A 破势 (30) soul with main attribute `Spd` and the given sub-attributes.
+    fn with_subs(slot: SoulSlot, star: u8, level: u8, subs: &[SoulAttribute]) -> Soul {
         Soul {
             set: SoulSet::from_suit_code(30),
-            slot: SoulSlot::Slot2,
-            star: 6,
-            level: 15,
+            slot,
+            star,
+            level,
             main: Spd,
             main_value: 57.0,
-            subs: [Crit, CritDmg, AtkPercent]
-                .map(|attribute| SubAttribute {
+            subs: subs
+                .iter()
+                .map(|&attribute| SubAttribute {
                     attribute,
                     value: 1.0,
                     enhancement_count: None,
                 })
-                .to_vec(),
+                .collect(),
         }
+    }
+
+    /// 破势, slot 2, 6★, +15, main Spd; subs Crit, CritDmg, AtkPercent.
+    fn soul() -> Soul {
+        with_subs(SoulSlot::Slot2, 6, 15, &[Crit, CritDmg, AtkPercent])
     }
 
     /// Every group chosen so that `soul()` passes it; 数量 and 固有属性 left empty.
@@ -206,22 +160,13 @@ mod tests {
         s
     }
 
-    fn open(rules: &[OpenRule]) -> Verdict {
-        Verdict::Undetermined(rules.to_vec())
-    }
-
-    const EMPTY_TAIL: [OpenRule; 2] = [
-        OpenRule::EmptyGroup(Group::Innate),
-        OpenRule::EmptyGroup(Group::SubCounts),
-    ];
-
     #[test]
-    fn a_soul_every_decided_group_picks_rests_on_the_open_rules_only() {
-        assert_eq!(matches(&passing(), &soul()), open(&EMPTY_TAIL));
+    fn a_soul_every_group_picks_matches() {
+        assert_eq!(matches(&passing(), &soul()), Verdict::Matches);
     }
 
     #[test]
-    fn each_decided_group_rules_a_soul_out() {
+    fn each_group_rules_a_soul_out() {
         let s = soul();
         let mut out = Vec::new();
         let mut sel = passing();
@@ -244,7 +189,9 @@ mod tests {
         out.push(sel);
         let mut sel = passing();
         sel.sub_attributes.set(EffectHit, SubAttributeMode::Include);
-        sel.sub_attributes.set(HpPercent, SubAttributeMode::Include);
+        out.push(sel);
+        let mut sel = passing();
+        sel.sub_counts = BTreeSet::from([SubCount::Four]);
         out.push(sel);
         for sel in out {
             assert_eq!(matches(&sel, &s), Verdict::DoesNotMatch, "{sel:?}");
@@ -252,71 +199,140 @@ mod tests {
     }
 
     #[test]
-    fn a_decided_failure_wins_over_every_open_rule() {
+    fn an_empty_group_is_no_constraint() {
+        let everything_empty = SoulSelection::new(SetChoice::Sets(BTreeSet::new()));
+        assert_eq!(matches(&everything_empty, &soul()), Verdict::Matches);
+        let mut beyond_every_band = soul();
+        beyond_every_band.level = 16;
+        let mut no_levels = passing();
+        no_levels.levels.clear();
+        assert_eq!(matches(&no_levels, &beyond_every_band), Verdict::Matches);
+    }
+
+    #[test]
+    fn several_includes_require_every_one() {
+        let mut both_present = passing();
+        both_present
+            .sub_attributes
+            .set(Crit, SubAttributeMode::Include);
+        both_present
+            .sub_attributes
+            .set(CritDmg, SubAttributeMode::Include);
+        assert_eq!(matches(&both_present, &soul()), Verdict::Matches);
+        let mut one_missing = passing();
+        one_missing
+            .sub_attributes
+            .set(Crit, SubAttributeMode::Include);
+        one_missing
+            .sub_attributes
+            .set(Spd, SubAttributeMode::Include);
+        assert_eq!(matches(&one_missing, &soul()), Verdict::DoesNotMatch);
+    }
+
+    #[test]
+    fn a_count_is_the_number_of_all_sub_attributes() {
+        let slot = SoulSlot::Slot2;
+        let by_count = [
+            (vec![], SubCount::FewerThanTwo),
+            (vec![Crit], SubCount::FewerThanTwo),
+            (vec![Crit, CritDmg], SubCount::Two),
+            (vec![Crit, CritDmg, AtkPercent], SubCount::Three),
+            (vec![Crit, CritDmg, AtkPercent, HpPercent], SubCount::Four),
+        ];
+        for (subs, count) in &by_count {
+            let s = with_subs(slot, 6, 15, subs);
+            for other in SubCount::ALL {
+                let mut sel = passing();
+                sel.sub_counts = BTreeSet::from([other]);
+                let expected = if other == *count {
+                    Verdict::Matches
+                } else {
+                    Verdict::DoesNotMatch
+                };
+                assert_eq!(matches(&sel, &s), expected, "{subs:?} {other:?}");
+            }
+        }
+        let mut several = passing();
+        several.sub_counts = BTreeSet::from([SubCount::Three, SubCount::Four]);
+        assert_eq!(matches(&several, &soul()), Verdict::Matches);
+        let five = with_subs(slot, 6, 15, &[Crit, CritDmg, AtkPercent, HpPercent, Spd]);
+        let mut any_count = passing();
+        any_count.sub_counts = SubCount::ALL.into_iter().collect();
+        assert_eq!(matches(&any_count, &five), Verdict::DoesNotMatch);
+    }
+
+    #[test]
+    fn the_filter_experiments_read_as_the_game_showed_them() {
+        // The five plans of the 2026-09-24 filter experiment (local research), over one pool:
+        // all souls, slot 1, 6★, every level, main AtkFlat; and the maintainer's observations.
+        let mut pool = SoulSelection::new(SetChoice::AnySet);
+        pool.slots = BTreeSet::from([SoulSlot::Slot1]);
+        pool.stars = BTreeSet::from([6]);
+        pool.levels = LevelBand::ALL.into_iter().collect();
+        pool.main_attributes = BTreeSet::from([AtkFlat]);
+        let mut empty_levels = pool.clone();
+        empty_levels.levels.clear();
+        let mut two_includes = pool.clone();
+        two_includes
+            .sub_attributes
+            .set(Spd, SubAttributeMode::Include);
+        two_includes
+            .sub_attributes
+            .set(Crit, SubAttributeMode::Include);
+        let mut includes_count = two_includes.clone();
+        includes_count.sub_counts = BTreeSet::from([SubCount::Two]);
+        let mut count_alone = pool.clone();
+        count_alone.sub_counts = BTreeSet::from([SubCount::Four]);
+
+        let slot1 = |level, subs: &[SoulAttribute]| Soul {
+            main: AtkFlat,
+            ..with_subs(SoulSlot::Slot1, 6, level, subs)
+        };
+        let both_four = slot1(15, &[Spd, Crit, CritDmg, AtkPercent]);
+        let spd_only = slot1(15, &[Spd, CritDmg, AtkPercent, HpPercent]);
+        let crit_only = slot1(15, &[Crit, CritDmg, AtkPercent, HpPercent]);
+        let neither_two = slot1(0, &[AtkPercent, DefPercent]);
+        let neither_three = slot1(0, &[AtkPercent, DefPercent, HpPercent]);
+        let all = [
+            &both_four,
+            &spd_only,
+            &crit_only,
+            &neither_two,
+            &neither_three,
+        ];
+        let picks = |sel: &SoulSelection, s: &Soul| matches(sel, s) == Verdict::Matches;
+
+        // 基础对照 picks the pool; 空组测试 picks the same souls.
+        for s in all {
+            assert!(picks(&pool, s));
+            assert!(picks(&empty_levels, s));
+        }
+        // 双含测试: only souls with both.
+        assert!(picks(&two_includes, &both_four));
+        assert!(!picks(&two_includes, &spd_only));
+        assert!(!picks(&two_includes, &crit_only));
+        // 数量测试: a soul with both and four sub-attributes is not picked.
+        assert!(!picks(&includes_count, &both_four));
+        // 数量无含: only souls with four sub-attributes.
+        assert!(picks(&count_alone, &both_four));
+        assert!(picks(&count_alone, &spd_only));
+        assert!(!picks(&count_alone, &neither_two));
+        assert!(!picks(&count_alone, &neither_three));
+    }
+
+    #[test]
+    fn a_decided_failure_wins_over_an_open_innate_choice() {
         let mut sel = SoulSelection::new(SetChoice::AnySet);
         sel.stars = BTreeSet::from([4]);
         sel.innate = BTreeSet::from([InnateAttribute::ALL[0]]);
-        sel.sub_counts = BTreeSet::from([SubCount::Four]);
         assert_eq!(matches(&sel, &soul()), Verdict::DoesNotMatch);
     }
 
     #[test]
-    fn any_set_picks_every_soul_and_is_not_an_empty_group() {
+    fn any_set_picks_every_soul() {
         let mut sel = passing();
         sel.sets = SetChoice::AnySet;
-        assert_eq!(matches(&sel, &soul()), open(&EMPTY_TAIL));
-    }
-
-    #[test]
-    fn empty_groups_are_open_and_named() {
-        let sel = SoulSelection::new(SetChoice::Sets(BTreeSet::new()));
-        assert_eq!(
-            matches(&sel, &soul()),
-            open(&[
-                OpenRule::EmptyGroup(Group::Sets),
-                OpenRule::EmptyGroup(Group::Slots),
-                OpenRule::EmptyGroup(Group::Stars),
-                OpenRule::EmptyGroup(Group::Levels),
-                OpenRule::EmptyGroup(Group::MainAttributes),
-                OpenRule::EmptyGroup(Group::Innate),
-                OpenRule::EmptyGroup(Group::SubCounts),
-            ])
-        );
-    }
-
-    #[test]
-    fn includes_are_decided_only_where_and_and_or_agree() {
-        let s = soul();
-        let mut both = passing();
-        both.sub_attributes.set(Crit, SubAttributeMode::Include);
-        both.sub_attributes.set(CritDmg, SubAttributeMode::Include);
-        assert_eq!(matches(&both, &s), open(&EMPTY_TAIL));
-        let mut one_of_two = passing();
-        one_of_two
-            .sub_attributes
-            .set(Crit, SubAttributeMode::Include);
-        one_of_two
-            .sub_attributes
-            .set(Spd, SubAttributeMode::Include);
-        assert_eq!(
-            matches(&one_of_two, &s),
-            open(&[
-                OpenRule::EmptyGroup(Group::Innate),
-                OpenRule::EmptyGroup(Group::SubCounts),
-                OpenRule::SeveralIncludes,
-            ])
-        );
-    }
-
-    #[test]
-    fn with_a_count_chosen_includes_are_not_decided() {
-        let mut sel = passing();
-        sel.sub_attributes.set(EffectHit, SubAttributeMode::Include);
-        sel.sub_counts = BTreeSet::from([SubCount::FewerThanTwo]);
-        assert_eq!(
-            matches(&sel, &soul()),
-            open(&[OpenRule::EmptyGroup(Group::Innate), OpenRule::SubCount])
-        );
+        assert_eq!(matches(&sel, &soul()), Verdict::Matches);
     }
 
     #[test]
@@ -325,7 +341,7 @@ mod tests {
         sel.innate = BTreeSet::from([InnateAttribute::ALL[5]]);
         assert_eq!(
             matches(&sel, &soul()),
-            open(&[OpenRule::EmptyGroup(Group::SubCounts), OpenRule::Innate])
+            Verdict::Undetermined(vec![OpenRule::Innate])
         );
     }
 
@@ -357,9 +373,11 @@ mod tests {
         let scheme = &schemes[0];
         assert!(scheme.has_unknown_conditions());
         assert_eq!(scheme.selection, selection);
-        let mut expected = EMPTY_TAIL.to_vec();
-        expected.push(OpenRule::UnknownConditions);
-        assert_eq!(scheme.matches(&soul()), Verdict::Undetermined(expected));
+        assert_eq!(matches(&selection, &soul()), Verdict::Matches);
+        assert_eq!(
+            scheme.matches(&soul()),
+            Verdict::Undetermined(vec![OpenRule::UnknownConditions])
+        );
         let mut other = soul();
         other.star = 5;
         assert_eq!(scheme.matches(&other), Verdict::DoesNotMatch);
