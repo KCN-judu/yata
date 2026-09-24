@@ -99,13 +99,13 @@ changed payload is a new version of the same kind (see "Reading old facts").
 
 ### Profile
 
-| Kind                   | Payload                                             | Meaning                                                                                                                             |
-| ---------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `ProfileCreated`       | display name, optional observed game account id     | a `GameProfile` exists from this commit on                                                                                          |
-| `ProfileRenamed`       | display name                                        |                                                                                                                                     |
-| `ProfileRetired`       | —                                                   | hidden from the UI; its facts remain and it can be restored by `ProfileRestored`                                                    |
-| `ProfileRestored`      | —                                                   |                                                                                                                                     |
-| `SchemeAccountLearned` | the 14-byte account segment of a scheme-code header | the profile's own header for encoding scheme codes, learned from a code the user shared (`scheme-code.md`); a later one replaces it |
+| Kind                   | Payload                                             | Meaning                                                                                                                                                                                                                            |
+| ---------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProfileCreated`       | display name, optional observed game account id     | a `GameProfile` exists from this commit on                                                                                                                                                                                         |
+| `ProfileRenamed`       | display name                                        |                                                                                                                                                                                                                                    |
+| `ProfileRetired`       | —                                                   | hidden from the UI; its facts remain and it can be restored by `ProfileRestored`                                                                                                                                                   |
+| `ProfileRestored`      | —                                                   |                                                                                                                                                                                                                                    |
+| `SchemeAccountLearned` | the 14-byte account segment of a scheme-code header | the profile's own account segment, learned from a code the user shared (`scheme-code.md`); identifies the profile's codes, and is never the header of a code encoded for the profile to import (ISS-0007); a later one replaces it |
 
 A profile is never deleted. `ProfileId` is a 128-bit id the daemon generates; it
 is not the game's account id, which a profile may or may not know.

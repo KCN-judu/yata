@@ -273,12 +273,16 @@ the scheme's kind. The game shows that account on import. The header is
 account-derived data: it stays on the user's machine, is never logged, and is
 never shown except as the account it names.
 
-**A code this application encodes carries the user's own header.** The
-application learns it from a scheme code the user shares with it — any code
-exported from their account — and keeps it with that game profile. Encoding for
-a profile with no known header asks the user to share a code first. The game has
-been observed to accept a header from another account, but the application does
-not rely on that.
+**A code carrying an account's own header cannot be imported by that account.**
+Another account can import it (the maintainer, 2026-09-24). So a code this
+application encodes for the user to import must carry the header of a different
+account. Which account's header that is, and where the application gets it, is
+open: ISS-0007. Until it is decided, the research commands take the header from
+a code the developer names.
+
+The user's own account segment is still worth knowing: a code the user shares
+identifies their profile, and the application can refuse to encode a code the
+user could not import.
 
 ## Open questions
 

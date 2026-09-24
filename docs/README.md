@@ -139,6 +139,9 @@ Design questions with unknown answers. Close with `resolved` or `deferred`.
   GitHub Pages from the main repository; timing and build **deferred**
 - [issues/0006-soul-and-shikigami-icon-source.md](issues/0006-soul-and-shikigami-icon-source.md)
   — where soul and Shikigami icons come from; **resolved** by ADR-0017
+- [issues/0007-scheme-code-encoding-header.md](issues/0007-scheme-code-encoding-header.md)
+  — which account's header a generated scheme code carries, since a code with
+  the importer's own header is refused; **open**
 
 ## Evidence — `evidence/`
 
