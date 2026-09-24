@@ -11,9 +11,13 @@
 //! - [`import`]: readings of the game as typed observations, and the evidence analyses over them.
 //! - [`mechanics`]: the inference rules of `docs/spec/soul-mechanics.md` — legality, roll-count
 //!   inference, the community predicates, and the roll distribution.
+//! - [`scheme`]: scheme codes, from their transport to `matches`, the game's filter.
+//! - [`query`]: typed queries over souls (`docs/spec/query.md`), checked once and run as a filter
+//!   and an order.
 
 pub mod fact;
 pub mod import;
 pub mod mechanics;
+pub mod query;
 pub mod scheme;
 pub mod soul;
