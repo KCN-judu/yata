@@ -25,6 +25,9 @@ Current truth about what the system means. Edited in place.
   its source
 - [spec/scoring.md](spec/scoring.md) — the three scoring functions, parameter
   set, QualityScore, AffinityScore, MatchingResult
+- [spec/quality-model.md](spec/quality-model.md) — the quality score of pass 1
+  exactly: archetypes, roll units, anchored normalization, tiers N to UR, test
+  vectors (`yata-quality-v1`)
 - [spec/feature-scope.md](spec/feature-scope.md) — what is in scope, what is
   cut, what is deferred, and why
 - [spec/core-protocol.md](spec/core-protocol.md) — the daemon ↔ Flutter wire:
@@ -114,6 +117,13 @@ rewrite.
 - [decisions/0022-constant-scheme-code-segment.md](decisions/0022-constant-scheme-code-segment.md)
   — a generated scheme code carries a constant header segment by default; a
   caller may give another
+- [decisions/0023-formal-verification-and-papers.md](decisions/0023-formal-verification-and-papers.md)
+  — a public scoring standard is proved in Lean (`formal/lean`), reproduced by a
+  calibration program (`formal/calibration`), and explained in a paper
+  (`papers/`), all outside the product
+- [decisions/0024-quality-model-v1.md](decisions/0024-quality-model-v1.md) —
+  Quality Model v1: six-star souls against equal-weight archetypes, anchored at
+  zero, the expected soul, and the attainable maximum
 
 ## Proposals — `proposals/`
 
@@ -188,6 +198,15 @@ What changed for someone. Append-only; one fragment per change.
   — preflight, formatting, and CI; the license
 - [changes/unreleased/2026-09-history-rewrite.md](changes/unreleased/2026-09-history-rewrite.md)
   — `main` rewritten to remove agent attribution; reset old clones
+- [changes/unreleased/2026-09-quality-model.md](changes/unreleased/2026-09-quality-model.md)
+  — Quality Model v1 defined, proved, and calibrated; not yet implemented
+
+## Outside `docs/`
+
+- `papers/quality-model-v1/paper.md` — the public paper explaining Quality Model
+  v1; explanatory, not normative (ADR-0023)
+- `formal/lean/` and `formal/calibration/` — the proofs and the program that
+  reproduces every number of the quality standard (ADR-0023)
 
 ## Local research — not published
 

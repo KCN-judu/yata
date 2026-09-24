@@ -146,6 +146,27 @@ On the one real code in the local corpus (a 30-plan strengthening set, 1 102
 bytes), the payload round-trips and survives the QR loop. The text this encoder
 produces differs from the game's, as § Transport allows.
 
+## Quality model — `formal/`
+
+Pass 1 is not implemented in `yata-core`; its definition is checked by proofs
+and by the calibration program (ADR-0023). Every Lean theorem below builds with
+no `sorry` (`lake build` in `formal/lean`, the `lean-build` check).
+
+| Claim in [quality-model.md](../spec/quality-model.md)                                        | Evidence                                                                                                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the score lies in [0, 100]; 0, `E`, `M` map to 0, 50, 100                                    | Lean `Anchors.g_nonneg`, `g_le_100`, `g_zero`, `g_E`, `g_M`                                                                                                                                                                                          |
+| the score is nondecreasing, and strictly increasing on [0, M]; scale-invariant               | Lean `g_mono`, `g_strict`, `g_scale`                                                                                                                                                                                                                 |
+| dominance never lowers score, tier, or place in the exposed order                            | Lean `Profile.score_mono`, `score_strict`, `tier_mono_dominance`, `exposed_mono_dominance`                                                                                                                                                           |
+| the score has no term for rarity                                                             | Lean `Profile.score_factors`                                                                                                                                                                                                                         |
+| precedence UR, SP, band; exclusivity; bands never SP or UR; SP needs its floor               | Lean `Thresholds.tier_UR_iff`, `tier_SP_iff`, `tier_cases`, `band_ne_SP`, `band_ne_UR`, `SP_floor`, `high_tier`                                                                                                                                      |
+| every UR soul outscores every non-UR soul, and is first in the exposed order                 | Lean `UR_score_gt`, `UR_top`                                                                                                                                                                                                                         |
+| utility is at most 9, and the paper's soul reaches it and is UR                              | Lean `Archetype.utility_le_nine`, `paperSoul_utility`, `paperSoul_score`, `paperSoul_UR`                                                                                                                                                             |
+| specialization forces six increments; UR forces nine useful ones; one line alone is never SP | Lean `Soul.six_hits_of_gt_five`, `nine_useful_of_gt_eight`, `UR_structure`, `single_line_not_SP`                                                                                                                                                     |
+| relabelled profiles score relabelled souls equally under a symmetric measure                 | Lean `expected_relabel`, `score_relabel`                                                                                                                                                                                                             |
+| every legal main is accepted by some archetype                                               | Lean `Arch.coverage`, `Arch.accepts_legal`                                                                                                                                                                                                           |
+| the anchors, thresholds, tier rates, and test vectors on the spec page and in the paper      | `formal/calibration` `check`, the `quality-calibration` check: exact propagation; `hit` and `resist` asserted equal; 32/11 under Hu's reading asserted; the growth recursion asserted against propagation; a single line asserted below the SP floor |
+| the exact rates agree with simulation                                                        | `formal/calibration` Monte Carlo, four million souls, every rate with its z-score                                                                                                                                                                    |
+
 ## Not covered
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
