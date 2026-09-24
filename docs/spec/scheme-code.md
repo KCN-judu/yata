@@ -184,7 +184,7 @@ rule would say. The per-group rules:
 | `sub_attributes`, `Include`                   | it has every included attribute                                | ✓    |
 | `sub_attributes`, `Exclude`                   | it has none of the excluded attributes                         | ◎    |
 | `sub_counts`                                  | its number of sub-attributes, all of them, is chosen           | ✓    |
-| `innate`, something chosen                    | it has no innate attribute, or its innate attribute is chosen  | ◎    |
+| `innate`, something chosen                    | it has no innate attribute, or its innate attribute is chosen  | ✓    |
 
 `SubCount::of` places a soul's number of sub-attributes by the editor's labels:
 0 or 1 is 不足2条, then 2条, 3条, 4条; more than four is in no choice.
@@ -216,15 +216,17 @@ boss soul is chosen, as it enables 主属性 only once a slot is):
 
 - a boss soul is picked when its innate attribute is chosen, and not when
   another one is;
-- every ordinary soul is picked: only boss souls carry an innate attribute;
+- every ordinary soul is picked: every boss soul carries exactly one innate
+  attribute, and no other soul carries any;
+- several innate attributes chosen together pick a boss soul carrying any of
+  them;
 - 副属性 X ○ does not pick a boss soul whose X is only its innate attribute, and
-  picks one that has X as both. The innate attribute is not a sub-attribute, so
-  `Soul` holds it apart from `subs`, as `innate`.
+  picks one that has X as both;
+- 数量 3条 picks a boss soul with three sub-attributes: the innate attribute is
+  not counted.
 
-These were observed one innate attribute at a time. That several chosen together
-pick a boss soul whose attribute is any of them is **extrapolated** (membership,
-like 位置 and 主属性; a boss soul has one): hence ◎. Also extrapolated from
-○: 副属性 X ✕ does not see the innate attribute either.
+So the innate attribute is not a sub-attribute, and `Soul` holds it apart from
+`subs`, as `innate`. **Extrapolated** from ○: 副属性 X ✕ does not see it either.
 
 `Soul::innate` is `Absent`, `Present(attribute)`, or `Unknown`. Two cases stay
 `Undetermined(Innate)`:
@@ -379,14 +381,10 @@ user could not import.
 ## Open questions
 
 - whether the game's import accepts Base64 text as well as a QR code
-- several innate attributes chosen together, and 副属性 ✕ against an innate
-  attribute (above); whether an empty 位置, 星级 or 主属性 is no constraint, as
+- 副属性 ✕ against an innate attribute, and a chosen innate attribute
+  under 全部 (above); whether an empty 位置, 星级 or 主属性 is no constraint, as
   extrapolated, rather than observed
-- whether 数量 counts a boss soul's innate attribute: the model counts
-  sub-attributes only, as 副属性 ○ is observed to, but the 2026-09-24 count
-  experiments did not single out boss souls
-- how a reading carries a boss soul's innate attribute, and whether every boss
-  soul carries one
+- how a reading carries a boss soul's innate attribute
 - the suit code of each soul, to be re-established by a reader recording
 
 ## Related
