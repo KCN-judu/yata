@@ -7,7 +7,7 @@
 use prost::Message;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let schemas = ["proto/probe.proto"];
+    let schemas = ["proto/probe.proto", "proto/core.proto"];
     for s in schemas {
         println!("cargo:rerun-if-changed={s}");
     }

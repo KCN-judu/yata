@@ -1,0 +1,285 @@
+// The core protocol: the wire between the Flutter application and yata-daemon.
+//
+// Meaning: docs/spec/core-protocol.md; the query vocabulary: docs/spec/query.md.
+// Versions: docs/spec/protocol-versions.md.
+// Evolution: a tag number is never reused; a removed field's number and name go into
+// `reserved`. Adding a field or a message kind is a minor version; changing the meaning of an
+// existing tag is never allowed.
+//
+// A draft holding the query messages only. The session envelope, commands, jobs and
+// subscriptions are added when the session is built; version 1 stays reserved until then.
+
+syntax = "proto3";
+
+package yata.core.v1;
+
+message ProtocolVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
+}
+
+// Every failure (core-protocol.md, "Errors"). `code` is the contract; `message` is English and
+// never parsed.
+message Error {
+  string code = 1;
+  string message = 2;
+  bytes details = 3;
+}
+
+// ---- the soul domain (glossary.md) ----
+
+enum SoulSlot {
+  SOUL_SLOT_UNSPECIFIED = 0;
+  SOUL_SLOT_1 = 1;
+  SOUL_SLOT_2 = 2;
+  SOUL_SLOT_3 = 3;
+  SOUL_SLOT_4 = 4;
+  SOUL_SLOT_5 = 5;
+  SOUL_SLOT_6 = 6;
+}
+
+// In glossary order, which is the order a sort by attribute uses.
+enum SoulAttribute {
+  SOUL_ATTRIBUTE_UNSPECIFIED = 0;
+  SOUL_ATTRIBUTE_ATK_FLAT = 1;
+  SOUL_ATTRIBUTE_ATK_PERCENT = 2;
+  SOUL_ATTRIBUTE_DEF_FLAT = 3;
+  SOUL_ATTRIBUTE_DEF_PERCENT = 4;
+  SOUL_ATTRIBUTE_HP_FLAT = 5;
+  SOUL_ATTRIBUTE_HP_PERCENT = 6;
+  SOUL_ATTRIBUTE_SPD = 7;
+  SOUL_ATTRIBUTE_EFFECT_HIT = 8;
+  SOUL_ATTRIBUTE_EFFECT_RES = 9;
+  SOUL_ATTRIBUTE_CRIT = 10;
+  SOUL_ATTRIBUTE_CRIT_DMG = 11;
+}
+
+// A soul in domain terms, not the game's record: the set by suit code, values in display units.
+message Soul {
+  // The game's soul id: non-empty, at most 64 bytes, unique within an inventory.
+  string soul_id = 1;
+  uint32 suit_code = 2;
+  SoulSlot slot = 3;
+  uint32 star = 4;
+  uint32 level = 5;
+  SoulAttribute main = 6;
+  double main_value = 7;
+  // At most 4.
+  repeated SubAttribute subs = 8;
+  // Absent: the input does not say whether the soul carries one, or which.
+  Innate innate = 9;
+}
+
+// A soul's 固有属性 (glossary.md, InnateAttribute).
+message Innate {
+  oneof state {
+    // The soul carries none.
+    bool absent = 1;
+    SoulAttribute present = 2;
+  }
+}
+
+message SubAttribute {
+  SoulAttribute attribute = 1;
+  double value = 2;
+  optional uint32 enhancement_count = 3;
+}
+
+// ---- the official filter (scheme-code.md, "The model") ----
+
+enum LevelBand {
+  LEVEL_BAND_UNSPECIFIED = 0;
+  LEVEL_BAND_0_TO_2 = 1;
+  LEVEL_BAND_3_TO_5 = 2;
+  LEVEL_BAND_6_TO_8 = 3;
+  LEVEL_BAND_9_TO_11 = 4;
+  LEVEL_BAND_12_TO_14 = 5;
+  LEVEL_BAND_15 = 6;
+}
+
+enum SubCount {
+  SUB_COUNT_UNSPECIFIED = 0;
+  SUB_COUNT_FEWER_THAN_TWO = 1;
+  SUB_COUNT_TWO = 2;
+  SUB_COUNT_THREE = 3;
+  SUB_COUNT_FOUR = 4;
+}
+
+// A SoulSelection: each group a set of choices, an empty group no constraint. Each repeated
+// field holds at most 256 values.
+message SoulSelection {
+  // 全部: every set. `suit_codes` is then empty.
+  bool any_set = 1;
+  repeated uint32 suit_codes = 2;
+  repeated SoulSlot slots = 3;
+  repeated uint32 stars = 4;
+  repeated LevelBand levels = 5;
+  repeated SoulAttribute main_attributes = 6;
+  // One of the six innate attributes.
+  repeated SoulAttribute innate = 7;
+  // ○ and ✕; an attribute is in at most one.
+  repeated SoulAttribute sub_included = 8;
+  repeated SoulAttribute sub_excluded = 9;
+  repeated SubCount sub_counts = 10;
+}
+
+// ---- queries (query.md) ----
+
+enum Collection {
+  COLLECTION_UNSPECIFIED = 0;
+  COLLECTION_SOULS = 1;
+}
+
+// The soul fields this build can name. A field is added here when it can be evaluated.
+enum FieldName {
+  FIELD_NAME_UNSPECIFIED = 0;
+  FIELD_NAME_SET = 1;
+  FIELD_NAME_SLOT = 2;
+  FIELD_NAME_STAR = 3;
+  FIELD_NAME_LEVEL = 4;
+  FIELD_NAME_MAIN_ATTRIBUTE = 5;
+  FIELD_NAME_MAIN_VALUE = 6;
+  // Takes an attribute.
+  FIELD_NAME_SUB_VALUE = 7;
+  // Takes an attribute.
+  FIELD_NAME_HAS_SUB = 8;
+  FIELD_NAME_SUB_COUNT = 9;
+  FIELD_NAME_PRISTINE = 10;
+  // Scores: need `params`; refused with query.field_unavailable until pass 1 exists.
+  FIELD_NAME_QUALITY_TOTAL = 11;
+  FIELD_NAME_QUALITY_DEPTH = 12;
+  FIELD_NAME_QUALITY_BREADTH = 13;
+}
+
+message Field {
+  FieldName name = 1;
+  // For SUB_VALUE and HAS_SUB; unspecified for every other field.
+  SoulAttribute attribute = 2;
+}
+
+// The values of an `In`, in the one list that fits the field's type. At most 256.
+message InTest {
+  repeated uint32 suit_codes = 1;
+  repeated SoulSlot slots = 2;
+  repeated SoulAttribute attributes = 3;
+}
+
+// Both bounds inclusive; at least one present.
+message IntRange {
+  optional int64 min = 1;
+  optional int64 max = 2;
+}
+
+// Both bounds inclusive and finite; at least one present.
+message NumberRange {
+  optional double min = 1;
+  optional double max = 2;
+}
+
+message Predicate {
+  Field field = 1;
+  oneof test {
+    InTest in = 2;
+    IntRange int_range = 3;
+    NumberRange number_range = 4;
+    bool is = 5;
+  }
+}
+
+message ExprList {
+  repeated Expr items = 1;
+}
+
+// A scheme by its code text, and the plan or discard scheme within it. `entry` is required when
+// the code holds more than one.
+message SchemeRef {
+  string code = 1;
+  optional uint32 entry = 2;
+}
+
+// A filter node. At most 256 nodes and depth 16 in one filter.
+message Expr {
+  oneof kind {
+    // Empty: true.
+    ExprList and = 1;
+    // Empty: false.
+    ExprList or = 2;
+    Expr not = 3;
+    Predicate pred = 4;
+    SoulSelection matches = 5;
+    SchemeRef matches_scheme = 6;
+  }
+}
+
+enum Direction {
+  DIRECTION_UNSPECIFIED = 0;
+  DIRECTION_ASC = 1;
+  DIRECTION_DESC = 2;
+}
+
+message SortKey {
+  Field field = 1;
+  Direction direction = 2;
+}
+
+message ParamSetRef {
+  string id = 1;
+  uint32 version = 2;
+}
+
+message PageRequest {
+  // Absent: the daemon's default. 1 to 10 000.
+  optional uint32 row_budget = 1;
+  // Absent or empty: the first page. Otherwise a cursor this query returned, unmodified.
+  bytes cursor = 2;
+}
+
+message Query {
+  Collection collection = 1;
+  // Absent: every row.
+  Expr filter = 2;
+  // At most 8 keys; the row identity is the final key.
+  repeated SortKey sort = 3;
+  ParamSetRef params = 4;
+  PageRequest page = 5;
+}
+
+enum OpenRule {
+  OPEN_RULE_UNSPECIFIED = 0;
+  OPEN_RULE_INNATE = 1;
+  OPEN_RULE_UNKNOWN_CONDITIONS = 2;
+}
+
+message QueryRow {
+  string soul_id = 1;
+  // Empty: the game's answer is exact. Otherwise the row is open and rests on these rules
+  // (ADR-0026).
+  repeated OpenRule open_rules = 2;
+}
+
+message QueryPage {
+  repeated QueryRow rows = 1;
+  bool has_more = 2;
+  // Empty when `has_more` is false. Opaque: sent back unmodified, never parsed.
+  bytes cursor = 3;
+}
+
+// ---- the headless query endpoint (ADR-0026, rule 6) ----
+
+// A query over an inventory the request supplies, until the projection exists. One
+// EvaluateQueryResult answers each request, with the same `id`.
+message EvaluateQuery {
+  uint64 id = 1;
+  ProtocolVersion protocol_version = 2;
+  // At most 100 000 souls.
+  repeated Soul inventory = 3;
+  Query query = 4;
+}
+
+message EvaluateQueryResult {
+  uint64 id = 1;
+  oneof outcome {
+    QueryPage page = 2;
+    Error error = 3;
+  }
+}
