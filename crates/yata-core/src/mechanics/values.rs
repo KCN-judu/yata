@@ -1,6 +1,7 @@
 //! The value tables of `soul-mechanics.md`: § Values and § Main-attribute values.
 
-use crate::soul::SoulAttribute;
+use super::inference::HitCount;
+use crate::soul::{RollCount, SoulAttribute};
 
 /// The tolerance of every comparison between a stored value and a table bound, in display
 /// units (`soul-mechanics.md`, "Comparing values"). Stored values are binary floats; the
@@ -25,18 +26,18 @@ impl IncrementRange {
     }
 
     /// `hits · lo`, the least value `hits` increments can sum to.
-    pub fn floor_of(self, hits: u8) -> f64 {
-        f64::from(u32::from(hits) * self.lo_tenths) / 10.0
+    pub fn floor_of(self, hits: HitCount) -> f64 {
+        f64::from(u32::from(hits.get()) * self.lo_tenths) / 10.0
     }
 
     /// `hits · hi`, the greatest value `hits` increments can sum to.
-    pub fn ceiling_of(self, hits: u8) -> f64 {
-        f64::from(u32::from(hits) * self.hi_tenths) / 10.0
+    pub fn ceiling_of(self, hits: HitCount) -> f64 {
+        f64::from(u32::from(hits.get()) * self.hi_tenths) / 10.0
     }
 
-    /// `Max(a) = 6 · hi(a)`.
+    /// `Max(a) = 6 · hi(a)`: all five rolls of a +15 soul on one sub-attribute.
     pub fn max(self) -> f64 {
-        self.ceiling_of(6)
+        self.ceiling_of(HitCount::after(RollCount::new(5)))
     }
 }
 

@@ -1,7 +1,7 @@
 //! § Well-formed souls: W-Soul, and the M-Main check of § Main-attribute values.
 
 use super::Undecided;
-use super::inference::{Hits, hits};
+use super::inference::{HitCount, Hits, hits};
 use super::values::{VALUE_TOLERANCE, increment_range, main_value};
 use crate::soul::{Soul, SoulAttribute, SoulSlot};
 
@@ -33,7 +33,7 @@ pub enum Violation {
     ValueOutsideRange {
         attribute: SoulAttribute,
         value: f64,
-        hits: u8,
+        hits: HitCount,
         least: f64,
         most: f64,
     },
@@ -140,9 +140,9 @@ pub fn assess(soul: &Soul) -> Assessment {
                 value: sub.value,
                 level: soul.level,
             }),
-            Ok(h @ Hits::Admitted { .. }) => rolls += u32::from(h.least_rolls().unwrap_or(0)),
+            Ok(Hits::Admitted(range)) => rolls += u32::from(range.min().rolls().get()),
             Ok(Hits::Known(k)) => {
-                rolls += u32::from(k - 1);
+                rolls += u32::from(k.rolls().get());
                 check_recorded(soul, sub.attribute, sub.value, k, &mut out);
             }
         }
@@ -165,7 +165,13 @@ pub fn assess(soul: &Soul) -> Assessment {
 }
 
 /// A recorded `c(a)` must put the value inside `hits · [lo, hi]`.
-fn check_recorded(soul: &Soul, attribute: SoulAttribute, value: f64, k: u8, out: &mut Assessment) {
+fn check_recorded(
+    soul: &Soul,
+    attribute: SoulAttribute,
+    value: f64,
+    k: HitCount,
+    out: &mut Assessment,
+) {
     let Some(range) = increment_range(attribute, soul.star) else {
         out.undecided.push(Undecided::IncrementRangeUnknown {
             attribute,
@@ -188,7 +194,7 @@ fn check_recorded(soul: &Soul, attribute: SoulAttribute, value: f64, k: u8, out:
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::SubAttribute;
+    use crate::soul::{RollCount, SubAttribute};
     use SoulAttribute::*;
 
     fn sub(attribute: SoulAttribute, value: f64) -> SubAttribute {
@@ -273,10 +279,10 @@ mod tests {
     #[test]
     fn a_recorded_count_must_agree_with_the_value() {
         let mut s = soul();
-        s.subs[0].enhancement_count = Some(1); // two increments reach at most 6.0
+        s.subs[0].enhancement_count = Some(RollCount::new(1)); // two increments reach at most 6.0
         assert!(matches!(
             assess(&s).violations[..],
-            [Violation::ValueOutsideRange { hits: 2, .. }]
+            [Violation::ValueOutsideRange { hits, .. }] if hits.get() == 2
         ));
     }
 

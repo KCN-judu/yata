@@ -41,7 +41,22 @@ pub struct SubAttribute {
     /// `c(a)`, the rolls this sub-attribute received after it appeared. `None` when the reading
     /// does not carry it: whether the game records it is open, and it is then inferred
     /// (`soul-mechanics.md`, § Inferring roll counts).
-    pub enhancement_count: Option<u8>,
+    pub enhancement_count: Option<RollCount>,
+}
+
+/// `c(a)`: how many of a soul's rolls landed on one sub-attribute after it appeared. Any count can
+/// be held; whether it fits the soul's level is legality's question (`RollsExceedNodes`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RollCount(u8);
+
+impl RollCount {
+    pub const fn new(c: u8) -> RollCount {
+        RollCount(c)
+    }
+
+    pub const fn get(self) -> u8 {
+        self.0
+    }
 }
 
 impl Soul {

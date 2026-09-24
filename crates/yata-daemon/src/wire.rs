@@ -257,7 +257,7 @@ pub fn soul(id: &str, s: &Soul) -> pb::Soul {
             .map(|sub| pb::SubAttribute {
                 attribute: attribute(sub.attribute),
                 value: sub.value,
-                enhancement_count: sub.enhancement_count.map(u32::from),
+                enhancement_count: sub.enhancement_count.map(|c| u32::from(c.get())),
             })
             .collect(),
         kind: Some(kind),

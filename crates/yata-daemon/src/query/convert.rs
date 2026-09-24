@@ -15,7 +15,7 @@ use yata_core::query::{
 use yata_core::scheme::selection::{
     InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
 };
-use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
+use yata_core::soul::{RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
 use yata_protocol::core as wire;
 
 use super::{MAX_INVENTORY_SOULS, RequestError, WireProblem};
@@ -67,7 +67,11 @@ fn soul(s: wire::Soul) -> Result<Soul, WireProblem> {
                 value: sub.value,
                 enhancement_count: sub
                     .enhancement_count
-                    .map(|c| u8::try_from(c).map_err(|_| WireProblem::OutOfRange))
+                    .map(|c| {
+                        u8::try_from(c)
+                            .map(RollCount::new)
+                            .map_err(|_| WireProblem::OutOfRange)
+                    })
                     .transpose()?,
             })
         })

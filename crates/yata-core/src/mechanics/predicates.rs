@@ -4,7 +4,7 @@
 //! predicate is evaluated on every admitted value (`soul-mechanics.md`, § Inferring roll counts).
 
 use super::Undecided;
-use super::inference::{Hits, hits};
+use super::inference::{HitCount, Hits, hits};
 use super::values::{VALUE_TOLERANCE, increment_range};
 use crate::soul::{Soul, SoulAttribute, SoulSlot};
 
@@ -42,11 +42,12 @@ pub fn maxed(soul: &Soul, attribute: SoulAttribute) -> Result<Truth, Undecided> 
     if soul.level != 15 {
         return Ok(Truth::Impossible);
     }
+    let six = |h: HitCount| h.get() == 6;
     Ok(match hits(soul, sub)? {
-        Hits::Known(k) => Truth::of(k == 6),
-        Hits::Admitted { min: 6, max: 6 } => Truth::Certain,
-        Hits::Admitted { max, .. } if max < 6 => Truth::Impossible,
-        Hits::Admitted { .. } => Truth::Undetermined,
+        Hits::Known(k) => Truth::of(six(k)),
+        Hits::Admitted(r) if six(r.min()) && six(r.max()) => Truth::Certain,
+        Hits::Admitted(r) if r.max().get() < 6 => Truth::Impossible,
+        Hits::Admitted(_) => Truth::Undetermined,
         Hits::Unreachable => Truth::Impossible,
     })
 }
@@ -78,7 +79,7 @@ pub fn top_band(soul: &Soul, attribute: SoulAttribute) -> Result<Truth, Undecide
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::SubAttribute;
+    use crate::soul::{RollCount, SubAttribute};
     use SoulAttribute::*;
 
     fn soul(slot: SoulSlot, main: SoulAttribute, subs: &[(SoulAttribute, f64)]) -> Soul {
@@ -139,9 +140,9 @@ mod tests {
     #[test]
     fn a_recorded_count_decides_maxed() {
         let mut s = soul(SoulSlot::Slot4, EffectHit, &[(Spd, 14.8)]);
-        s.subs[0].enhancement_count = Some(5);
+        s.subs[0].enhancement_count = Some(RollCount::new(5));
         assert_eq!(maxed(&s, Spd), Ok(Truth::Certain));
-        s.subs[0].enhancement_count = Some(4);
+        s.subs[0].enhancement_count = Some(RollCount::new(4));
         assert_eq!(maxed(&s, Spd), Ok(Truth::Impossible));
     }
 

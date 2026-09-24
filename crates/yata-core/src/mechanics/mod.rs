@@ -13,7 +13,7 @@ mod values;
 pub use distribution::{
     class_weight, draw_weight, first_roll_adds_leg, stays_three_leg, stays_three_leg_odds,
 };
-pub use inference::{Hits, hits};
+pub use inference::{HitCount, HitRange, Hits, hits};
 pub use legality::{Assessment, Verdict, Violation, Warning, assess};
 pub use predicates::{Truth, double_speed, maxed, top_band, true_n};
 pub use values::{IncrementRange, VALUE_TOLERANCE, increment_range, main_value};
