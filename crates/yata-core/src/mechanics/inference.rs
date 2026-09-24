@@ -81,6 +81,7 @@ mod tests {
                 value,
                 enhancement_count: None,
             }],
+            innate: crate::soul::Innate::Absent,
         }
     }
 

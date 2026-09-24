@@ -214,6 +214,7 @@ mod tests {
                 sub(AtkPercent, 3.0),
                 sub(EffectHit, 3.5),
             ],
+            innate: crate::soul::Innate::Absent,
         }
     }
 

@@ -1,7 +1,7 @@
 use super::{SoulAttribute, SoulSet, SoulSlot};
 
-/// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus its set and
-/// the main attribute's value.
+/// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus its set, the
+/// main attribute's value, and its innate attribute.
 ///
 /// This is the shape decoded input takes before any rule is applied, so nothing here is
 /// guaranteed legal: [`crate::mechanics::assess`] decides that. Values are stored values in
@@ -17,6 +17,24 @@ pub struct Soul {
     pub main: SoulAttribute,
     pub main_value: f64,
     pub subs: Vec<SubAttribute>,
+    /// 固有属性: held beside `subs`, never among them.
+    pub innate: Innate,
+}
+
+/// A soul's 固有属性, as far as the input says.
+///
+/// Only a boss soul (首领御魂) carries one (the maintainer, 2026-09-25). It is not a
+/// sub-attribute: the 副属性 group does not see it (`scheme-code.md`, "Evaluation").
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Innate {
+    /// The soul carries none.
+    Absent,
+    /// The soul's innate attribute.
+    Present(SoulAttribute),
+    /// The input does not say whether the soul carries one, or which. How a reading carries it
+    /// is not established by a recording yet, so decode never infers `Absent` from a missing
+    /// field.
+    Unknown,
 }
 
 /// One sub-attribute (副属性): an element of `dom S` with its stored value `S(a)`.
