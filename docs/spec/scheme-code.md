@@ -185,9 +185,10 @@ pure and lives in `yata-core`:
 The layers under the payload, as `yata-core::scheme::transport` implements them.
 Each rule rests on the observed codes, and nothing outside them is accepted:
 
-- **Base64** is the standard alphabet with `+` and `/`, decoded strictly: no
-  whitespace, canonical `=` padding, no stray trailing bits. Whether the game
-  emits or accepts any other form is open.
+- **Base64** is the standard alphabet with `+` and `/`. The game writes it
+  **without `=` padding** and accepts it with or without (both observed
+  2026-09-24), so decoding accepts both and encoding writes none. Otherwise
+  decoding is strict: no whitespace and no stray trailing bits.
 - **zlib**: the text carries exactly one zlib stream, whose checksum must match
   and after which no byte may follow.
 - **Limits**, checked before anything is allocated for them:

@@ -26,7 +26,8 @@
 ## Compatibility and migration
 
 New commands only. A scheme text this encoder produces decodes to the same
-payload but is not byte-identical to the game's text for the same payload.
+payload but is not byte-identical to the game's text for the same payload. Like
+the game's, it carries no `=` padding; texts with or without padding are read.
 
 ## Evidence
 

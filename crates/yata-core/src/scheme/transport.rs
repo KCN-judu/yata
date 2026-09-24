@@ -2,9 +2,10 @@
 //!
 //! What the code relies on, and why (`scheme-code.md`, § Transport):
 //!
-//! - **Base64 is the standard alphabet with `+` and `/`**, as every observed code uses. Decoding
-//!   is strict: no whitespace, canonical padding, no stray trailing bits. Whether the game
-//!   emits or accepts other forms is not known, so nothing else is accepted.
+//! - **Base64 is the standard alphabet with `+` and `/`**, as every observed code uses. The game
+//!   writes it without `=` padding and accepts it with or without, so decoding accepts both and
+//!   encoding writes none, as the game does. Otherwise decoding is strict: no whitespace, and no
+//!   stray trailing bits.
 //! - **zlib framing, whole and alone.** The stream must end with its checksum, and no byte may
 //!   follow it. Observed codes are exactly one zlib stream.
 //! - **Every size is bounded before it is allocated**: the text, the compressed stream, and the
@@ -15,7 +16,8 @@
 //! the game produced, because the game's compressor and its settings are not known.
 
 use base64::Engine;
-use base64::engine::general_purpose::STANDARD;
+use base64::alphabet;
+use base64::engine::{DecodePaddingMode, GeneralPurpose, GeneralPurposeConfig};
 use miniz_oxide::deflate::compress_to_vec_zlib;
 use miniz_oxide::inflate::TINFLStatus;
 use miniz_oxide::inflate::core::{DecompressorOxide, decompress, inflate_flags};
@@ -34,6 +36,14 @@ pub const MAX_COMPRESSED_LEN: usize = MAX_SCHEME_TEXT_LEN / 4 * 3;
 /// plans); the limit leaves room for far larger sets while bounding what a hostile stream can
 /// make the decoder allocate.
 pub const MAX_PAYLOAD_LEN: usize = 64 * 1024;
+
+/// Standard Base64 as the game uses it: written without padding, read with or without.
+const BASE64: GeneralPurpose = GeneralPurpose::new(
+    &alphabet::STANDARD,
+    GeneralPurposeConfig::new()
+        .with_encode_padding(false)
+        .with_decode_padding_mode(DecodePaddingMode::Indifferent),
+);
 
 /// The compression level of [`encode_text`]: the maximum, which gives the smallest text and so
 /// the smallest QR code. It is fixed so the same payload always yields the same text.
@@ -67,7 +77,7 @@ pub enum Base64Problem {
     InvalidLength { length: usize },
     /// A last character whose unused bits are not zero, so the text is not canonical.
     NonCanonicalEnding { offset: usize, byte: u8 },
-    /// Missing, extra, or misplaced `=` padding.
+    /// Misplaced `=`, or padding of the wrong length.
     InvalidPadding,
 }
 
@@ -82,7 +92,7 @@ pub enum ZlibProblem {
     Malformed,
 }
 
-/// Scheme text as this project encodes it: strict standard Base64 of one zlib stream.
+/// Scheme text as this project encodes it: unpadded standard Base64 of one zlib stream.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct EncodedSchemeText(String);
 
@@ -104,7 +114,7 @@ pub fn decode_text(text: &str) -> Result<RawSchemePayload, TransportError> {
             limit: MAX_SCHEME_TEXT_LEN,
         });
     }
-    let compressed = STANDARD
+    let compressed = BASE64
         .decode(text)
         .map_err(|e| TransportError::Base64(base64_problem(e)))?;
     decompress_payload(&compressed)
@@ -119,7 +129,7 @@ pub fn encode_text(payload: &RawSchemePayload) -> Result<EncodedSchemeText, Tran
             limit: MAX_COMPRESSED_LEN,
         });
     }
-    let text = STANDARD.encode(&compressed);
+    let text = BASE64.encode(&compressed);
     if text.len() > MAX_SCHEME_TEXT_LEN {
         return Err(TransportError::TextTooLong {
             length: text.len(),
@@ -219,6 +229,26 @@ mod tests {
     }
 
     #[test]
+    fn a_code_decodes_with_or_without_padding() {
+        // The game writes its codes without `=`; codes with it are accepted too.
+        assert_eq!(
+            decode_text("eNqrTCxJVChITAEADgoDBQ"),
+            Ok(payload(b"yata pad"))
+        );
+        assert_eq!(
+            decode_text("eNqrTCxJVChITAEADgoDBQ=="),
+            Ok(payload(b"yata pad"))
+        );
+    }
+
+    #[test]
+    fn encoding_writes_no_padding() {
+        let text = encode_text(&payload(b"yata pad")).expect("encodable");
+        assert!(!text.as_str().contains('='), "{}", text.as_str());
+        assert_eq!(decode_text(text.as_str()), Ok(payload(b"yata pad")));
+    }
+
+    #[test]
     fn padding_and_a_stored_block_decode() {
         // Python: zlib.compress(b"yata pad", 9) and at level 0, which stores the block.
         assert_eq!(
@@ -240,10 +270,11 @@ mod tests {
                 byte: b' '
             }))
         );
-        assert_eq!(
-            decode_text("eNqrTCxJVChITAEADgoDBQ=="[..23].trim_end_matches('=')),
-            Err(TransportError::Base64(Base64Problem::InvalidPadding))
-        );
+        // `=` anywhere but at the end.
+        assert!(matches!(
+            decode_text("eNqr=TCxJVChITAEADgoDBQ"),
+            Err(TransportError::Base64(_))
+        ));
         assert!(matches!(
             decode_text("eNqrT"),
             Err(TransportError::Base64(Base64Problem::InvalidLength { .. }))
@@ -275,8 +306,8 @@ mod tests {
     #[test]
     fn a_truncated_stream_is_a_zlib_error() {
         let text = encode_text(&payload(&synthetic_payload())).expect("encodable");
-        let compressed = STANDARD.decode(text.as_str()).expect("base64");
-        let cut = STANDARD.encode(&compressed[..compressed.len() - 6]);
+        let compressed = BASE64.decode(text.as_str()).expect("base64");
+        let cut = BASE64.encode(&compressed[..compressed.len() - 6]);
         assert_eq!(
             decode_text(&cut),
             Err(TransportError::Zlib(ZlibProblem::Truncated))
@@ -285,11 +316,11 @@ mod tests {
 
     #[test]
     fn a_corrupted_checksum_is_a_zlib_error() {
-        let mut compressed = STANDARD.decode("eNqrTCxJVChITAEADgoDBQ==").expect("base64");
+        let mut compressed = BASE64.decode("eNqrTCxJVChITAEADgoDBQ==").expect("base64");
         let last = compressed.len() - 1;
         compressed[last] ^= 0x01;
         assert_eq!(
-            decode_text(&STANDARD.encode(&compressed)),
+            decode_text(&BASE64.encode(&compressed)),
             Err(TransportError::Zlib(ZlibProblem::ChecksumMismatch))
         );
     }
@@ -297,17 +328,17 @@ mod tests {
     #[test]
     fn bytes_that_are_not_zlib_are_a_zlib_error() {
         assert_eq!(
-            decode_text(&STANDARD.encode(b"not zlib at all")),
+            decode_text(&BASE64.encode(b"not zlib at all")),
             Err(TransportError::Zlib(ZlibProblem::Malformed))
         );
     }
 
     #[test]
     fn bytes_after_the_stream_are_refused() {
-        let mut compressed = STANDARD.decode("eNqrTCxJVChITAEADgoDBQ==").expect("base64");
+        let mut compressed = BASE64.decode("eNqrTCxJVChITAEADgoDBQ==").expect("base64");
         compressed.extend([0, 0]);
         assert_eq!(
-            decode_text(&STANDARD.encode(&compressed)),
+            decode_text(&BASE64.encode(&compressed)),
             Err(TransportError::TrailingBytes { count: 2 })
         );
     }
@@ -316,7 +347,7 @@ mod tests {
     fn a_decompression_bomb_stops_at_the_limit() {
         // One MiB of zeros compresses to about a kilobyte, well inside the text limit.
         let bomb = compress_to_vec_zlib(&vec![0u8; 1 << 20], 9);
-        let text = STANDARD.encode(&bomb);
+        let text = BASE64.encode(&bomb);
         assert!(text.len() <= MAX_SCHEME_TEXT_LEN);
         assert_eq!(
             decode_text(&text),
@@ -331,11 +362,11 @@ mod tests {
         let at = compress_to_vec_zlib(&vec![7u8; MAX_PAYLOAD_LEN], 9);
         let over = compress_to_vec_zlib(&vec![7u8; MAX_PAYLOAD_LEN + 1], 9);
         assert_eq!(
-            decode_text(&STANDARD.encode(&at)).map(|p| p.len()),
+            decode_text(&BASE64.encode(&at)).map(|p| p.len()),
             Ok(MAX_PAYLOAD_LEN)
         );
         assert_eq!(
-            decode_text(&STANDARD.encode(&over)),
+            decode_text(&BASE64.encode(&over)),
             Err(TransportError::PayloadTooLarge {
                 limit: MAX_PAYLOAD_LEN
             })
@@ -344,7 +375,7 @@ mod tests {
 
     #[test]
     fn an_empty_stream_is_not_a_scheme() {
-        let empty = STANDARD.encode(compress_to_vec_zlib(b"", 9));
+        let empty = BASE64.encode(compress_to_vec_zlib(b"", 9));
         assert_eq!(decode_text(&empty), Err(TransportError::EmptyPayload));
     }
 
