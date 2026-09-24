@@ -236,6 +236,8 @@ What changed for someone. Append-only; one fragment per change.
   — the probe channel reads, records, and replays; readings carry their evidence
 - [changes/unreleased/2026-09-fact-log.md](changes/unreleased/2026-09-fact-log.md)
   — the store records facts; the soul inventory is derived from them
+- [changes/unreleased/2026-09-app-shell.md](changes/unreleased/2026-09-app-shell.md)
+  — the core protocol session, `yata-daemon serve`, and the application shell
 
 ## Outside `docs/`
 

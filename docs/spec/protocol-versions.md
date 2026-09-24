@@ -32,9 +32,11 @@ first schema file to land turns its row **current**.
 ## Core protocol — daemon ↔ Flutter
 
 Schema: `docs/spec/core-protocol.md`. Schema file:
-`crates/yata-protocol/proto/core.proto`, drafted 2026-09-25 with the query
-messages only. Version 1 stays reserved until the session, commands, jobs, and
-subscriptions are in the file and the application builds against it.
+`crates/yata-protocol/proto/core.proto`, drafted 2026-09-25: the query messages,
+the headless query endpoint, and the session the application builds against
+(envelopes, subscriptions, profiles, soul pages, scheme-code decoding). Version
+1 stays reserved until commands and jobs are in the file; until then a tag may
+still change.
 
 | Version | Status   | Date       | What it introduced                                                                                                        | Refused below |
 | ------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |

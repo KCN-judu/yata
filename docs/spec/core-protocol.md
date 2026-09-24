@@ -10,7 +10,9 @@ The wire between the Flutter application and `yata-daemon`. ADR-0004 decides
 that the boundary exists and what its discipline is; this page defines the
 messages that cross it.
 
-Everything here is _designed_. Nothing is _implemented_.
+The schema is `crates/yata-protocol/proto/core.proto`, a draft until version 1
+is current ([protocol-versions.md](protocol-versions.md)). What of this page is
+built is in [status.md](../project/status.md).
 
 ## Frame
 
@@ -32,6 +34,18 @@ Everything here is _designed_. Nothing is _implemented_.
 - Both directions use the same framing. The codec is one module, mirrored — not
   two implementations that agree today.
 
+**A broken frame ends the session.** A prefix the codec refuses, or a payload
+that is not a `ClientMessage`, is answered with a `session_failed` event
+carrying `session.malformed_frame` or `session.malformed_message`, and the
+daemon exits. No request id is known for such a frame, so no response can carry
+the error.
+
+**Payloads are canonical proto3.** A scalar at its default value is not written.
+prost never writes one; the Dart runtime writes any field that was set, so the
+Dart client sets only the fields that differ from their default. The two
+encoders then produce the same bytes, which the shared session recording checks
+in both languages.
+
 **stdout carries frames and nothing else.** Every log line, warning, and panic
 message goes to stderr. A stray `println!` in the daemon corrupts the stream,
 and the symptom is a parse failure some messages later, which is why this is a
@@ -47,6 +61,10 @@ built against. The daemon compares it against its own at session start:
 | same major, any minor | accepted | session opens                                                        |
 | lower major           | accepted | session opens with a warning event naming the oldest supported major |
 | higher major          | refused  | `session.protocol_unsupported`, session does not open                |
+
+The version is compared at `OpenSession`, the first request of every session.
+Any other request before it is refused with `session.not_open`, and a refused
+`OpenSession` leaves the session closed.
 
 A minor version is additive only: a higher minor may add fields and message
 kinds, never change the meaning of an existing tag. The ledger of assigned
@@ -73,11 +91,15 @@ it is fatal instead.
 The category fixes the contract, and the message kind is part of exactly one
 category.
 
-| Category | Message kinds                                   | Writes | Produces a revision | Carries `base_revision` |
-| -------- | ----------------------------------------------- | ------ | ------------------- | ----------------------- |
-| Query    | `Query`, `GetSoul`, `DecodeSchemeCode`, `Match` | no     | no                  | no                      |
-| Command  | `Command`                                       | yes    | yes, on success     | yes, required           |
-| Job      | `RunJob`                                        | later  | later               | no                      |
+| Category | Message kinds                                                   | Writes | Produces a revision | Carries `base_revision` |
+| -------- | --------------------------------------------------------------- | ------ | ------------------- | ----------------------- |
+| Query    | `ListProfiles`, `Query`, `GetSoul`, `DecodeSchemeCode`, `Match` | no     | no                  | no                      |
+| Command  | `Command`                                                       | yes    | yes, on success     | yes, required           |
+| Job      | `RunJob`                                                        | later  | later               | no                      |
+
+**Session messages** belong to no category. `OpenSession` opens the session,
+`Subscribe` asks for projection changes, and `Shutdown` ends it: the daemon
+answers, flushes its output, and exits.
 
 **Queries** compute against the current projection, mutate nothing, and produce
 no revision and no event. A query that would write is a command and is rejected
@@ -107,7 +129,7 @@ one is an additive schema change, which is a minor version bump.
 
 ## Queries and pages
 
-A query returns a page. `QueryResult` always carries the `revision` the page is
+A query returns a page. `QueryPage` always carries the `revision` the page is
 valid at; a page is never returned without the revision it describes.
 
 **The cursor is opaque.** `Page.cursor` is a serialized sort-key continuation
@@ -126,7 +148,13 @@ returns `has_more = false` and an empty cursor.
 pages of the same scan, the second page is refused with `query.stale_revision`
 rather than returned against different data. The client restarts the scan from
 the first page. A cursor carries no revision of its own: the revision is the
-query's, and a paged scan keeps issuing its original base.
+query's, and a paged scan keeps issuing its original base, as
+`Query.scan_revision`, which the first page leaves absent.
+
+In the session, every row of a page carries its soul's values (`QueryRow.soul`)
+and the page its `total`, the count of every row the query keeps. The session
+and the headless endpoint run a query through the same check and evaluation
+(ADR-0026); the row budget's default and ceiling are theirs.
 
 **Aggregates are not paginated.** `Aggregate` returns counts and sums over the
 whole selection in one response, because an aggregate that had to be paged would
@@ -189,6 +217,41 @@ Error {
 
 The Dart side receives an exception carrying the same three fields. Nothing is
 re-derived.
+
+The codes the session raises today:
+
+| Code                           | When                                                                         |
+| ------------------------------ | ---------------------------------------------------------------------------- |
+| `session.protocol_unsupported` | `OpenSession` from a higher major, or with no version                        |
+| `session.not_open`             | a request before `OpenSession`                                               |
+| `session.already_open`         | a second `OpenSession`                                                       |
+| `session.invalid_request_id`   | a request id of zero                                                         |
+| `session.unknown_request`      | a request of no kind this daemon knows                                       |
+| `session.malformed_frame`      | in `session_failed`: the framing broke                                       |
+| `session.malformed_message`    | in `session_failed`: a payload is not a `ClientMessage`                      |
+| `query.unknown_profile`        | a profile id the projection does not hold                                    |
+| `query.stale_revision`         | a later page of a scan whose revision has moved                              |
+| the other `query.*` codes      | the query's check and evaluation refused it ([query.md](query.md), "Errors") |
+| `decode.no_input`              | `DecodeSchemeCode` with neither text nor image                               |
+| `decode.malformed_text`        | the text is not a scheme code's transport (`scheme-code.md`, § Transport)    |
+| `decode.unknown_format`        | the payload is not a scheme code                                             |
+| `decode.malformed_layout`      | the payload's header or records do not parse                                 |
+| `decode.malformed_scheme`      | a record does not read as a selection                                        |
+| `decode.image_invalid`         | the image is not a PNG this reader accepts                                   |
+| `decode.no_qr_code`            | the image holds no QR code                                                   |
+| `decode.several_qr_codes`      | the image holds more than one                                                |
+| `decode.qr_unreadable`         | the QR code does not decode to text                                          |
+
+The warning `session.client_outdated` accompanies an `OpenSession` from a lower
+major.
+
+**Client-side codes** are raised by the application for failures only it can
+see, and never cross the wire: `client.daemon_not_found`,
+`client.daemon_start_failed`, `client.daemon_exited`, `client.timeout`,
+`client.protocol_error` (a malformed frame from the daemon, or a response to no
+request), and `client.not_connected`. Every code the application can meet has
+its own Chinese text; the `error-codes` preflight check reports one that does
+not.
 
 ## What this page does not define
 
