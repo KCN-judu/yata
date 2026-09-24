@@ -324,11 +324,7 @@ mod tests {
     #[test]
     fn a_plan_file_reads_names_souls_and_solved_filter_bits() {
         let records = parse_plan_file(
-            "# name | souls | filter bits
-
-测试位39 | 39 | 0,1,2,3,4,5,11,49
-全部 | all | 1, 11
-",
+            "# name | souls | filter bits\n\n测试位39 | 39 | 0,1,2,3,4,5,11,49\n全部 | all | 1, 11\n",
         )
         .expect("valid");
         assert_eq!(records.len(), 2);
@@ -340,14 +336,10 @@ mod tests {
     #[test]
     fn a_plan_file_refuses_open_bits_and_names_the_line() {
         assert_eq!(
-            parse_plan_file(
-                "ok | all | 1
-bad | all | 1,47
-"
-            ),
+            parse_plan_file("ok | all | 1\nbad | all | 1,27\n"),
             Err(PlanFileError {
                 line: 2,
-                problem: PlanLineProblem::UnsolvedFilterBit { bit: 47 }
+                problem: PlanLineProblem::UnsolvedFilterBit { bit: 27 }
             })
         );
         assert_eq!(
@@ -368,7 +360,7 @@ bad | all | 1,47
     fn plans_list_marks_open_bits_and_never_prints_the_account() {
         use yata_core::scheme::layout::{AccountSegment, SchemeHeader};
         let mut filter = vec![0u8; 7];
-        filter[5] = 0x80; // open bit 47
+        filter[3] = 0x08; // open bit 27
         filter[6] = 0x02; // level bit 49
         let layout = SchemeLayout {
             header: SchemeHeader {
@@ -380,13 +372,12 @@ bad | all | 1,47
         let text = format_plans(&layout);
         assert_eq!(
             text,
-            "kind: strengthening
-account: present (not shown)
-records: 1
-  0  p
-     souls: 0
-     filter: 00000000008002  bits: 47*,49
-"
+            "kind: strengthening\n\
+             account: present (not shown)\n\
+             records: 1\n  \
+             0  p\n     \
+             souls: 0\n     \
+             filter: 00000008000002  bits: 27*,49\n"
         );
         assert!(!text.to_lowercase().contains("ab ab"));
     }

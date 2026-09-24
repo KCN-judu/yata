@@ -1,7 +1,8 @@
 //! Editing a record bit by bit, for solved bits only (`scheme-code.md`, "Codec rules").
 //!
 //! A soul bit is one of the 70 soul sets the research record maps; a filter bit is one of the
-//! solved filter groups (slot, star, main attribute, sub-attribute include/exclude, level).
+//! solved filter groups: slot, star, main attribute, the sub-attribute include/exclude pairs
+//! that are located, sub-attribute count, level, and innate attribute.
 //! Their constructors refuse every other bit, so an edit can never write an unsolved bit. An
 //! edit changes that one bit and nothing else, with one documented exception: clearing a soul bit
 //! trims trailing zero bytes from the soul mask, as the game writes masks.
@@ -14,9 +15,13 @@ use super::layout::{LayoutError, MAX_FIELD_LEN, Record};
 /// Soul bits in use: one per soul set, 0 to 69.
 pub const SOUL_BIT_COUNT: u16 = 70;
 
-/// The solved filter bits: slot 0–5, star 6–11, main attribute 12–22, sub-attribute include and
-/// exclude 25–46, level 49–54. Bits 23–24, 47–48 and 55+ are open.
-const SOLVED_FILTER_BITS: [(u16, u16); 3] = [(0, 22), (25, 46), (49, 54)];
+/// The solved filter bits: slot 0–5, star 6–11, main attribute 12–22; sub-attribute include and
+/// exclude for `AtkPercent` 25–26, `DefPercent` 29–30, `HpPercent` 33–34 and the five special
+/// attributes 35–44; sub-attribute count 45–48; level 49–54; innate attribute 55–60 (options one
+/// to six, left to right in the editor). Open: 23–24, the flat attributes' pairs 27–28 and
+/// 31–32, and 61 and above. The flat attributes were once placed by elimination at 27–28, 31–32
+/// and 45–46; an import on 2026-09-24 showed 45–46 to be the count, so none of the three is placed.
+const SOLVED_FILTER_BITS: [(u16, u16); 4] = [(0, 22), (25, 26), (29, 30), (33, 60)];
 
 /// The filter length every observed plan has; a filter built from scratch has it.
 pub const FILTER_LEN: usize = 7;
@@ -192,10 +197,10 @@ mod tests {
     #[test]
     fn only_solved_bits_can_be_named() {
         assert!(SoulBit::new(69).is_some() && SoulBit::new(70).is_none());
-        for open in [23, 24, 47, 48, 55, 60] {
+        for open in [23, 24, 27, 28, 31, 32, 61, 63] {
             assert_eq!(FilterBit::new(open), None, "{open}");
         }
-        for solved in [0, 11, 22, 25, 46, 49, 54] {
+        for solved in [0, 11, 22, 25, 26, 29, 30, 33, 44, 45, 48, 49, 54, 55, 60] {
             assert!(FilterBit::new(solved).is_some(), "{solved}");
         }
     }
@@ -236,6 +241,24 @@ mod tests {
     }
 
     #[test]
+    fn the_count_and_innate_plans_imported_on_2026_09_24_are_rebuilt() {
+        // The game's own export of the controlled plans: one extra bit each over the baseline.
+        let base = [0u16, 1, 2, 3, 4, 5, 11, 49];
+        let with = |extra: &[u16]| {
+            let bits: Vec<FilterBit> = base.iter().chain(extra).map(|&b| filt(b)).collect();
+            Record::from_bits("p", Some(&[soul(33)]), &bits).expect("valid")
+        };
+        assert_eq!(with(&[45]).filter(), &[0x3f, 0x08, 0, 0, 0, 0x20, 0x02]);
+        assert_eq!(with(&[48]).filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x03]);
+        assert_eq!(with(&[55]).filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x82]);
+        assert_eq!(with(&[56]).filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x02, 0x01]);
+        assert_eq!(
+            with(&[55, 56, 57, 58, 59, 60]).filter(),
+            &[0x3f, 0x08, 0, 0, 0, 0, 0x82, 0x1f]
+        );
+    }
+
+    #[test]
     fn clearing_the_last_soul_is_refused() {
         let mut r = Record::from_bits("x", Some(&[soul(5)]), &[]).expect("valid");
         assert_eq!(r.set_soul(soul(5), false), Err(EditError::EmptySoulMask));
@@ -261,7 +284,7 @@ mod tests {
     fn a_filter_edit_changes_exactly_that_bit_of_the_payload() {
         let r = Record::from_bits("x", Some(&[soul(2)]), &[filt(1), filt(49)]).expect("valid");
         let before = serialize(&set_of(vec![r.clone()])).expect("writable");
-        for bit in [0u16, 6, 12, 22, 25, 46, 54] {
+        for bit in [0u16, 6, 12, 22, 25, 46, 54, 55] {
             let mut edited = r.clone();
             let on = !edited.has_filter(filt(bit));
             edited.set_filter(filt(bit), on).expect("valid");
@@ -297,16 +320,16 @@ mod tests {
 
     #[test]
     fn unsolved_bits_already_set_are_kept_by_every_edit() {
-        // A filter as read, with open bits 23, 47, 48 and 60 set.
+        // A filter as read, with open bits 23, 27, 31 and 61 set.
         let mut filter = vec![0u8; 8];
-        for b in [23usize, 47, 48, 60] {
+        for b in [23usize, 27, 31, 61] {
             filter[b / 8] |= 1 << (b % 8);
         }
         let mut r = Record::new("x", vec![0x01], filter).expect("valid");
         r.set_filter(filt(12), true).expect("valid");
         r.set_filter(filt(12), false).expect("valid");
         r.set_soul(soul(1), true).expect("valid");
-        assert_eq!(r.filter_bits(), vec![23, 47, 48, 60]);
+        assert_eq!(r.filter_bits(), vec![23, 27, 31, 61]);
     }
 
     mod properties {
