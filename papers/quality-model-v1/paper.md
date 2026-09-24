@@ -1,0 +1,762 @@
+# A Probability-Normalized and Formally Verified Quality Model for Onmyoji Souls
+
+《阴阳师》御魂品质评分标准：概率归一化与形式化验证
+
+Yata Quality Model v1 (`yata-quality-v1`). Manuscript, 2026-09-24.
+
+## Abstract
+
+We define a quality score for six-star souls (御魂) in _Onmyoji_ that is exact,
+explainable, and comparable across roles. A soul's sub-attributes are measured
+in **roll units**, the value over the largest single increment, and summed over
+the four attributes of an **archetype**, a published role profile. The sum is
+mapped to 0–100 by three anchors: 0 for no useful value, 50 for the expected
+soul under the game's generative process, and 100 for the attainable maximum.
+Tiers N to SSR are bands at utility milestones. SP is a specialized soul above
+the SSR floor. UR is the region within one roll unit of the maximum. Each
+archetype's expected utility is computed exactly under the official draw
+weights, and depends on the unknown law of one increment only through its mean.
+Every archetype's 50 is its own expected soul. Archetypes that the official
+weights treat alike are on identical scales, which we prove as a relabelling
+theorem; between the others we measure the residual. We prove in Lean 4 that the
+score is bounded, monotone, and dominance-preserving, that tier precedence is
+deterministic and exclusive, that SP cannot bypass its floor, and that every UR
+soul outscores every non-UR soul. We compute tier rates exactly and check them
+by Monte Carlo, and we report the rejected candidates with the counterexamples
+that rejected them. Lean proves consequences of the definitions; whether the
+game follows the assumed mechanics is a separate, empirical question, and we
+state which assumptions are sourced and which are not.
+
+## 1. Introduction
+
+A soul-scoring tool answers two questions: _is this soul good?_ and _is it good
+for this Shikigami?_ Yata separates them (ADR-0003). Pass 1, the quality score,
+is the first question, asked with no holder in mind. This paper defines it.
+
+Three requirements drive the design. **Utility is not rarity:** a soul must not
+score higher because its useful attributes are improbable. **The scale is
+common:** a speed soul and a crit soul of equal relative quality score the same.
+**Tiers mean what they say:** no soul outside UR outscores a UR soul, and SP is
+never a single good line on an otherwise poor soul.
+
+The earlier mechanics study (Hu, 2026) establishes the six-star rules and
+constructs a theoretical best output soul. This paper takes its mechanics as the
+source and adds a probability space, a utility model, a normalization, tier
+definitions, proofs, and a numerical validation. Where we depart from it, we say
+so.
+
+Every statement is one of four kinds, and is marked where it matters: **(A)** a
+sourced game rule; **(B)** a derived consequence; **(C)** a design decision of
+this standard; **(D)** a calibration result, a computation under stated inputs.
+
+## 2. Game mechanics and assumptions
+
+The rules are those of `docs/spec/soul-mechanics.md`, with their sources. For a
+six-star soul:
+
+- **(A) Main attribute.** Slots 1, 3, 5 have fixed flat mains; slots 2, 4, 6
+  draw from pools. The main value grows linearly with level and takes no roll.
+- **(A) Sub-attributes.** Eleven attributes. A soul has at most four. It starts
+  with 2, 3 or 4, each about one third (community data-mining cited by Hu 2026).
+- **(A) Rolls.** At +3, +6, +9, +12, +15 one roll: below four sub-attributes an
+  attribute is drawn from all eleven, and added if new or strengthened if
+  present; at four, one present attribute is strengthened, each with 1/4.
+- **(A) Weights.** The official notice gives the
+  classes 攻击类 36%, 防御类 36%, 功能类 28%, and an official figure is
+  authoritative. Each class's weight is shared equally among its members (Hu
+  2026), so an attribute weighs 9% or 28/3%. Hu (2026) also reads the notice's
+  figures as the rounding of 1/11 per attribute; 28% is not 3/11 rounded
+  (27.27%), so that reading is not adopted, and § 12 reports what it would
+  change.
+- **(A) Values.** One increment of attribute `a` lies in `[lo(a), hi(a)]`, with
+  `lo = 0.8 · hi` for every six-star attribute; the maximum is `6 · hi`.
+
+Assumptions this standard needs and the sources do not settle:
+
+| Assumption                                | Status                                                                  | Where it matters                       |
+| ----------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- |
+| the law of one increment within its range | open; three readings put its mean at 0.90–0.913 of `hi`                 | only its mean enters the score (§ 5)   |
+| initial sub-attributes are distinct       | assumed; the count "2, 3 or 4" presupposes it                           | the reference measure                  |
+| initial count 1/3 each                    | community figure, not verifiable (the cited forum requires a login)     | `E`, through the mean count only (§ 5) |
+| a draw below four can strengthen          | the notice reads either way; the analysis and the maintainer read it so | the reference measure                  |
+
+## 3. Formal generative model
+
+A six-star soul at +15 is generated as follows. Let `A` be the eleven
+attributes, `w(a) = 9/100` for the 攻击类 and 防御类 attributes and `28/300` for
+the three 功能类 attributes.
+
+```text
+N₀ ~ Uniform{2, 3, 4}                                   initial count
+I  = N₀ distinct attributes, drawn by w without replacement
+for t = 1..5:                                            the five rolls
+    if |present| < 4:  X_t ~ w over all of A;  X_t is added or strengthened
+    else:              X_t ~ Uniform(present);  X_t is strengthened
+each increment (initial or roll) of attribute a has size δ = hi(a) · R,
+    R i.i.d. with a law on [4/5, 1] and mean μ
+```
+
+Three sources of randomness are kept apart: **which attributes exist** (`N₀, I`
+and the adding rolls), **which attribute each roll strengthens** (`X_t`), and
+**how large each increment is** (`R`). The first two are discrete and propagate
+exactly with rational probabilities. The third enters only through sums of `R`.
+
+A soul's value on attribute `a`, in roll units, is `e_a = S(a) / hi(a)`, the sum
+of the `R`s of its increments. For an archetype `p` with four attributes `A_p`,
+let `K_p` be the number of increments that landed on `A_p`. Then
+
+```text
+U_p = Σ_{a ∈ A_p} e_a = R₁ + … + R_{K_p}         (B)
+```
+
+a sum of `K_p` independent increments. The law of `K_p` is exact:
+
+<!-- generated:k-law -->
+
+| K    | P(K), output | P(K), hit and resist |
+| ---- | ------------ | -------------------- |
+| 0    | 10.6772%     | 10.4176%             |
+| 1    | 13.8563%     | 13.7302%             |
+| 2    | 20.2318%     | 20.1178%             |
+| 3    | 18.6657%     | 18.6903%             |
+| 4    | 16.1611%     | 16.2911%             |
+| 5    | 11.0711%     | 11.2136%             |
+| 6    | 5.9451%      | 6.0585%              |
+| 7    | 2.5199%      | 2.5828%              |
+| 8    | 0.7711%      | 0.7932%              |
+| 9    | 0.1006%      | 0.1050%              |
+| E[K] | 2.907009880  | 2.929901204          |
+
+<!-- /generated:k-law -->
+
+**(D) The expected useful increments.** `E[K_p]` is the mean of the law above,
+exact. It differs between archetypes: under the official weights an increment
+lands on a 功能类 attribute slightly more often than on another, and `hit` and
+`resist` hold two 功能类 attributes where `output` holds one. Under Hu's 1/11
+reading the process would be invariant under every permutation of the
+attributes, every increment would land on a given attribute with probability
+1/11, and `E[K_p]` would be `8 · 4/11 = 32/11` for every archetype; the
+calibration reproduces that value as a check of its propagation.
+
+## 4. Utility and profile model
+
+A **profile** assigns each attribute a weight `w_p(a) ≥ 0` and each slot a set
+of acceptable main attributes. Its utility is linear:
+
+```text
+U_p(s) = Σ_a w_p(a) · e_a(s)
+```
+
+**(C) Archetypes.** Quality uses a small published catalogue of profiles with
+four attributes of weight 1:
+
+| Archetype     | Useful sub-attributes                      | Accepted mains, slots 2 / 4 / 6                                                       |
+| ------------- | ------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `output` 输出 | `AtkPercent` `Crit` `CritDmg` `Spd`        | Spd, AtkPercent / AtkPercent / Crit, CritDmg, AtkPercent                              |
+| `hit` 命中    | `Spd` `EffectHit` `HpPercent` `DefPercent` | Spd, HpPercent, DefPercent / EffectHit, HpPercent, DefPercent / HpPercent, DefPercent |
+| `resist` 抵抗 | `Spd` `EffectRes` `HpPercent` `DefPercent` | Spd, HpPercent, DefPercent / EffectRes, HpPercent, DefPercent / HpPercent, DefPercent |
+
+`output` is Hu (2026, § 4.1)'s set of core output attributes; `hit` and `resist`
+are authored, and marked so. Every legal main is accepted by some archetype
+(Lean: `Arch.coverage`).
+
+**Why a catalogue, not one weight vector.** One vector for every soul is the
+average over all holders, the failure ADR-0003 exists to avoid. **Why four
+attributes, weight 1.** Profiles that the reference measure treats alike have
+the same utility distribution (§ 12). Four equal weights make the archetypes as
+alike as the official weights allow: they differ only in how
+many 功能类 attributes they hold. Profiles with other shapes, caps, floors, and
+interactions such as Crit's 100% cap belong to pass 2, where a score is
+comparable only within one need.
+
+**Quality vs affinity.** Pass 1 asks _how good is this soul as an item_; it may
+use role archetypes because they are published, fixed, and not a Shikigami. Pass
+2 asks _how useful is it for this need_; its profiles are arbitrary and its
+scores are not compared across needs. Profile-conditioned normalization belongs
+to both passes, but only in pass 1 is it held to a common scale.
+
+## 5. Probability-normalized quality score
+
+**The idea, in players' terms.** A speed soul is not rewarded because high speed
+is rare, and a crit soul is not punished because crit comes from a different
+draw. Each is measured against what its role can reach: nothing useful is 0, an
+average soul for that role is 50, and the best soul the rules allow is 100. Then
+the two are on the same scale.
+
+**The mathematics.**
+
+```text
+g_p(u) = max(0, 50·u/E_p)                         u ≤ E_p
+g_p(u) = min(100, 50 + 50·(u − E_p)/(M − E_p))    u > E_p
+score_p(s) = g_p(U_p(s))
+```
+
+with `M = 9`, the attainable maximum, and `E_p = E[U_p] = μ · E[K_p]`, the
+expected utility of the archetype. The v1 constants, generated:
+
+<!-- generated:constants -->
+
+Parameter set `yata-quality-v1`. Reference measure: the official class weights,
+equal within a class. Exact values: `formal/calibration/out/constants.json`.
+
+| Constant | Exact | Meaning                             |
+| -------- | ----- | ----------------------------------- |
+| μ        | 9/10  | mean increment, roll units          |
+| M        | 9     | attainable maximum, every archetype |
+| u_SR     | 9/2   | SR milestone: μ · 5                 |
+| u_SSR    | 63/10 | SSR milestone and SP floor: μ · 7   |
+| u_UR     | 8     | UR: utility above M − 1             |
+
+| Archetype | E[K]        | E = μ · E[K] | c_R | c_SR      | c_SSR     | t_UR      | g(6)      |
+| --------- | ----------- | ------------ | --- | --------- | --------- | --------- | --------- |
+| output    | 2.907009880 | 2.616308892  | 50  | 64.753934 | 78.852360 | 92.167541 | 76.502622 |
+| hit       | 2.929901204 | 2.636911083  | 50  | 64.639815 | 78.783889 | 92.142181 | 76.426543 |
+| resist    | 2.929901204 | 2.636911083  | 50  | 64.639815 | 78.783889 | 92.142181 | 76.426543 |
+
+<!-- /generated:constants -->
+
+**Five quantities, not interchangeable.** For a soul with utility `u`:
+
+- the _expected utility_ `E` is a property of the archetype, not the soul;
+- the _score_ `g(u)` places `u` between the anchors;
+- the _percentile_ `P(U < u) + ½P(U = u)` ranks `u` in the reference
+  distribution;
+- the _standardized deviation_ `(u − E)/σ_U` measures distance in standard
+  deviations, and is not used;
+- the _probability of an equal or better soul_ `P(U ≥ u)` says how often the
+  game produces one.
+
+Yata's `QualityScore` carries the score. The last figure depends on the whole
+increment law, not only its mean, so v1 does not include it; a display that
+shows it must name the law it assumes. Neither the percentile nor the
+probability enters the score.
+
+**Why the expectation is the right middle anchor.** The maintainer asked for
+expectation normalization. Dividing by the mean alone is unbounded (§ 13).
+Fixing the expected soul at 50 and the maximum at 100 keeps the score bounded,
+gives both ends a meaning, and makes 50 the same event for every archetype: _as
+good as the average soul the game gives this role_. `E_p` depends on the
+increment's law only through its mean `μ`, because `U_p` is a sum of increments
+(§ 12). The percentile, by contrast, depends on the whole law.
+
+**(B) No reward for rarity.** The score sees a soul only through `U_p(s)`: two
+souls of equal utility score equally, however probable either is (Lean:
+`score_factors`). Probability enters only through `E_p`, a property of the whole
+archetype. That is also how a rarer role is kept from gaining: an archetype
+whose attributes are drawn less often has a lower `E_p`, and a soul is scored by
+its distance above that expectation, not by its raw utility.
+
+## 6. Quality dimensions
+
+Only `total` is a mathematical component. The others explain it and are never
+added to it.
+
+- **Depth** `= 100 · max_{a ∈ A_p} e_a / 6`: the deepest useful line against its
+  maximum. It counts only useful lines, so a soul that poured every roll into
+  flat HP has depth 0 under every archetype.
+- **Breadth** `= 100 · (D − 1)/3` with `D = U² / Σ e_a²`, the effective number
+  of useful lines, from one to four. It depends only on the shape of the useful
+  values, not their size, so depth and breadth never count the total twice.
+- **Slot and main-attribute fit.** The main attribute gates which archetypes may
+  judge the soul and adds nothing. A rare main is not a better main: a slot-4
+  EffectHit soul with useless lines scores 0 (V16).
+- **Growth if retained.** Below +15, `g_p(U + μ · E[ΔK])`, the score of the
+  expected +15 soul. `E[ΔK]` has a recursion over the rolls left and the lines
+  present (spec, § Quality), checked against exact propagation.
+- **Best-fit profile.** The archetype that gives the quality, with the score
+  under every accepted archetype.
+
+## 7. Tier system
+
+**In players' terms.**
+
+- **N** is below the average soul for its role, **R** at least average, **SR**
+  about five useful rolls' worth, **SSR** about seven.
+- **SP** is not merely one spectacular line: the whole soul must already clear
+  the SSR floor, and one useful line must hold more than five rolls' worth,
+  which only a line that took all five rolls can.
+- **UR** is a soul on or next to the best the game allows: within one roll unit
+  of the maximum.
+
+**The predicates.**
+
+```text
+specialized_p(s) ⟺ ∃ a ∈ A_p. e_a > 5
+
+tier_p(s) = UR   if score > t_UR                          t_UR  = g_p(M − 1)
+          = SP   else if specialized and score ≥ c_SSR    c_SSR = g_p(7μ)
+          = SSR  else if score ≥ c_SSR
+          = SR   else if score ≥ c_SR                     c_SR  = g_p(5μ)
+          = R    else if score ≥ c_R                      c_R   = g_p(E_p) = 50
+          = N    otherwise
+```
+
+The edges are the same utility milestones for every archetype; as scores they
+differ between archetypes in the second decimal.
+
+**(C) The threshold rule.** The band edges are utility milestones, not
+quantiles: the expected soul, then five and seven useful increments at mean
+value. They depend on `μ` only, never on the full law, and they read in roll
+units. Their rates are then calibration results (§ 11).
+
+**(B) Precedence.** The tier function is deterministic, and exactly one of three
+cases holds: UR, SP, or the band (Lean: `tier_cases`). UR takes precedence over
+SP, and SP over the band. At or above the SP floor only SSR, SP and UR occur
+(`high_tier`). A single perfect line with nothing useful beside it reaches
+`g(6) < c_SSR`, so it is never SP (`single_line_not_SP`).
+
+**The exposed order is tier first, then score.** UR is first in both tier and
+score order: every non-UR soul scores strictly below every UR soul
+(`UR_score_gt`, `UR_top`). SP is above SSR in tier order, but an SSR soul can
+outscore an SP soul by up to `t_UR − c_SSR`. That is deliberate: SP marks a kind
+of excellence, a fully specialized line on an otherwise strong soul, not a
+higher number.
+
+**The ladder orders quality, not rarity.** Under the reference measure SP is
+rarer than UR (§ 11). The names come from the game's rarity ladder; the order is
+utility's.
+
+## 8. Theoretical attainable frontier
+
+For one archetype, a legal soul has at most nine increments, at most six on one
+line, and at most four lines, and each increment is at most one roll unit. So
+`U_p ≤ Σ_{a ∈ A_p} hits(a) ≤ 9` (Lean: `utility_le_nine`). The bound is reached
+exactly by the souls with all nine increments on the four useful lines at their
+maximum: any split (6,1,1,1), (5,2,1,1), …, (3,2,2,2). Hu (2026)'s theoretical
+output soul, 18% Crit, 4% CritDmg, 3% AtkPercent, 3 Spd with a CritDmg main, is
+one of them (`paperSoul_score`: score 100; `paperSoul_UR`). So the frontier is
+not one perfect soul but a face of the attainable region, and for equal weights
+its Pareto frontier in the useful dimensions is exactly the set where `U = 9`.
+
+**(B) UR is a near-frontier region.** `U > 8` forces all nine increments onto
+useful lines (`nine_useful_of_gt_eight`, `UR_structure`); only the roll values
+separate a UR soul from the frontier, and together they fall short by less than
+one roll unit.
+
+## 9. Lean 4 formalization
+
+`formal/lean/` is a Lean 4 project pinned to Mathlib v4.34.0. It contains
+exactly what the theorems need, in exact rational arithmetic:
+
+| Type                 | Meaning                                                                        |
+| -------------------- | ------------------------------------------------------------------------------ |
+| `Attr`, `Slot`       | the eleven sub-attributes; the six slots                                       |
+| `Roll`               | one increment in roll units, a rational in [4/5, 1]                            |
+| `Soul`               | increments per attribute: at most four lines, nine increments, six on one line |
+| `Features`           | `Attr → ℚ`, the `e_a`                                                          |
+| `Profile`            | useful attributes and weights                                                  |
+| `Anchors`            | `E`, `M`, with `0 < E < M`; `g` is `Anchors.g`                                 |
+| `RefMeasure`         | a finite reference distribution over outcomes with features                    |
+| `Tier`, `Thresholds` | the ladder, with explicit ranks; thresholds with their ordering as hypotheses  |
+| `Arch`               | the v1 catalogue with its accepted mains                                       |
+
+**What Lean proves and what it does not.** Lean proves that these definitions
+have these consequences. It does not prove that NetEase implemented the assumed
+probabilities, that the value table is right, or that the constants of v1 are
+the expectation of the real game. Those rest on the sources of § 2 and on the
+calibration of § 11. The constants `E_p` are computed by the calibration
+program; Lean gives each archetype its own anchors as parameters satisfying
+`0 < E < M`, and the UR theorems take `M = 9` as a hypothesis.
+
+## 10. Verified properties
+
+Every theorem below is checked by `lake build` in `formal/lean/`, with no
+`sorry` and no added axiom.
+
+| #   | Property                                                                                                 | Theorem (file)                                                                                    |
+| --- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 1   | the score lies in [0, 100]                                                                               | `g_nonneg`, `g_le_100` (Score)                                                                    |
+| 2   | improving useful attributes never lowers the score; strictly raises it within the maximum                | `score_mono`, `score_strict`, `g_mono`, `g_strict` (Score, Soul)                                  |
+| 3   | dominance is preserved, in score, in tier, and in the exposed order                                      | `utility_strict`, `score_strict`, `tier_mono_dominance`, `exposed_mono_dominance` (Soul, Quality) |
+| 4   | the score has no term for rarity                                                                         | `score_factors` (Soul)                                                                            |
+| 5   | the tier is a function, one of three cases                                                               | `Thresholds.tier`, `tier_cases` (Tier)                                                            |
+| 6   | precedence: UR over SP over bands; bands never give SP or UR                                             | `tier_UR_iff`, `tier_SP_iff`, `band_ne_SP`, `band_ne_UR` (Tier)                                   |
+| 7   | SP implies the quality floor and specialization                                                          | `SP_floor` (Tier)                                                                                 |
+| 8   | UR outranks every non-UR soul, in score and in the exposed order                                         | `UR_score_gt`, `UR_top` (Tier)                                                                    |
+| 9   | at or above the SP floor, only SSR, SP, UR                                                               | `high_tier` (Tier)                                                                                |
+| 10  | the maximum maps to 100; the paper's soul is UR                                                          | `g_M`, `utility_le_nine`, `paperSoul_score`, `paperSoul_UR` (Score, Archetype, Quality)           |
+| 11  | no useful value maps to 0; the expected soul to 50                                                       | `g_zero`, `g_E` (Score)                                                                           |
+| 12  | relabelled profiles score relabelled souls equally under a symmetric reference measure; scale invariance | `expected_relabel`, `score_relabel`, `g_scale` (Fairness, Score)                                  |
+| —   | specialization forces all five rolls onto the line                                                       | `six_hits_of_gt_five` (Soul)                                                                      |
+| —   | UR forces all nine increments onto useful lines; UR ⟺ `U > 8`                                            | `nine_useful_of_gt_eight`, `UR_structure`, `UR_iff_gt_eight` (Archetype, Quality)                 |
+| —   | one perfect line alone is never SP                                                                       | `single_line_le_six`, `single_line_not_SP` (Archetype, Quality)                                   |
+| —   | every legal main is accepted; archetypes accept only legal mains                                         | `Arch.coverage`, `Arch.accepts_legal` (Quality)                                                   |
+
+**What failed on the way.** The first attempt defined `g` with three nested
+cases and could not close monotonicity over nine case combinations; the
+equivalent form with `max`/`min` segments reduced it to four and was kept.
+`deriving Fintype` failed on an eleven-constructor type in this Mathlib; the
+instances are written by hand. No theorem was weakened to pass: every statement
+above is the one the design needs. When the reference measure moved to the
+official weights, each archetype got its own anchors; the theorems took them as
+parameters unchanged, and the UR theorems lost a hypothesis (`E < 8`) they
+turned out not to need. Lean proves monotonicity in the exposed order per
+archetype; the lift to the best over several archetypes is the elementary fact
+that the maximum of pointwise larger values is larger.
+
+## 11. Numerical distribution analysis
+
+`formal/calibration/` computes the law of the useful hit vector exactly, with
+rational probabilities, by propagating the process of § 3 over all hit counts.
+For a continuous uniform increment law the tier rates are then exact, through
+the Irwin–Hall distribution; the SP rate needs one integral, done by Simpson's
+rule with an error far below the digits shown. Tier rates per archetype, for
+three increment laws with mean 0.9 (`hit` and `resist` are identical, which the
+program asserts):
+
+<!-- generated:tier-rates -->
+
+| Increment law                  | Archetype   | N        | R        | SR       | SSR     | SP      | UR      |
+| ------------------------------ | ----------- | -------- | -------- | -------- | ------- | ------- | ------- |
+| continuous uniform on [0.8, 1] | output      | 48.6960% | 36.4318% | 12.7406% | 2.0388% | 0.0209% | 0.0719% |
+| continuous uniform on [0.8, 1] | hit, resist | 49.3844% | 35.4693% | 12.9568% | 2.0933% | 0.0212% | 0.0751% |
+| 7 equal steps on [0.8, 1]      | output      | 49.3366% | 35.3133% | 13.1256% | 2.1364% | 0.0218% | 0.0663% |
+| 7 equal steps on [0.8, 1]      | hit, resist | 50.6409% | 33.7287% | 13.3456% | 2.1934% | 0.0221% | 0.0692% |
+| 2 equal steps on [0.8, 1]      | output      | 54.0982% | 31.0296% | 12.7406% | 2.0613% | 0.0200% | 0.0503% |
+| 2 equal steps on [0.8, 1]      | hit, resist | 53.6107% | 31.2430% | 12.9568% | 2.1167% | 0.0203% | 0.0525% |
+
+<!-- /generated:tier-rates -->
+
+About half of all +15 souls are below the expected soul for a given archetype,
+one in eight is SR, one in fifty SSR, and about one in 1 400 is UR. SP is rarer
+than UR: a line must take all five rolls, which happens to a given line with
+probability `(1/4)⁵` even when all four lines exist.
+
+**Monte Carlo check and the quality maximum.** The same process simulated with
+four million souls reproduces every exact rate; the table gives each rate's
+standard error and its z-score against the exact value. The quality of a soul is
+its best result over the archetypes its main accepts, which exact propagation
+does not cover because the archetypes share attributes; the Monte Carlo gives
+it:
+
+<!-- generated:monte-carlo -->
+
+4000000 souls per row, seed 0x594154417631, uniform increments, the reference
+measure. Each cell: rate (standard error), and its z-score against the exact
+rate.
+
+| Row                 | N                          | R                          | SR                         | SSR                       | SP                        | UR                        |
+| ------------------- | -------------------------- | -------------------------- | -------------------------- | ------------------------- | ------------------------- | ------------------------- |
+| exact, output       | 48.6960%                   | 36.4318%                   | 12.7406%                   | 2.0388%                   | 0.0209%                   | 0.0719%                   |
+| Monte Carlo, output | 48.7182% (0.0250%) z=+0.89 | 36.4113% (0.0241%) z=-0.85 | 12.7368% (0.0167%) z=-0.23 | 2.0434% (0.0071%) z=+0.64 | 0.0199% (0.0007%) z=-1.28 | 0.0705% (0.0013%) z=-1.08 |
+| exact, hit          | 49.3844%                   | 35.4693%                   | 12.9568%                   | 2.0933%                   | 0.0212%                   | 0.0751%                   |
+| Monte Carlo, hit    | 49.3473% (0.0250%) z=-1.48 | 35.5240% (0.0239%) z=+2.29 | 12.9330% (0.0168%) z=-1.42 | 2.1013% (0.0072%) z=+1.12 | 0.0200% (0.0007%) z=-1.64 | 0.0744% (0.0014%) z=-0.47 |
+| exact, resist       | 49.3844%                   | 35.4693%                   | 12.9568%                   | 2.0933%                   | 0.0212%                   | 0.0751%                   |
+| Monte Carlo, resist | 49.3971% (0.0250%) z=+0.51 | 35.4815% (0.0239%) z=+0.51 | 12.9365% (0.0168%) z=-1.21 | 2.0889% (0.0072%) z=-0.61 | 0.0197% (0.0007%) z=-2.05 | 0.0762% (0.0014%) z=+0.81 |
+
+Largest |z| of a Monte Carlo rate against the exact rate: 2.29.
+
+| Quality over accepted archetypes | N                  | R                  | SR                 | SSR               | SP                | UR                |
+| -------------------------------- | ------------------ | ------------------ | ------------------ | ----------------- | ----------------- | ----------------- |
+| slot 1, 3, 5 (all archetypes)    | 14.1537% (0.0174%) | 50.7376% (0.0250%) | 29.2761% (0.0228%) | 5.5659% (0.0115%) | 0.0456% (0.0011%) | 0.2211% (0.0023%) |
+| slot 2 Spd (all archetypes)      | 14.1537% (0.0174%) | 50.7376% (0.0250%) | 29.2761% (0.0228%) | 5.5659% (0.0115%) | 0.0456% (0.0011%) | 0.2211% (0.0023%) |
+| slot 2 AtkPercent (output)       | 48.7182% (0.0250%) | 36.4113% (0.0241%) | 12.7368% (0.0167%) | 2.0434% (0.0071%) | 0.0199% (0.0007%) | 0.0705% (0.0013%) |
+| slot 4 EffectHit (hit)           | 49.3473% (0.0250%) | 35.5240% (0.0239%) | 12.9330% (0.0168%) | 2.1013% (0.0072%) | 0.0200% (0.0007%) | 0.0744% (0.0014%) |
+| slot 6 CritDmg (output)          | 48.7182% (0.0250%) | 36.4113% (0.0241%) | 12.7368% (0.0167%) | 2.0434% (0.0071%) | 0.0199% (0.0007%) | 0.0705% (0.0013%) |
+| slot 6 HpPercent (hit, resist)   | 36.8175% (0.0241%) | 40.9054% (0.0246%) | 18.5702% (0.0194%) | 3.5278% (0.0092%) | 0.0286% (0.0008%) | 0.1506% (0.0019%) |
+
+<!-- /generated:monte-carlo -->
+
+Every Monte Carlo SP rate in these tables lies below the exact one, by one to
+two standard errors, and so did an earlier run under Hu's weights. That looks
+systematic, but it is one sample: the three archetypes are scored on the same
+souls, and the runs share one seed, so the SP counts are strongly correlated.
+Three further computations settle it: a conditional simulation of the values
+given the exact hit law, a simulation of the hit process alone, and a separate
+NumPy simulation of 20 million souls under the official weights, which gave
+0.02067% ± 0.00032% for `output` against the exact 0.0209%. The exact values
+stand. (The last three were development checks and are not in the repository.)
+
+A soul whose main is accepted by all three archetypes (slots 1, 3, 5, or a speed
+main) has three chances at a good score, so its quality is higher than a soul
+whose main fits one archetype. This is fit, not rarity: the flat mains of slots
+1, 3, 5 are the commonest mains and share the advantage with the rare speed
+main.
+
+**Equal-or-better probability**, for selected test vectors, beside the
+percentile under three increment laws:
+
+<!-- generated:law-robustness -->
+
+| Soul | U      | anchored score (any law with mean 0.9) | percentile, uniform | percentile, 7 steps | percentile, 2 steps | P(equal or better), uniform |
+| ---- | ------ | -------------------------------------- | ------------------- | ------------------- | ------------------- | --------------------------- |
+| V02  | 2.7000 | 50.66                                  | 54.10               | 54.10               | 54.10               | 45.9018% (1 in 2)           |
+| V03  | 6.4000 | 79.64                                  | 98.47               | 98.40               | 98.21               | 1.5276% (1 in 65)           |
+| V05  | 7.3000 | 86.68                                  | 99.69               | 99.67               | 99.62               | 0.3115% (1 in 321)          |
+| V10  | 8.0000 | 92.17                                  | 99.93               | 99.93               | 99.94               | 0.0719% (1 in 1390)         |
+
+<!-- /generated:law-robustness -->
+
+## 12. Cross-profile normalization experiments
+
+**Fairness principle.** If two souls have equivalent quality within their roles,
+changing the role from crit to speed must not reward the role whose attributes
+are rarer. Formally: for a permutation `π` of the attributes, a profile `p` and
+its image `p∘π⁻¹`, the soul `s` and its image `s∘π⁻¹` score the same.
+
+**(B) Theorem.** If the reference measure is invariant under `π`, the two
+profiles have the same expected utility, and with the same maximum they score
+the images equally (Lean: `expected_relabel`, `score_relabel`). The official
+measure is invariant under every permutation that keeps each attribute in its
+class. `hit` and `resist` are images of each other under the swap of `EffectHit`
+and `EffectRes`, so their scales are identical, and the calibration asserts
+their rates equal. V12 and V13, a crit and a crit-damage soul of the same
+structure under `output`, score the same.
+
+**Residual: across classes.** `output` is not the image of `hit` under any
+class-preserving permutation: it holds one 功能类 attribute, `hit` two. Its
+`E_p` is under one percent lower, and V11, a speed soul under `hit`, scores a
+few hundredths below V12, its crit counterpart under `output` (Appendix C). The
+normalization is doing its job there: the attributes of `hit` are drawn slightly
+more often, so the same utility is slightly less far above `hit`'s expectation.
+The tier rates of the two differ by up to one percentage point in N and R and by
+under a quarter of a point from SR up (§ 11).
+
+**Residual: the weight reading.** Under Hu's 1/11 reading all three archetypes
+would share one distribution. What each reading, and a skewed initial count,
+would give with v1's thresholds:
+
+<!-- generated:measure-sensitivity -->
+
+| Measure                                       | Archetype | E      | N        | R        | SR       | SSR     | SP      | UR      |
+| --------------------------------------------- | --------- | ------ | -------- | -------- | -------- | ------- | ------- | ------- |
+| 36/36/28 per class (official notice; v1)      | output    | 2.6163 | 48.6960% | 36.4318% | 12.7406% | 2.0388% | 0.0209% | 0.0719% |
+| 36/36/28 per class (official notice; v1)      | hit       | 2.6369 | 49.3844% | 35.4693% | 12.9568% | 2.0933% | 0.0212% | 0.0751% |
+| 36/36/28 per class (official notice; v1)      | resist    | 2.6369 | 49.3844% | 35.4693% | 12.9568% | 2.0933% | 0.0212% | 0.0751% |
+| 1/11 per attribute (Hu 2026 reading)          | output    | 2.6182 | 48.6513% | 36.4509% | 12.7607% | 2.0441% | 0.0209% | 0.0722% |
+| 1/11 per attribute (Hu 2026 reading)          | hit       | 2.6182 | 49.8328% | 35.2693% | 12.7607% | 2.0441% | 0.0209% | 0.0722% |
+| 1/11 per attribute (Hu 2026 reading)          | resist    | 2.6182 | 49.8328% | 35.2693% | 12.7607% | 2.0441% | 0.0209% | 0.0722% |
+| official weights; initial count 1/2, 1/3, 1/6 | output    | 2.5073 | 50.8994% | 36.4873% | 11.2176% | 1.3492% | 0.0105% | 0.0360% |
+| official weights; initial count 1/2, 1/3, 1/6 | hit       | 2.5273 | 51.6120% | 35.5242% | 11.4282% | 1.3874% | 0.0107% | 0.0375% |
+| official weights; initial count 1/2, 1/3, 1/6 | resist    | 2.5273 | 51.6120% | 35.5242% | 11.4282% | 1.3874% | 0.0107% | 0.0375% |
+
+<!-- /generated:measure-sensitivity -->
+
+The two readings differ in `E_p` by under one percent and in any tier rate by
+under half a percentage point. A skewed initial count lowers every archetype's
+`E_p` by about the same amount.
+
+**Residual: the increment's mean.** `E_p` is `μ · E[K_p]`. Scores of four test
+vectors under other means:
+
+<!-- generated:mu-sensitivity -->
+
+| μ                       | E, output | E, hit and resist | score V03 | score V05 | score V11 | score V12 |
+| ----------------------- | --------- | ----------------- | --------- | --------- | --------- | --------- |
+| 0.8 (all rolls minimal) | 2.3256    | 2.3439            | 80.52     | 87.26     | 89.48     | 89.51     |
+| 0.9 (v1: midpoint)      | 2.6163    | 2.6369            | 79.64     | 86.68     | 89.00     | 89.03     |
+| 0.9067 (官网 2.72/3.0)  | 2.6357    | 2.6564            | 79.57     | 86.64     | 88.97     | 89.00     |
+| 0.9125 (官网 3.65/4.0)  | 2.6526    | 2.6735            | 79.52     | 86.61     | 88.94     | 88.97     |
+| 1.0 (all rolls maximal) | 2.9070    | 2.9299            | 78.66     | 86.05     | 88.47     | 88.51     |
+
+<!-- /generated:mu-sensitivity -->
+
+**Residual: profiles of other shapes.** The candidates of § 13 applied to
+profiles with one, two and four useful attributes, on one million simulated
+souls:
+
+<!-- generated:normalization -->
+
+1000000 souls, seed 0x4E4F524D, uniform increments; the same souls for every
+profile. Each cell: share of souls scoring at or above the output archetype's
+c_R / c_SR / c_SSR / above its t_UR, and the mean score.
+
+| Normalization                   | Profile                         | ≥ c_R   | ≥ c_SR  | ≥ c_SSR | > t_UR   | mean  |
+| ------------------------------- | ------------------------------- | ------- | ------- | ------- | -------- | ----- |
+| A. bound: 100·U/M               | speed only (1 attribute)        | 2.153%  | 0.247%  | 0.021%  | 0.0019%  | 11.16 |
+| A. bound: 100·U/M               | crit pair (2 attributes)        | 8.774%  | 2.035%  | 0.277%  | 0.0197%  | 18.54 |
+| A. bound: 100·U/M               | output archetype (4 attributes) | 14.883% | 3.387%  | 0.684%  | 0.0134%  | 29.08 |
+| C. mean ratio: min(100, 50·U/E) | speed only (1 attribute)        | 37.183% | 33.089% | 25.022% | 25.0223% | 33.19 |
+| C. mean ratio: min(100, 50·U/E) | crit pair (2 attributes)        | 44.801% | 43.026% | 23.260% | 23.2598% | 43.90 |
+| C. mean ratio: min(100, 50·U/E) | output archetype (4 attributes) | 51.295% | 36.025% | 20.386% | 9.4334%  | 48.95 |
+| H. anchored (v1)                | speed only (1 attribute)        | 37.183% | 9.821%  | 0.438%  | 0.0119%  | 22.54 |
+| H. anchored (v1)                | crit pair (2 attributes)        | 44.801% | 10.053% | 1.609%  | 0.1019%  | 33.12 |
+| H. anchored (v1)                | output archetype (4 attributes) | 51.295% | 14.883% | 2.142%  | 0.0748%  | 42.29 |
+| B. percentile (mid-rank)        | speed only (1 attribute)        | 37.183% | 35.246% | 21.148% | 7.8325%  | 50.00 |
+| B. percentile (mid-rank)        | crit pair (2 attributes)        | 50.000% | 35.246% | 21.148% | 7.8325%  | 50.00 |
+| B. percentile (mid-rank)        | output archetype (4 attributes) | 50.000% | 35.246% | 21.148% | 7.8325%  | 50.00 |
+
+<!-- /generated:normalization -->
+
+Under the anchored score (H), the expected soul is 50 for every shape, but the
+tails differ: a speed-only profile reaches SSR 0.44% of the time, the output
+archetype 2.1%. That difference is structural, a one-attribute utility is zero
+for most souls, and no bounded normalization that keeps 100 at the maximum
+removes it. It is why v1's catalogue has only four-attribute archetypes, and why
+single-attribute needs are scored in pass 2, comparable only within one need.
+
+## 13. Counterexamples rejected during model design
+
+1. **A rarity bonus**, `U + λ · (−log P(U' ≥ U))`. Two souls of equal utility
+   would score differently by how often their archetype produces such a soul.
+   This is the definition of rewarding rarity; `score_factors` rules it out.
+2. **Percentile normalization (B).** Exactly fair by construction, and robust in
+   practice (under 0.3 points across three increment laws). But it compresses
+   the top: SSR, SP and near-UR test vectors land at 98.5, 99.7 and 99.9. UR
+   cannot be seen, and a display to one decimal cannot separate the best souls.
+   It is kept as an explanation, never as the score.
+3. **Bound normalization (A)**, `100 · U / M`. The expected soul scores 29 for
+   the output archetype and 11 for a speed-only profile: 0 and 100 have
+   meanings, 50 does not.
+4. **Mean ratio (C)**, `min(100, 50 · U/E)`. Unbounded before clipping: a
+   quarter of speed-only souls reach 100, and UR loses its meaning.
+5. **UR as distance to the Pareto frontier.** With weights (2, 1, 1, 1), the
+   frontier point with six maximal increments on a weight-1 line has utility
+   `6 + 2 + 1 + 1 = 10`, while a non-frontier soul with 5.5 roll units on the
+   weight-2 line has `11 + 1 + 1 + 0.9 = 13.9`. An SP would outscore a UR. UR is
+   therefore the region of the utility gap, `U > M − 1`, which for equal weights
+   is the same as distance to the frontier.
+6. **SP as "one wanted attribute took every roll"** (the UI draft). V04 has 18
+   Crit and three useless lines. It would be SP, yet scores 76.50, below the SSR
+   floor. The floor is now part of SP.
+7. **The main attribute's value in utility.** The analysis converts a CritDmg
+   main into 22.3 roll units, more than the whole sub-attribute maximum of 9, so
+   every CritDmg-main soul would outscore every slot-1 soul whatever its lines.
+   It would also break the archetypes' symmetry, since mains are drawn with
+   unequal probabilities. The main gates; a need profile weighs its value.
+8. **Single-attribute profiles in the quality maximum.** § 12's residual: their
+   tails differ from four-attribute profiles, so they would bias the maximum.
+9. **Depth as concentration of all value** (a Herfindahl index over every line).
+   V01, three flat lines and one useful increment, would have high depth. Depth
+   counts useful lines only.
+
+The test vectors cover the pathological cases of the brief: a rare but useless
+soul (V16, 0), one maxed line and garbage (V04, SR), a balanced excellent soul
+against a specialized one (V03, V05), a dominated pair (V14, V15), speed against
+crit (V11, V12, V13), UR against SP (V09, V10), and the thresholds' neighbours
+(V06, V07, V10).
+
+## 14. Limitations
+
+- **The increment's law is unknown.** Only its mean enters the score, and three
+  readings agree on 0.90–0.913; the rates of § 11 assume a uniform law and
+  change by up to a few tenths of a point under discrete ones.
+- **Weights.** v1 takes the official class figures; the equal share within a
+  class is the analysis's reading, which no official source states. Hu's 1/11
+  reading is reported as a sensitivity (§ 12).
+- **Initial count and initial draws.** The count is community evidence; that
+  initial sub-attributes are drawn by weight without repeats is an assumption.
+- **The catalogue is authored.** `hit` and `resist` need review; a changed
+  catalogue is a new version.
+- **Six stars only.** Lower-star ranges are not sourced.
+- **Interactions are out of pass 1.** Crit's cap, speed thresholds, and set
+  bonuses are need-profile matters.
+- **Boss souls' innate attributes** are not scored.
+- **SP and SSR overlap in score** by up to `t_UR − c_SSR`, by design (§ 7).
+- **Lean's scope.** The anchors are parameters in Lean; their values, and every
+  rate, rest on the calibration program, which is tested against Monte Carlo but
+  not proved.
+
+## 15. Reproducibility
+
+Every number in this paper is generated. From the repository root:
+
+```bash
+cd formal/lean && lake exe cache get && lake build
+cargo run --manifest-path formal/calibration/Cargo.toml --release -- check docs/spec/quality-model.md papers/quality-model-v1/paper.md
+```
+
+The first checks every theorem. The second recomputes every table of this paper
+and of the spec and fails if any differs from what is committed; `render` in
+place of `check` rewrites them. The Monte Carlo seeds are fixed in the program.
+Both run in CI (the `formal` job) and in `just check`.
+
+## 16. Conclusion
+
+A soul's quality is its useful value in roll units, placed between nothing, the
+expected soul, and the best soul the rules allow, under the role archetype that
+suits it best. Each archetype's expectation is exact under the official weights
+and depends on the unknown increment law only through its mean. Every
+archetype's 50 is its own expected soul; archetypes the official weights treat
+alike are on identical scales by theorem, and the residual between the others is
+measured, not tuned away. The tiers are predicates whose names match their
+definitions, and the properties that make them trustworthy are proved. What
+remains empirical is whether the game follows the assumed mechanics, and the
+paper says which of them are sourced.
+
+## Appendix A. Complete formulas
+
+```text
+e_a(s)          = S(a) / hi(a)
+U_p(s)          = Σ_{a ∈ A_p} e_a(s)
+E_p             = μ · E[K_p] under the reference measure (§ 5);  M = 9;  μ = 9/10
+g_p(u)          = max(0, 50u/E_p)  if u ≤ E_p;  min(100, 50 + 50(u − E_p)/(M − E_p))  otherwise
+score_p(s)      = g_p(U_p(s))
+specialized_p   ⟺ ∃ a ∈ A_p. e_a > 5
+tier_p          = UR | SP | band, as § 7
+quality(s)      = max over accepting archetypes of (tier_p, score_p), lexicographic
+depth_p         = 100 · max_{a ∈ A_p} e_a / 6
+breadth_p       = 100 · (U² / Σ e_a² − 1) / 3,  0 if U = 0
+growth_p        = g_p(U_p + μ · f(r, P))     below +15; f as in the spec
+```
+
+## Appendix B. Profile definitions
+
+The catalogue of § 4, with accepted mains per slot; slots 1, 3 and 5 accept
+their fixed flat main under every archetype.
+
+## Appendix C. Tier thresholds and test vectors
+
+<!-- generated:vectors -->
+
+| Id  | Soul                                                                    | Slot, main, level  | Archetype | U      | Score  | Specialized | Tier | Depth | Breadth | Growth |
+| --- | ----------------------------------------------------------------------- | ------------------ | --------- | ------ | ------ | ----------- | ---- | ----- | ------- | ------ |
+| V01 | AtkFlat 72.0 (3); HpFlat 205.0 (2); DefFlat 13.5 (3); EffectRes 3.6 (1) | 1, AtkFlat, +15    | resist    | 0.9000 | 17.07  | no          | N    | 15.0  | 0.0     | —      |
+| V02 | Crit 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3); DefFlat 13.8 (3)    | 3, DefFlat, +15    | output    | 2.7000 | 50.66  | no          | R    | 30.0  | 26.7    | —      |
+| V03 | Crit 8.4 (3); Spd 5.4 (2); AtkPercent 5.4 (2); HpFlat 205.0 (2)         | 6, CritDmg, +15    | output    | 6.4000 | 79.64  | no          | SSR  | 46.7  | 62.0    | —      |
+| V04 | Crit 18.0 (6); HpFlat 114.0 (1); DefFlat 5.0 (1); AtkFlat 27.0 (1)      | 1, AtkFlat, +15    | output    | 6.0000 | 76.50  | yes         | SR   | 100.0 | 0.0     | —      |
+| V05 | Crit 16.5 (6); CritDmg 3.6 (1); AtkPercent 2.7 (1); HpFlat 100.0 (1)    | 5, HpFlat, +15     | output    | 7.3000 | 86.68  | yes         | SP   | 91.7  | 22.4    | —      |
+| V06 | Crit 15.0 (5); CritDmg 3.6 (1); AtkPercent 2.7 (1); HpFlat 200.0 (2)    | 5, HpFlat, +15     | output    | 6.8000 | 82.77  | no          | SSR  | 83.3  | 24.6    | —      |
+| V07 | Crit 15.3 (6); AtkPercent 3.0 (1); DefFlat 4.5 (1); HpFlat 100.0 (1)    | 1, AtkFlat, +15    | output    | 6.1000 | 77.29  | yes         | SR   | 85.0  | 12.6    | —      |
+| V08 | Crit 18.0 (6); CritDmg 4.0 (1); AtkPercent 3.0 (1); Spd 3.0 (1)         | 6, CritDmg, +15    | output    | 9.0000 | 100.00 | yes         | UR   | 100.0 | 35.9    | —      |
+| V09 | Crit 8.7 (3); CritDmg 7.8 (2); AtkPercent 5.8 (2); Spd 5.8 (2)          | 2, Spd, +15        | output    | 8.7167 | 97.78  | no          | UR   | 48.3  | 95.3    | —      |
+| V10 | Crit 18.0 (6); CritDmg 4.0 (1); AtkPercent 3.0 (1); HpFlat 114.0 (1)    | 6, CritDmg, +15    | output    | 8.0000 | 92.17  | yes         | SP   | 100.0 | 22.8    | —      |
+| V11 | Spd 17.4 (6); EffectHit 3.6 (1); HpPercent 2.7 (1); DefFlat 4.5 (1)     | 2, Spd, +15        | hit       | 7.6000 | 89.00  | yes         | SP   | 96.7  | 21.3    | —      |
+| V12 | Crit 17.4 (6); AtkPercent 2.7 (1); Spd 2.7 (1); DefFlat 4.5 (1)         | 6, CritDmg, +15    | output    | 7.6000 | 89.03  | yes         | SP   | 96.7  | 21.3    | —      |
+| V13 | CritDmg 23.2 (6); AtkPercent 2.7 (1); Spd 2.7 (1); HpFlat 110.0 (1)     | 6, Crit, +15       | output    | 7.6000 | 89.03  | yes         | SP   | 96.7  | 21.3    | —      |
+| V14 | Crit 8.1 (3); Spd 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3)         | 4, AtkPercent, +15 | output    | 5.4000 | 71.80  | no          | SR   | 45.0  | 52.4    | —      |
+| V15 | Crit 8.4 (3); Spd 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3)         | 4, AtkPercent, +15 | output    | 5.5000 | 72.59  | no          | SR   | 46.7  | 51.5    | —      |
+| V16 | AtkFlat 72.0 (3); HpFlat 205.0 (2); DefFlat 13.5 (3); CritDmg 3.6 (1)   | 4, EffectHit, +15  | hit       | 0.0000 | 0.00   | no          | N    | 0.0   | 0.0     | —      |
+| V17 | Spd 5.7 (2); Crit 5.6 (2); AtkPercent 2.8 (1)                           | 2, Spd, +9         | output    | 4.7000 | 66.32  | no          | SR   | 31.7  | 59.1    | 73.58  |
+
+| Id  | What it shows                                                  |
+| --- | -------------------------------------------------------------- |
+| V01 | obviously poor: flat lines and one useful increment            |
+| V02 | ordinary useful: three useful increments                       |
+| V03 | strong balanced SSR, no specialized line                       |
+| V04 | one perfect line, nothing useful beside it: fails the SP floor |
+| V05 | valid SP                                                       |
+| V06 | near SP: five roll units exactly is not specialized            |
+| V07 | near SP: specialized, below the SSR floor                      |
+| V08 | valid UR: the paper's theoretical output soul                  |
+| V09 | valid UR without a specialized line                            |
+| V10 | near UR: eight useful increments at maximum, one wasted        |
+| V11 | Speed-focused                                                  |
+| V12 | Crit-focused: the counterpart of V11                           |
+| V13 | CritDmg-focused: the counterpart of V11                        |
+| V14 | dominated: V15 improves its Crit                               |
+| V15 | dominates V14                                                  |
+| V16 | rare main, useless lines: a rare main earns nothing            |
+| V17 | growth: +9, two rolls left                                     |
+
+<!-- /generated:vectors -->
+
+## Appendix D. Exact assumptions
+
+1. The mechanics of `docs/spec/soul-mechanics.md` at six stars.
+2. The official class weights 36/36/28, shared equally within a class.
+3. Initial count 2, 3, 4 with 1/3 each; initial attributes drawn one by one by
+   weight, without repeats.
+4. A draw below four sub-attributes may strengthen an existing one.
+5. Increments independent, on [4/5, 1] roll units, mean μ = 9/10; the uniform
+   law for the rates of § 11 only.
+
+## References
+
+- Hu, J. (2026). 《阴阳师》御魂系统主副属性数值规律与强化模型分析. Local copy
+  `research/sources/hu-2026-soul-model.pdf`.
+- NetEase (2017–). 《阴阳师》手游随机抽取类玩法概率公示. yys.163.com.
+- 流浪的书生 (2017). 全【御魂】详解与欣赏. yys.163.com: the average increments
+  2.72 and 3.65.
+- The Yata records: ADR-0003, ADR-0023, ADR-0024; `docs/spec/quality-model.md`;
+  `docs/spec/soul-mechanics.md`.
