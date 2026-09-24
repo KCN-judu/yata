@@ -6,9 +6,11 @@
 //! crate decides, and the application only shows it (`docs/architecture/overview.md`).
 //!
 //! - [`soul`]: the vocabulary of `docs/spec/glossary.md` — attributes, slots, a soul as read.
+//! - [`import`]: readings of the game as typed observations, and the evidence analyses over them.
 //! - [`mechanics`]: the inference rules of `docs/spec/soul-mechanics.md` — legality, roll-count
 //!   inference, the community predicates, and the roll distribution.
 
+pub mod import;
 pub mod mechanics;
 pub mod scheme;
 pub mod soul;

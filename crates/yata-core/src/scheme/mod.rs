@@ -28,7 +28,7 @@ pub mod layout;
 pub mod selection;
 pub mod transport;
 
-mod mapping;
+pub(crate) mod mapping;
 
 mod payload;
 
