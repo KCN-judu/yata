@@ -26,7 +26,6 @@ protox = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 interprocess = { workspace = true }
-sha2 = { workspace = true }
 widestring = { workspace = true }
 
 [lints]
