@@ -16,11 +16,13 @@
 //!   groups, decoded from and written over a record's fields. The bit positions it uses are
 //!   `mapping`'s, the one table of them.
 //! - [`code`]: a whole code as its schemes and plans, each a name and a selection.
+//! - [`evaluate`]: whether the game's filter picks a soul, as far as the evidence tells.
 //!
 //! Reading a QR image and producing a QR module matrix are the daemon's (ADR-0009).
 
 pub mod code;
 pub mod edit;
+pub mod evaluate;
 pub mod inspect;
 pub mod layout;
 pub mod selection;
