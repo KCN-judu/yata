@@ -220,6 +220,8 @@ What changed for someone. Append-only; one fragment per change.
 - [changes/unreleased/2026-09-ci-platforms-and-release.md](changes/unreleased/2026-09-ci-platforms-and-release.md)
   — CI fails on a missing tool, runs per shipping platform, and packages the
   daemon unsigned
+- [changes/unreleased/2026-09-reader-acquisition.md](changes/unreleased/2026-09-reader-acquisition.md)
+  — the probe channel reads, records, and replays; readings carry their evidence
 
 ## Outside `docs/`
 
