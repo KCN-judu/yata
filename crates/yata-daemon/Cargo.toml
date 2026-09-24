@@ -10,11 +10,18 @@ repository.workspace = true
 [dependencies]
 getrandom = { workspace = true }
 png = { workspace = true }
+prost = { workspace = true }
 qrcodegen = { workspace = true }
 rqrr = { workspace = true }
 rusqlite = { workspace = true }
 yata-core = { workspace = true }
+yata-protocol = { workspace = true }
 yata-store = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+interprocess = { workspace = true }
+sha2 = { workspace = true }
+widestring = { workspace = true }
 
 [lints]
 workspace = true
