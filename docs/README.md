@@ -106,6 +106,9 @@ rewrite.
 - [decisions/0019-sqlite-store-behind-an-instruction-crate.md](decisions/0019-sqlite-store-behind-an-instruction-crate.md)
   — the store is SQLite, reached only through `yata-store`, a pure crate
   translating store instructions into SQL
+- [decisions/0020-no-agent-attribution.md](decisions/0020-no-agent-attribution.md)
+  — commits and published text carry no agent attribution, in every Yata
+  repository
 
 ## Proposals — `proposals/`
 
@@ -168,6 +171,8 @@ What changed for someone. Append-only; one fragment per change.
 - `changes/unreleased/` — fragments not yet tied to a release
 - [changes/unreleased/2026-09-repository-tooling.md](changes/unreleased/2026-09-repository-tooling.md)
   — preflight, formatting, and CI; the license
+- [changes/unreleased/2026-09-history-rewrite.md](changes/unreleased/2026-09-history-rewrite.md)
+  — `main` rewritten to remove agent attribution; reset old clones
 
 ## Local research — not published
 

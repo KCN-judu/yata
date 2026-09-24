@@ -71,6 +71,8 @@ opened to contributors when the project accepts outside contributions.
   checks pass.
 - A move or split is its own commit and changes nothing else.
 - A change to a record goes in the same commit as the change it records.
+- Commits and pull requests carry no agent attribution: no `Co-Authored-By`
+  trailer or "Generated with" line naming an agent or model (ADR-0020).
 
 ## Publication
 
