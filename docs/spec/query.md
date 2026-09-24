@@ -11,7 +11,9 @@ fields of each, and the filter, sort, and group expressions over them.
 `core-protocol.md` defines pages, cursors, and revisions; this page defines what
 goes inside a query.
 
-Everything here is _designed_. Nothing is _implemented_.
+What of it is built is in [status.md](../project/status.md). How the evaluator
+treats a verdict it cannot decide, and what it refuses, is
+[ADR-0026](../decisions/0026-query-evaluation.md).
 
 ## This is not a query language
 
@@ -61,8 +63,8 @@ a query result.
 ## No nulls
 
 **Every field is defined for every row of its collection.** There is no `NULL`,
-no missing value, and no three-valued logic. Where the domain has an "absent"
-case, the field's type names it:
+no missing value, and no three-valued logic over fields. Where the domain has an
+"absent" case, the field's type names it:
 
 - a soul not equipped has `equipped_by = Unequipped`, not a null Shikigami
 - a sub-attribute a soul does not have has value `0` under `sub_value(attr)` and
@@ -70,6 +72,8 @@ case, the field's type names it:
   sub-attribute that exists has rolled at least once
 
 A predicate is therefore always true or false, and `Not` is exact complement.
+The one exception is not a field: the scheme evaluator's verdict, under
+`Matches` and `MatchesScheme`, may be open (see `MatchesScheme` below).
 
 ## Soul fields
 
@@ -100,6 +104,10 @@ A field whose source is the snapshot exists in this vocabulary only once the
 probe schema carries it. `equipped_by`, `game_locked`, and `initial_sub_count`
 are listed because the legacy import read them; if the probe cannot, they are
 removed from this table rather than filled with a default.
+
+A field of this table is in the schema only once this build can evaluate it.
+Until then a query cannot name it, or, for a score field, names it and is
+refused (ADR-0026, rule 4).
 
 **Score fields require `params`.** A query that names a score field without a
 `ParamSetRef` is refused with `query.param_set_required`. There is no implicit
@@ -132,14 +140,21 @@ Expr =
 
 The test a predicate may apply is fixed by the field's type:
 
-| Field type                                             | Tests                                                        |
-| ------------------------------------------------------ | ------------------------------------------------------------ |
-| enum (`SoulSet`, `SoulSlot`, `SoulAttribute`, mark, …) | `In [value]`                                                 |
-| int, number, score                                     | `Range { min?, max? }`, both inclusive, at least one present |
-| bool                                                   | `Is bool`                                                    |
+| Field type                                             | Tests                                      |
+| ------------------------------------------------------ | ------------------------------------------ |
+| enum (`SoulSet`, `SoulSlot`, `SoulAttribute`, mark, …) | `In [value]`                               |
+| int                                                    | `Range { min?, max? }` over integers       |
+| number, score                                          | `Range { min?, max? }` over finite numbers |
+| bool                                                   | `Is bool`                                  |
 
-A test that does not fit its field's type is `query.type_mismatch`. `In []` is
-refused, not evaluated as false, because it is always a UI bug.
+Both bounds of a `Range` are inclusive, and at least one is present. A number
+bound compares stored values with the domain's tolerance, so
+`sub_value(Spd) ≥ 17` agrees with 真 17 速 (ADR-0026, rule 3).
+
+A test that does not fit its field's type is `query.type_mismatch`. `In []`, a
+range with no bound or with its minimum above its maximum, and a bound that is
+not finite are `query.malformed`, not evaluated as false, because each is always
+a UI bug.
 
 **`Matches`** is the official filter (roadmap milestone 1): the soul filter UI
 builds a `SoulSelection`, the game's own condition model, and the daemon
@@ -148,13 +163,19 @@ and is presented as the advanced filter.
 
 **`MatchesScheme`** evaluates a scheme with `matches(selection, soul)`
 (`scheme-code.md`). `SchemeRef` is a saved scheme id (`SchemeSaved` in
-`fact-format.md`) or an inline scheme code string, plus a plan index when the
-scheme is a strengthening scheme set. When the scheme has unknown conditions,
-the result is a superset of the game's selection, and the page says so. A query
-never re-implements a scheme's condition logic as an `Expr`; it asks the one
-evaluator that exists. `matches` gives a three-way verdict (`scheme-code.md`,
-"Evaluation"); how a query treats an `Undetermined` soul is decided with the
-query evaluator.
+`fact-format.md`) or an inline scheme code string, plus the index of one plan or
+discard scheme. The index is required when the code holds more than one
+(ADR-0026, rule 5). A query never re-implements a scheme's condition logic as an
+`Expr`; it asks the one evaluator that exists.
+
+`matches` gives a three-way verdict (`scheme-code.md`, "Evaluation"), and a
+filter keeps it (ADR-0026). `And`, `Or` and `Not` combine verdicts by strong
+Kleene logic: a decided operand settles a node when it can, and an open result
+names the open rules beneath it. A result holds every row that is decided true
+or open, and each row carries its verdict. So when a verdict is open, the result
+is a superset of the game's selection, and the rows that may be the difference
+are marked. Under `Not`, an open row stays open: it is in the result of a filter
+and of its negation.
 
 ## Sort
 
@@ -162,9 +183,10 @@ query evaluator.
 SortKey { field, direction: Asc | Desc }
 ```
 
-Any field except `has_sub(attr)` and `has_note` may be a sort key; sorting by a
-bool is a filter in disguise. Enum fields sort by the order their type defines
-in `glossary.md`, never by display text, because display text is Chinese UI copy
+Any field except `has_sub(attr)` and `has_note` may be a sort key; sorting by
+either is a filter in disguise, and is `query.type_mismatch`. `false` sorts
+before `true`. Enum fields sort by the order their type defines in
+`glossary.md`, never by display text, because display text is Chinese UI copy
 and not a domain order.
 
 **Row identity is always the final key.** The daemon appends the collection's
@@ -200,6 +222,7 @@ core; the client does not divide.
 | expression depth       | 16    | `query.too_complex` |
 | sort keys              | 8     | `query.too_complex` |
 | measures per aggregate | 16    | `query.too_complex` |
+| values per `In` test   | 256   | `query.too_complex` |
 
 The limits exist to make a malformed or runaway tree a refusal instead of a slow
 query. No UI control should come near them.
@@ -213,6 +236,8 @@ All in the `query.*` namespace (`core-protocol.md`, "Errors"):
 | `query.unknown_field`      | a field this collection does not have                                            |
 | `query.type_mismatch`      | a test that does not fit the field's type                                        |
 | `query.param_set_required` | a score field with no `params`                                                   |
+| `query.field_unavailable`  | a field of this page that this build cannot evaluate yet (ADR-0026, rule 4)      |
+| `query.malformed`          | a tree the schema can carry and the vocabulary cannot mean; see the tests above  |
 | `query.unknown_scheme`     | a `SchemeRef` that names no saved scheme, or an inline code that does not decode |
 | `query.too_complex`        | a limit above is exceeded                                                        |
 | `query.malformed_cursor`   | defined in `core-protocol.md`                                                    |
@@ -229,6 +254,8 @@ All in the `query.*` namespace (`core-protocol.md`, "Errors"):
 
 - Why there is no query language:
   [ADR-0002](../decisions/0002-fact-log-projection-and-fact-schema.md)
+- Open verdicts, tolerance, and refusals:
+  [ADR-0026](../decisions/0026-query-evaluation.md)
 - Pages, cursors, revisions: [core-protocol.md](core-protocol.md)
 - Score definitions and the parameter set rule: [scoring.md](scoring.md)
 - Scheme evaluation: [scheme-code.md](scheme-code.md)

@@ -129,6 +129,9 @@ rewrite.
 - [decisions/0025-ssr-at-one-perfect-line.md](decisions/0025-ssr-at-one-perfect-line.md)
   — Quality Model v1.1: SSR begins at six roll units, one perfect line; SP keeps
   its own floor at `7μ`
+- [decisions/0026-query-evaluation.md](decisions/0026-query-evaluation.md) — a
+  query keeps a scheme's open verdict by Kleene logic, compares stored values
+  with the domain's tolerance, and refuses what it cannot evaluate
 - [decisions/0027-quality-model-v2-catalogue.md](decisions/0027-quality-model-v2-catalogue.md)
   — Quality Model v2: output, hit, healing, and a speed archetype gated at four
   roll units; `resist` removed; archetypes of different sizes
