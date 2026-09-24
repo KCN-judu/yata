@@ -10,4 +10,5 @@
 //!   inference, the community predicates, and the roll distribution.
 
 pub mod mechanics;
+pub mod scheme;
 pub mod soul;

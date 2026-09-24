@@ -178,6 +178,37 @@ pure and lives in `yata-core`:
   draws the matrix; it does not generate a QR code, because generating one is
   encoding and encoding is not presentation.
 
+### Transport
+
+The layers under the payload, as `yata-core::scheme::transport` implements them.
+Each rule rests on the observed codes, and nothing outside them is accepted:
+
+- **Base64** is the standard alphabet with `+` and `/`, decoded strictly: no
+  whitespace, canonical `=` padding, no stray trailing bits. Whether the game
+  emits or accepts any other form is open.
+- **zlib**: the text carries exactly one zlib stream, whose checksum must match
+  and after which no byte may follow.
+- **Limits**, checked before anything is allocated for them:
+
+  | Limit                 | Value        | Why                                                                           |
+  | --------------------- | ------------ | ----------------------------------------------------------------------------- |
+  | `MAX_SCHEME_TEXT_LEN` | 4 096 chars  | a QR code carries at most 2 953 bytes; the rest is room for pasted text       |
+  | `MAX_COMPRESSED_LEN`  | 3 072 bytes  | what the text limit can carry                                                 |
+  | `MAX_PAYLOAD_LEN`     | 65 536 bytes | the largest observed payload is 1 102 bytes; decompression stops at the limit |
+
+- **An empty payload is refused.** No scheme is empty.
+- **Errors name their stage**: the text length, the Base64 layer, the zlib
+  layer, trailing bytes, the payload size, an empty payload.
+
+What a round trip guarantees, and what it does not:
+
+| Identity                                  | Guaranteed  | Why                                                                                   |
+| ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------- |
+| payload: `decode(encode(p)) = p`          | yes         | tested for every payload up to 2 KiB by property, and for every corpus sample         |
+| compressed stream and text of our encoder | yes         | the compression level is fixed, so the same payload always gives the same text        |
+| compressed stream and text of a game code | no          | the game's compressor and settings are unknown; a re-encoded code may differ in bytes |
+| meaning                                   | not claimed | the payload is not interpreted at this layer                                          |
+
 ### Codec rules
 
 - **Marked bits only.** The codec reads and writes only what

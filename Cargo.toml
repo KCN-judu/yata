@@ -14,7 +14,10 @@ repository = "https://github.com/KCN-judu/yata"
 yata-core = { path = "crates/yata-core" }
 yata-protocol = { path = "crates/yata-protocol" }
 yata-store = { path = "crates/yata-store" }
+base64 = "0.23"
 getrandom = "0.4"
+miniz_oxide = "0.9"
+proptest = "1.11"
 prost = "0.14"
 prost-build = "0.14"
 protox = "0.9"
