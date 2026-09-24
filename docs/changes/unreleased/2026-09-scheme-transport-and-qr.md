@@ -1,4 +1,4 @@
-# Scheme codes can be decoded, compared, re-encoded, and turned into QR codes
+# Scheme codes can be decoded, compared, listed, built, and turned into QR codes
 
 - Date: 2026-09-24
 - Area: domain
@@ -15,7 +15,13 @@
 - `yata-daemon scheme decode <code> <payload.bin>` writes the raw payload;
   `yata-daemon scheme encode <payload.bin> [<qr.png>]` prints the scheme text
   for a payload and writes a scannable QR code.
-- Nothing inside the payload is interpreted yet.
+- `yata-daemon scheme plans <code>` lists a code's kind and plans, marking open
+  bits with `*`; the account is never printed.
+- `yata-daemon scheme retarget <code> <account-code> [<qr.png>]` gives a code
+  the account of another code, changing nothing else.
+- `yata-daemon scheme build <account-code> <plans.txt> [<qr.png>]` builds a
+  strengthening set from a plan file (`name | souls | solved filter bits` per
+  line) for that account. Open bits cannot be written.
 
 ## Compatibility and migration
 

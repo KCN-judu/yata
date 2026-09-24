@@ -172,7 +172,8 @@ What changed for someone. Append-only; one fragment per change.
 
 - `changes/unreleased/` — fragments not yet tied to a release
 - [changes/unreleased/2026-09-scheme-transport-and-qr.md](changes/unreleased/2026-09-scheme-transport-and-qr.md)
-  — scheme codes decoded, compared, re-encoded, and made into QR codes
+  — scheme codes decoded, compared, listed, built for an account, and made into
+  QR codes
 - [changes/unreleased/2026-09-repository-tooling.md](changes/unreleased/2026-09-repository-tooling.md)
   — preflight, formatting, and CI; the license
 - [changes/unreleased/2026-09-history-rewrite.md](changes/unreleased/2026-09-history-rewrite.md)

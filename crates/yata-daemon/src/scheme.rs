@@ -1,4 +1,5 @@
-//! The scheme-code research commands: read a code from a file, and print a payload or a diff.
+//! The scheme-code research commands: read a code from a file; print a payload, a diff, or the
+//! plans; read a plan file for building a code.
 //!
 //! This is the effectful edge of the scheme-code work: it reads files and formats text for a
 //! developer. Every judgment is `yata-core::scheme`'s or [`crate::qr`]'s. The output is English
@@ -8,7 +9,9 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
+use yata_core::scheme::edit::{EditError, FilterBit, SoulBit};
 use yata_core::scheme::inspect::{PayloadDiff, dump};
+use yata_core::scheme::layout::{Record, SchemeKind, SchemeLayout};
 use yata_core::scheme::transport::{MAX_PAYLOAD_LEN, MAX_SCHEME_TEXT_LEN, TransportError};
 use yata_core::scheme::{RawSchemePayload, transport};
 
@@ -155,6 +158,136 @@ pub fn format_diff(diff: &PayloadDiff) -> String {
     out
 }
 
+/// The plans of a layout, one line each: index, name, souls (`all` or bit numbers), the filter in
+/// hex, and its set bits, with `*` on each bit that is not solved. The account is never printed.
+pub fn format_plans(layout: &SchemeLayout) -> String {
+    let kind = match layout.header.kind {
+        SchemeKind::Discard => "discard",
+        SchemeKind::Strengthening => "strengthening",
+    };
+    let mut out = format!(
+        "kind: {kind}\naccount: present (not shown)\nrecords: {}\n",
+        layout.records.len()
+    );
+    for (i, r) in layout.records.iter().enumerate() {
+        let name = r.name().map_or_else(
+            || format!("<not UTF-8: {} bytes>", r.name_bytes().len()),
+            str::to_owned,
+        );
+        let souls = if r.is_all_souls() {
+            "all".to_owned()
+        } else {
+            join(&r.soul_bits(), |b| {
+                if SoulBit::new(*b).is_some() {
+                    b.to_string()
+                } else {
+                    format!("{b}*")
+                }
+            })
+        };
+        let filter_hex: String = r.filter().iter().map(|b| format!("{b:02x}")).collect();
+        let filter_bits = join(&r.filter_bits(), |b| {
+            if FilterBit::new(*b).is_some() {
+                b.to_string()
+            } else {
+                format!("{b}*")
+            }
+        });
+        out.push_str(&format!(
+            "{i:>3}  {name}\n     souls: {souls}\n     filter: {filter_hex}  bits: {filter_bits}\n"
+        ));
+    }
+    out
+}
+
+fn join(bits: &[u16], show: impl Fn(&u16) -> String) -> String {
+    if bits.is_empty() {
+        return "none".to_owned();
+    }
+    bits.iter().map(show).collect::<Vec<_>>().join(",")
+}
+
+/// Why a line of a plan file was refused.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlanLineProblem {
+    /// Not three fields separated by `|`.
+    Shape,
+    EmptyName,
+    NotANumber {
+        text: String,
+    },
+    /// A soul bit beyond the 70 mapped soul sets.
+    UnknownSoulBit {
+        bit: u16,
+    },
+    /// A filter bit outside the solved groups; open bits are never written.
+    UnsolvedFilterBit {
+        bit: u16,
+    },
+    Edit(EditError),
+}
+
+/// A refused line of a plan file, by its 1-based line number.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlanFileError {
+    pub line: usize,
+    pub problem: PlanLineProblem,
+}
+
+/// The records of a plan file: one plan per line, `name | souls | filter bits`, where souls are
+/// `all` or bit numbers and filter bits are solved bit numbers, both comma-separated. Blank lines
+/// and lines starting with `#` are skipped. Every line is checked; the first refusal is returned.
+pub fn parse_plan_file(text: &str) -> Result<Vec<Record>, PlanFileError> {
+    let mut records = Vec::new();
+    for (i, line) in text.lines().enumerate() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let err = |problem| PlanFileError {
+            line: i + 1,
+            problem,
+        };
+        records.push(parse_plan_line(line).map_err(err)?);
+    }
+    Ok(records)
+}
+
+fn parse_plan_line(line: &str) -> Result<Record, PlanLineProblem> {
+    let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+    let [name, souls, filter] = fields.as_slice() else {
+        return Err(PlanLineProblem::Shape);
+    };
+    if name.is_empty() {
+        return Err(PlanLineProblem::EmptyName);
+    }
+    let numbers = |text: &str| -> Result<Vec<u16>, PlanLineProblem> {
+        text.split(',')
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(|t| {
+                t.parse::<u16>()
+                    .map_err(|_| PlanLineProblem::NotANumber { text: t.to_owned() })
+            })
+            .collect()
+    };
+    let souls = if souls.eq_ignore_ascii_case("all") {
+        None
+    } else {
+        Some(
+            numbers(souls)?
+                .into_iter()
+                .map(|b| SoulBit::new(b).ok_or(PlanLineProblem::UnknownSoulBit { bit: b }))
+                .collect::<Result<Vec<_>, _>>()?,
+        )
+    };
+    let filter = numbers(filter)?
+        .into_iter()
+        .map(|b| FilterBit::new(b).ok_or(PlanLineProblem::UnsolvedFilterBit { bit: b }))
+        .collect::<Result<Vec<_>, _>>()?;
+    Record::from_bits(name, souls.as_deref(), &filter).map_err(PlanLineProblem::Edit)
+}
+
 #[cfg(test)]
 mod tests {
     use yata_core::scheme::inspect::diff;
@@ -186,6 +319,76 @@ mod tests {
              0x00000001  05      15     10   12\n\
              0x00000002  --      07     --   --\n"
         );
+    }
+
+    #[test]
+    fn a_plan_file_reads_names_souls_and_solved_filter_bits() {
+        let records = parse_plan_file(
+            "# name | souls | filter bits
+
+测试位39 | 39 | 0,1,2,3,4,5,11,49
+全部 | all | 1, 11
+",
+        )
+        .expect("valid");
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].soul_mask(), &[0, 0, 0, 0, 0x80]);
+        assert_eq!(records[0].filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x02]);
+        assert!(records[1].is_all_souls());
+    }
+
+    #[test]
+    fn a_plan_file_refuses_open_bits_and_names_the_line() {
+        assert_eq!(
+            parse_plan_file(
+                "ok | all | 1
+bad | all | 1,47
+"
+            ),
+            Err(PlanFileError {
+                line: 2,
+                problem: PlanLineProblem::UnsolvedFilterBit { bit: 47 }
+            })
+        );
+        assert_eq!(
+            parse_plan_file("x | 70 | 1").map_err(|e| e.problem),
+            Err(PlanLineProblem::UnknownSoulBit { bit: 70 })
+        );
+        assert_eq!(
+            parse_plan_file("x | all").map_err(|e| e.problem),
+            Err(PlanLineProblem::Shape)
+        );
+        assert_eq!(
+            parse_plan_file(" | all | 1").map_err(|e| e.problem),
+            Err(PlanLineProblem::EmptyName)
+        );
+    }
+
+    #[test]
+    fn plans_list_marks_open_bits_and_never_prints_the_account() {
+        use yata_core::scheme::layout::{AccountSegment, SchemeHeader};
+        let mut filter = vec![0u8; 7];
+        filter[5] = 0x80; // open bit 47
+        filter[6] = 0x02; // level bit 49
+        let layout = SchemeLayout {
+            header: SchemeHeader {
+                account: AccountSegment::from_bytes([0xab; 14]),
+                kind: SchemeKind::Strengthening,
+            },
+            records: vec![Record::new("p", vec![0x01], filter).expect("valid")],
+        };
+        let text = format_plans(&layout);
+        assert_eq!(
+            text,
+            "kind: strengthening
+account: present (not shown)
+records: 1
+  0  p
+     souls: 0
+     filter: 00000000008002  bits: 47*,49
+"
+        );
+        assert!(!text.to_lowercase().contains("ab ab"));
     }
 
     #[test]

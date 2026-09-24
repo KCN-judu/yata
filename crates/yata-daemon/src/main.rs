@@ -6,10 +6,16 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::process::ExitCode;
 
+use yata_core::scheme::RawSchemePayload;
 use yata_core::scheme::inspect::diff;
+use yata_core::scheme::layout::{
+    SchemeHeader, SchemeKind, SchemeLayout, header_of, parse, serialize,
+};
 use yata_core::scheme::transport;
 use yata_daemon::qr;
-use yata_daemon::scheme::{format_diff, format_dump, read_code, read_payload};
+use yata_daemon::scheme::{
+    format_diff, format_dump, format_plans, parse_plan_file, read_code, read_payload,
+};
 use yata_daemon::store::{OpenError, Store};
 
 const USAGE: &str = "usage: yata-daemon <command> ...
@@ -20,8 +26,14 @@ commands:
   scheme diff <code-a> <code-b>           compare two payloads byte by byte and bit by bit
   scheme decode <code> <payload.bin>      write a scheme code's payload to a file
   scheme encode <payload.bin> [<qr.png>]  print the scheme text for a payload; write its QR code
+  scheme plans <code>                     list a code's kind and plans; `*` marks an open bit
+  scheme retarget <code> <account-code> [<qr.png>]
+                                          the same code carrying the account of <account-code>
+  scheme build <account-code> <plans.txt> [<qr.png>]
+                                          a strengthening set from a plan file, for that account
 
-A <code> is a PNG image holding one QR code, or a text file holding the Base64 text.";
+A <code> is a PNG image holding one QR code, or a text file holding the Base64 text.
+A plan file has one plan per line: name | souls (all, or soul bits) | solved filter bits.";
 
 /// Pixels per module of a written QR code: large enough to scan from a screen.
 const QR_SCALE: u32 = 8;
@@ -46,6 +58,16 @@ fn main() -> ExitCode {
         })),
         ["scheme", "encode", _] => encode(path(2), None),
         ["scheme", "encode", _, _] => encode(path(2), Some(path(3))),
+        ["scheme", "plans", _] => report(
+            read_code(path(2))
+                .map_err(|e| format!("{e:?}"))
+                .and_then(|p| parse(&p).map_err(|e| format!("{e:?}")))
+                .map(|l| format_plans(&l)),
+        ),
+        ["scheme", "retarget", _, _] => retarget(path(2), path(3), None),
+        ["scheme", "retarget", _, _, _] => retarget(path(2), path(3), Some(path(4))),
+        ["scheme", "build", _, _] => build(path(2), path(3), None),
+        ["scheme", "build", _, _, _] => build(path(2), path(3), Some(path(4))),
         _ => {
             eprintln!("{USAGE}");
             ExitCode::from(2)
@@ -67,15 +89,73 @@ fn report<E: std::fmt::Debug>(result: Result<String, E>) -> ExitCode {
 }
 
 fn encode(payload_path: &Path, png: Option<&Path>) -> ExitCode {
-    let text = read_payload(payload_path)
+    match read_payload(payload_path) {
+        Ok(p) => emit(&p, png),
+        Err(e) => fail(format!("{e:?}")),
+    }
+}
+
+/// `<code>` with the account of `<account-code>`: the plans byte for byte, the header's account
+/// replaced.
+fn retarget(code: &Path, account_code: &Path, png: Option<&Path>) -> ExitCode {
+    let layout = read_code(code)
         .map_err(|e| format!("{e:?}"))
-        .and_then(|p| transport::encode_text(&p).map_err(|e| format!("{e:?}")));
-    let text = match text {
+        .and_then(|p| parse(&p).map_err(|e| format!("{e:?}")));
+    let account = account_of(account_code);
+    match (layout, account) {
+        (Ok(layout), Ok(account)) => write_layout(&layout.with_account(account), png),
+        (Err(e), _) | (_, Err(e)) => fail(e),
+    }
+}
+
+/// A strengthening set built from a plan file, carrying the account of `<account-code>`.
+fn build(account_code: &Path, plans: &Path, png: Option<&Path>) -> ExitCode {
+    let account = match account_of(account_code) {
+        Ok(a) => a,
+        Err(e) => return fail(e),
+    };
+    let records = std::fs::read_to_string(plans)
+        .map_err(|e| format!("{}: {e}", plans.display()))
+        .and_then(|text| parse_plan_file(&text).map_err(|e| format!("{e:?}")));
+    match records {
+        Ok(records) => write_layout(
+            &SchemeLayout {
+                header: SchemeHeader {
+                    account,
+                    kind: SchemeKind::Strengthening,
+                },
+                records,
+            },
+            png,
+        ),
+        Err(e) => fail(e),
+    }
+}
+
+fn account_of(code: &Path) -> Result<yata_core::scheme::layout::AccountSegment, String> {
+    read_code(code)
+        .map_err(|e| format!("{e:?}"))
+        .and_then(|p| header_of(&p).map_err(|e| format!("{e:?}")))
+        .map(|h| h.account)
+}
+
+fn write_layout(layout: &SchemeLayout, png: Option<&Path>) -> ExitCode {
+    match serialize(layout) {
+        Ok(p) => emit(&p, png),
+        Err(e) => fail(format!("{e:?}")),
+    }
+}
+
+fn fail(e: String) -> ExitCode {
+    eprintln!("scheme.failed: {e}");
+    ExitCode::FAILURE
+}
+
+/// Print the scheme text for a payload, and write its QR code when a path is given.
+fn emit(payload: &RawSchemePayload, png: Option<&Path>) -> ExitCode {
+    let text = match transport::encode_text(payload) {
         Ok(t) => t,
-        Err(e) => {
-            eprintln!("scheme.failed: {e}");
-            return ExitCode::FAILURE;
-        }
+        Err(e) => return fail(format!("{e:?}")),
     };
     println!("{}", text.as_str());
     let Some(png) = png else {
