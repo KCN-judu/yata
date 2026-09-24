@@ -217,6 +217,9 @@ What changed for someone. Append-only; one fragment per change.
   — Quality Model v2: the catalogue becomes output, hit, healing and speed
 - [changes/unreleased/2026-09-innate-attribute.md](changes/unreleased/2026-09-innate-attribute.md)
   — a soul carries its innate attribute, and 固有属性 is evaluated
+- [changes/unreleased/2026-09-ci-platforms-and-release.md](changes/unreleased/2026-09-ci-platforms-and-release.md)
+  — CI fails on a missing tool, runs per shipping platform, and packages the
+  daemon unsigned
 
 ## Outside `docs/`
 

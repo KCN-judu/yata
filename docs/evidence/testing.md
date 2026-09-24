@@ -12,9 +12,11 @@ test named here exercises. Test names are relative to the crate's source.
 
 ## Suites
 
-| Suite                           | Command                                               | Runs where            |
-| ------------------------------- | ----------------------------------------------------- | --------------------- |
-| Rust unit and integration tests | `cargo test --workspace` (in `just check`, CI `rust`) | Linux, Windows, macOS |
+| Suite                           | Command                                                                                     | Runs where            |
+| ------------------------------- | ------------------------------------------------------------------------------------------- | --------------------- |
+| Rust unit and integration tests | `cargo test --workspace` (in `just check`, CI `rust`, CI `platform`)                        | Linux, Windows, macOS |
+| Release rules on fixtures       | `python scripts/release.py selftest` (the `release-selftest` check, CI `docs`)              | Linux                 |
+| Release package of the daemon   | `python scripts/release.py package --unsigned` (the `release-package` check, CI `platform`) | Windows, macOS        |
 
 ## Soul mechanics — `yata-core`
 

@@ -6,10 +6,11 @@ this script (docs/project/ci.md). The requirements are docs/guides/engineering-r
 - Read-only: nothing is formatted or rewritten, except by the `fix` profile, which says so.
 - Standard library only; tracked files come from `git ls-files` in a repository, otherwise from
   a walk of the tree filtered by .gitignore.
-- A check whose tool is missing is skipped, not failed. A check that has nothing to check yet
-  (no Cargo.toml, no app/) passes and says so.
+- A check whose tool is missing is skipped, not failed, except under --strict, which CI always
+  uses: a CI job installs every tool its profile needs, so a skip there means the setup broke. A
+  check that has nothing to check yet (no Cargo.toml, no app/) passes as "n/a" in either mode.
 
-Usage: python scripts/preflight.py [fast|full|fix|<ci profile>|<check>...] [--verbose]
+Usage: python scripts/preflight.py [fast|full|fix|<ci profile>|<check>...] [--verbose] [--strict]
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import time
+import tomllib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,6 +62,9 @@ QUALITY_DOCS = (
     "papers/quality-model-v2/paper.zh.md",
 )
 
+# ADR-0011: private keys and certificates are never tracked, whatever their name.
+SIGNING_MATERIAL = (".key", ".pem", ".p8", ".p12", ".pfx", ".snk", ".keystore", ".jks")
+
 # ADR-0017: the SVG profile of committed icons.
 ICON_ROOT = "app/assets/icons/"
 ICON_PATH = re.compile(r"^app/assets/icons/(soul-set|shikigami)/(emblem|portrait)/\d+\.svg$")
@@ -70,7 +75,8 @@ SVG_FORBIDDEN = re.compile(r"<(text|script|foreignObject|image|style|animate\w*|
 class Result:
     ok: bool
     output: str = ""
-    skipped: bool = False
+    skipped: bool = False  # a tool is missing: a failure under --strict
+    na: bool = False  # nothing to check yet: passes in every mode
 
 
 @dataclass
@@ -166,6 +172,11 @@ def publication() -> Result:
     bad = [f"{f}: local-only path (ADR-0016, ADR-0017)" for f in tracked_files() if f.startswith(local)]
     bad += [f"{f}: CLAUDE.md is agent tooling (ADR-0016)" for f in tracked_files() if f.endswith("CLAUDE.md")]
     bad += [
+        f"{f}: signing material; the release key lives only in CI secrets (ADR-0011)"
+        for f in tracked_files()
+        if f.endswith(SIGNING_MATERIAL)
+    ]
+    bad += [
         f"{f}: raster icon in the tracked tree; project icons are SVG (ADR-0017)"
         for f in tracked_files()
         if f.startswith(ICON_ROOT) and not f.endswith(".svg")
@@ -254,7 +265,7 @@ def python_types() -> Result:
 
 def _rust(cmd: list[str]) -> Result:
     if not _has_rust():
-        return Result(True, "no Cargo.toml yet", skipped=True)
+        return Result(True, "no Cargo.toml yet", na=True)
     return _run(cmd)
 
 
@@ -272,6 +283,30 @@ def rust_clippy() -> Result:
 
 def rust_test() -> Result:
     return _rust(["cargo", "test", "--workspace", "--locked"])
+
+
+def rust_version() -> Result:
+    """The pinned toolchain is the declared minimum, so every build and test runs at the MSRV."""
+    if not _has_rust():
+        return Result(True, "no Cargo.toml yet", na=True)
+    workspace = tomllib.loads(_read("Cargo.toml"))["workspace"]
+    msrv = str(workspace["package"].get("rust-version", ""))
+    bad: list[str] = []
+    if not re.fullmatch(r"\d+\.\d+", msrv):
+        bad.append(f"Cargo.toml: workspace rust-version '{msrv}' is not <major>.<minor>")
+    pin = str(tomllib.loads(_read("rust-toolchain.toml"))["toolchain"]["channel"])
+    if not pin.startswith(msrv + "."):
+        bad.append(f"rust-toolchain.toml: channel {pin} is not a {msrv}.x release (rust-version {msrv})")
+    for member in workspace["members"]:
+        package = tomllib.loads(_read(f"{member}/Cargo.toml"))["package"]
+        if package.get("rust-version") != {"workspace": True}:
+            bad.append(f"{member}/Cargo.toml: rust-version must be 'rust-version.workspace = true'")
+    for f in tracked_files():
+        if f.endswith("rust-toolchain.toml") and f != "rust-toolchain.toml":
+            other = str(tomllib.loads(_read(f))["toolchain"]["channel"])
+            if other != pin:
+                bad.append(f"{f}: channel {other} differs from rust-toolchain.toml ({pin})")
+    return Result(not bad, "\n".join(bad))
 
 
 def _lake() -> str | None:
@@ -315,7 +350,7 @@ def papers_current() -> Result:
 def crate_graph() -> Result:
     """Every crate is classed; no pure crate depends on an effectful one; lints are inherited."""
     if not _has_rust():
-        return Result(True, "no Cargo.toml yet", skipped=True)
+        return Result(True, "no Cargo.toml yet", na=True)
     proc = subprocess.run(
         [shutil.which("cargo") or "cargo", "metadata", "--format-version", "1", "--no-deps"],
         cwd=ROOT,
@@ -369,12 +404,34 @@ def sql_boundary() -> Result:
     return Result(not bad, "\n".join(bad))
 
 
+# ---------------------------------------------------------------- release (ADR-0011)
+
+
+def release_selftest() -> Result:
+    """Naming, manifest, checksums, and the refusal to sign, on fixture files; no build."""
+    return _run([sys.executable, "scripts/release.py", "selftest"])
+
+
+def release_package() -> Result:
+    """The daemon builds in release mode, is packaged unsigned, and the package verifies."""
+    if not _has_rust():
+        return Result(True, "no Cargo.toml yet", na=True)
+    if shutil.which("cargo") is None:
+        return Result(True, "cargo not installed", skipped=True)
+    out = "target/preflight/release"
+    shutil.rmtree(ROOT / out, ignore_errors=True)
+    made = _run([sys.executable, "scripts/release.py", "package", "--unsigned", "--out", out])
+    return Result(made.ok, made.output, na=made.ok and made.output.startswith("n/a:"))
+
+
 # ---------------------------------------------------------------- Flutter
 
 
 def _app(cmd: list[str]) -> Result:
     if not _has_app():
-        return Result(True, "no app/ yet", skipped=True)
+        return Result(True, "no app/ yet", na=True)
+    if shutil.which(cmd[0]) is None:
+        return Result(True, f"{cmd[0]} not installed", skipped=True)
     return _run(cmd, ROOT / "app")
 
 
@@ -450,6 +507,7 @@ CHECKS = [
     Check("rust-clippy", "clippy with -D warnings is clean", rust_clippy, ("cargo",), "fix the lint, never allow it"),
     Check("rust-test", "workspace tests pass", rust_test, ("cargo",), "cargo test --workspace"),
     Check("crate-graph", "crates classed; pure not on effectful; lints inherited", crate_graph, ("cargo",), "ADR-0005"),
+    Check("rust-version", "the pinned toolchain is the declared rust-version", rust_version, (), "pin <msrv>.x"),
     Check("sql-boundary", "SQL only in yata-store; rusqlite only in the executor", sql_boundary, (), "ADR-0019"),
     Check("dart-format", "dart format would change nothing", dart_format, (), "just fmt"),
     Check("flutter-analyze", "flutter analyze is clean", flutter_analyze, (), "fix the analyzer finding"),
@@ -465,6 +523,14 @@ CHECKS = [
         "cargo run --manifest-path formal/calibration/Cargo.toml --release -- render <documents>",
     ),
     Check("papers-current", "every paper's Typst body matches its source", papers_current, (), "just papers"),
+    Check("release-selftest", "release naming, manifest, checksums on fixtures", release_selftest, (), "ADR-0011"),
+    Check(
+        "release-package",
+        "the daemon packages, unsigned, on this platform",
+        release_package,
+        (),
+        "python scripts/release.py package --unsigned",
+    ),
     Check("fix-formatting", "MUTATES: runs every formatter", fix_formatting, (), "fix what the formatters report"),
 ]
 STRUCTURE = [
@@ -478,16 +544,21 @@ STRUCTURE = [
     "icon-profile",
 ]
 DOCS = ["docs-format", "docs-lint"]
-PYTHON = ["python-lint", "python-types"]
-RUST_FAST = ["rust-format", "crate-graph", "rust-check"]
-RUST_FULL = ["rust-format", "crate-graph", "rust-clippy", "rust-test"]
+PYTHON = ["python-lint", "python-types", "release-selftest"]
+RUST_FAST = ["rust-format", "crate-graph", "rust-version", "rust-check"]
+RUST_FULL = ["rust-format", "crate-graph", "rust-version", "rust-clippy", "rust-test"]
+# What differs by target: cfg-gated code, paths, process spawning, the release build. Formatting,
+# the crate graph and the toolchain pin are the same on every platform and are proved on Linux.
+PLATFORM = ["rust-clippy", "rust-test", "release-package"]
 FLUTTER = ["dart-format", "flutter-analyze", "flutter-test"]
 FORMAL = ["lean-build", "quality-calibration", "papers-current"]
 PROFILES = {
     "fast": STRUCTURE + DOCS + PYTHON + RUST_FAST + ["dart-format", "flutter-analyze"],
     "full": STRUCTURE + DOCS + PYTHON + RUST_FULL + FLUTTER + FORMAL,
+    "platform": PLATFORM,
     "docs-ci": STRUCTURE + DOCS + PYTHON,
     "rust-ci": RUST_FULL,
+    "platform-ci": PLATFORM,
     "flutter-ci": FLUTTER,
     "formal-ci": FORMAL,
     "fix": ["fix-formatting"],
@@ -496,6 +567,7 @@ PROFILES = {
 
 def main(argv: list[str]) -> int:
     verbose = "--verbose" in argv or bool(os.environ.get("GITHUB_ACTIONS"))
+    strict = "--strict" in argv or bool(os.environ.get("GITHUB_ACTIONS"))
     args = [a for a in argv if not a.startswith("--")] or ["fast"]
     by_name = {c.name: c for c in CHECKS}
     names: list[str] = []
@@ -513,15 +585,20 @@ def main(argv: list[str]) -> int:
         c = by_name[name]
         missing = [t for t in c.tools if shutil.which(t) is None]
         if missing:
-            print(f"  skip  {name:<16} {', '.join(missing)} not installed")
+            print(f"  {'FAIL' if strict else 'skip':<5} {name:<16} {', '.join(missing)} not installed")
+            if strict:
+                print("        hint: --strict: the job must install every tool its profile needs")
+                failed.append(name)
             continue
         t0 = time.perf_counter()
         r = c.run()
         dt = time.perf_counter() - t0
         timings.append((dt, name))
-        tag = "skip" if r.skipped else "ok" if r.ok else "FAIL"
+        if r.skipped and strict:
+            r = Result(False, r.output + "\n--strict: the job must install every tool its profile needs")
+        tag = "n/a" if r.na else "skip" if r.skipped else "ok" if r.ok else "FAIL"
         print(f"  {tag:<5} {name:<16} {dt:5.2f}s  {c.description}")
-        if (not r.ok or verbose) and r.output:
+        if (not r.ok or r.skipped or r.na or verbose) and r.output:
             print("\n".join("        " + ln for ln in r.output.splitlines()))
         if not r.ok:
             print(f"        hint: {c.hint}")
