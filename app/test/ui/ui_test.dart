@@ -2,6 +2,8 @@
 // inventory's data, empty, and error states, the core banner, and scheme import with its QR code.
 // Nothing here asserts a score; the application has none.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -130,6 +132,41 @@ void main() {
     expect(find.text('six'), findsWidgets);
     expect(find.byType(QrMatrixView), findsOneWidget);
     expect(find.text(l.anySet), findsOneWidget);
+  });
+
+  testWidgets('choosing a scheme during an import keeps the import controls disabled', (
+    tester,
+  ) async {
+    final client = FakeDaemonClient();
+    await pumpApp(tester, client);
+    await tester.tap(find.text(l.navSchemes));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'first');
+    await tester.tap(find.text(l.actionImportText));
+    await tester.pumpAndSettle();
+    final gate = Completer<pb.SchemeCodeDecoded>();
+    var calls = 0;
+    client.onDecode = (_) {
+      calls++;
+      return gate.future;
+    };
+    await tester.enterText(find.byType(TextField), 'second');
+    await tester.tap(find.text(l.actionImportText));
+    await tester.pump();
+    // Choosing the scheme already imported must not end the running import.
+    await tester.tap(find.text(l.schemeKindStrengthening).first);
+    await tester.pump();
+    final importButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, l.actionImportText),
+    );
+    expect(importButton.onPressed, isNull);
+    expect(find.text(l.importing), findsOneWidget);
+    await tester.tap(find.text(l.actionImportText), warnIfMissed: false);
+    await tester.pump();
+    expect(calls, 1);
+    gate.complete(recordedScheme());
+    await tester.pumpAndSettle();
+    expect(find.text(l.importing), findsNothing);
   });
 
   testWidgets('a scheme that does not decode shows why', (tester) async {

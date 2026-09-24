@@ -343,17 +343,18 @@ Tests under `app/test/`, against a fake daemon client, an in-memory transport,
 or, in `daemon/process_test.dart`, the built daemon itself (ADR-0012, "Tests").
 Test data is the recorded session, so no test builds a soul by hand.
 
-| Claim                                                                                                     | Tests                               |
-| --------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| the Dart codec agrees with the Rust codec on the shared frame fixtures                                    | `daemon/frame_codec_test.dart`      |
-| Rust encode → Dart decode: every recorded daemon frame decodes, typed                                     | `daemon/recorded_session_test.dart` |
-| Dart encode → Rust decode: the client's requests are the recorded bytes the daemon decoded                | `daemon/recorded_session_test.dart` |
-| responses match by id; an exit, a stray id, a bad frame, or `session_failed` ends every request in flight | `daemon/connection_test.dart`       |
-| a missing daemon, a protocol mismatch, and a daemon that keeps exiting end in failure; an exit restarts   | `daemon/supervisor_test.dart`       |
-| the real daemon: a session end to end, a newer major refused, a missing executable                        | `daemon/process_test.dart`          |
-| providers: loading, data, and error by code; paging; a stale scan restarts; revision and session refetch  | `state/state_test.dart`             |
-| icons resolve in ADR-0017's order                                                                         | `state/icons_test.dart`             |
-| navigation; inventory data, empty, and error states; an unmapped code shows the code; the core banner; QR | `ui/ui_test.dart`                   |
+| Claim                                                                                                                                 | Tests                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| the Dart codec agrees with the Rust codec on the shared frame fixtures                                                                | `daemon/frame_codec_test.dart`             |
+| Rust encode → Dart decode: every recorded daemon frame decodes, typed                                                                 | `daemon/recorded_session_test.dart`        |
+| Dart encode → Rust decode: the client's requests are the recorded bytes the daemon decoded                                            | `daemon/recorded_session_test.dart`        |
+| responses match by id; an exit, a stray id, a bad frame, or `session_failed` ends every request in flight                             | `daemon/connection_test.dart`              |
+| a missing daemon, a protocol mismatch, and a daemon that keeps exiting end in failure; an exit restarts                               | `daemon/supervisor_test.dart`              |
+| the real daemon: a session end to end, a newer major refused, a missing executable                                                    | `daemon/process_test.dart`                 |
+| providers: loading, data, and error by code; paging; a stale scan restarts; revision and session refetch                              | `state/state_test.dart`                    |
+| an import keeps running while a scheme is chosen or removed, and a second import is refused; a selection never names a missing scheme | `state/state_test.dart`, `ui/ui_test.dart` |
+| icons resolve in ADR-0017's order                                                                                                     | `state/icons_test.dart`                    |
+| navigation; inventory data, empty, and error states; an unmapped code shows the code; the core banner; QR                             | `ui/ui_test.dart`                          |
 
 ## Not covered
 

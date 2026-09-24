@@ -162,8 +162,15 @@ void main() {
     final library = c.read(schemeLibraryProvider);
     expect(library.selected?.decoded.entries.map((e) => e.name), ['spd', 'six']);
     client.onDecode = (_) async => throw daemonError('decode.unknown_format');
-    await c.read(schemeLibraryProvider.notifier).importText('x');
-    expect(c.read(schemeLibraryProvider).importError?.code, 'decode.unknown_format');
+    final outcome = await c.read(schemeLibraryProvider.notifier).importText('x');
+    expect(
+      outcome,
+      isA<ImportRejected>().having((o) => o.error.code, 'code', 'decode.unknown_format'),
+    );
+    expect(
+      c.read(schemeLibraryProvider).status,
+      isA<ImportFailed>().having((s) => s.error.code, 'code', 'decode.unknown_format'),
+    );
     expect(c.read(schemeLibraryProvider).imported, hasLength(1));
     expect(c.read(generatedSchemesProvider).available, isFalse);
   });
@@ -179,9 +186,46 @@ void main() {
     final c = containerFor(client);
     c.listen(schemeLibraryProvider, (_, _) {});
     final first = c.read(schemeLibraryProvider.notifier).importText('a');
-    await c.read(schemeLibraryProvider.notifier).importText('b');
+    expect(await c.read(schemeLibraryProvider.notifier).importText('b'), isA<AlreadyImporting>());
     gate.complete(recordedScheme());
-    await first;
+    expect(await first, isA<Imported>());
     expect(calls, 1);
+  });
+
+  // The bug A1 of the 2026-09-25 audit: a selection or removal during an import rebuilt the state
+  // without its import status, so the import controls came back and a second import could start.
+  test('selecting or removing during an import keeps it running, and refuses a second', () async {
+    final client = FakeDaemonClient();
+    final c = containerFor(client);
+    c.listen(schemeLibraryProvider, (_, _) {});
+    final library = c.read(schemeLibraryProvider.notifier);
+    final firstKey = switch (await library.importText('first')) {
+      Imported(:final key) => key,
+      final other => fail('expected an import, got $other'),
+    };
+    final gate = Completer<pb.SchemeCodeDecoded>();
+    var calls = 0;
+    client.onDecode = (_) {
+      calls++;
+      return gate.future;
+    };
+    final pending = library.importText('second');
+    library.select(firstKey);
+    expect(c.read(schemeLibraryProvider).status, isA<ImportRunning>());
+    library.remove(firstKey);
+    expect(c.read(schemeLibraryProvider).status, isA<ImportRunning>());
+    expect(c.read(schemeLibraryProvider).selection, isA<NoSchemeSelected>());
+    expect(await library.importText('third'), isA<AlreadyImporting>());
+    gate.complete(recordedScheme());
+    expect(await pending, isA<Imported>());
+    expect(calls, 1);
+    expect(c.read(schemeLibraryProvider).status, isA<ImportIdle>());
+  });
+
+  test('a selection never names a scheme that is not in the list', () async {
+    final c = containerFor(FakeDaemonClient());
+    c.listen(schemeLibraryProvider, (_, _) {});
+    c.read(schemeLibraryProvider.notifier).select(42);
+    expect(c.read(schemeLibraryProvider).selection, isA<NoSchemeSelected>());
   });
 }

@@ -53,7 +53,7 @@ class SchemesPage extends ConsumerWidget {
                     for (final s in library.imported)
                       ListTile(
                         dense: true,
-                        selected: s.key == library.selectedKey,
+                        selected: s.key == library.selected?.key,
                         title: Text(schemeKindName(l, s.decoded.kind)),
                         subtitle: Text(
                           [
@@ -119,8 +119,9 @@ class _SchemeImportBoxState extends ConsumerState<SchemeImportBox> {
   Future<void> _importText() async {
     final text = _text.text.trim();
     if (text.isEmpty) return;
-    await ref.read(schemeLibraryProvider.notifier).importText(text);
-    if (mounted && ref.read(schemeLibraryProvider).importError == null) _text.clear();
+    final outcome = await ref.read(schemeLibraryProvider.notifier).importText(text);
+    // Only this request's own success clears the field; a refused or failed one keeps the text.
+    if (mounted && outcome is Imported) _text.clear();
   }
 
   Future<void> _importImage() async {
@@ -133,7 +134,11 @@ class _SchemeImportBoxState extends ConsumerState<SchemeImportBox> {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final library = ref.watch(schemeLibraryProvider);
-    final error = library.importError;
+    final importing = library.status is ImportRunning;
+    final error = switch (library.status) {
+      ImportFailed(:final error) => error,
+      ImportIdle() || ImportRunning() => null,
+    };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -141,7 +146,7 @@ class _SchemeImportBoxState extends ConsumerState<SchemeImportBox> {
           controller: _text,
           minLines: 2,
           maxLines: 4,
-          enabled: !library.importing,
+          enabled: !importing,
           decoration: InputDecoration(
             hintText: l.importTextHint,
             border: const OutlineInputBorder(),
@@ -151,18 +156,17 @@ class _SchemeImportBoxState extends ConsumerState<SchemeImportBox> {
         Row(
           children: [
             FilledButton(
-              onPressed: library.importing ? null : _importText,
+              onPressed: importing ? null : _importText,
               child: Text(l.actionImportText),
             ),
             const SizedBox(width: 8),
             OutlinedButton(
-              onPressed: library.importing ? null : _importImage,
+              onPressed: importing ? null : _importImage,
               child: Text(l.actionImportImage),
             ),
           ],
         ),
-        if (library.importing)
-          Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.importing)),
+        if (importing) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.importing)),
         if (error != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
