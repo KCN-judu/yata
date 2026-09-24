@@ -4,11 +4,13 @@
 //! inferred from them, is [`crate::mechanics`].
 
 mod attribute;
+mod innate;
 mod model;
 mod set;
 mod slot;
 
 pub use attribute::{AttributeCategory, RollClass, SoulAttribute};
+pub use innate::InnateAttribute;
 pub use model::{Innate, Soul, SubAttribute};
 pub use set::SoulSet;
 pub use slot::SoulSlot;

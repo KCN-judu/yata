@@ -8,6 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+pub use crate::soul::InnateAttribute;
 use crate::soul::{SoulAttribute, SoulSet, SoulSlot};
 
 use super::layout::{MAX_FIELD_LEN, Record, SchemeKind};
@@ -135,29 +136,6 @@ impl LevelBand {
             15 => Some(LevelBand::L15),
             _ => None,
         }
-    }
-}
-
-/// 固有属性: one of the six attributes the editor offers. It is a [`SoulAttribute`], restricted.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct InnateAttribute(pub(crate) SoulAttribute);
-
-impl InnateAttribute {
-    pub const ALL: [InnateAttribute; 6] = [
-        InnateAttribute(SoulAttribute::AtkPercent),
-        InnateAttribute(SoulAttribute::DefPercent),
-        InnateAttribute(SoulAttribute::HpPercent),
-        InnateAttribute(SoulAttribute::EffectHit),
-        InnateAttribute(SoulAttribute::EffectRes),
-        InnateAttribute(SoulAttribute::Crit),
-    ];
-
-    pub fn new(attribute: SoulAttribute) -> Option<InnateAttribute> {
-        InnateAttribute::ALL.into_iter().find(|i| i.0 == attribute)
-    }
-
-    pub fn attribute(self) -> SoulAttribute {
-        self.0
     }
 }
 
