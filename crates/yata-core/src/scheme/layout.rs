@@ -54,7 +54,7 @@ impl fmt::Debug for AccountSegment {
 /// What a code holds, from the header's last byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SchemeKind {
-    /// `00`: one discard scheme. Inferred from exported codes; not yet confirmed by an import.
+    /// `00`: one discard scheme. Confirmed by import (2026-09-24).
     Discard,
     /// `01`: a strengthening scheme set. Confirmed by import.
     Strengthening,
