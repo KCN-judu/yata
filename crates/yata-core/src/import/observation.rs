@@ -123,7 +123,9 @@ pub struct SoulObservation {
     pub level: Option<u32>,
     pub main: Option<AttributeReading>,
     pub subs: Vec<SubAttributeReading>,
-    /// `None` both when not mapped and when mapped and absent: a soul with no innate attribute.
+    /// `None` both when not mapped and when mapped and absent. Neither says the soul has no innate
+    /// attribute: until a recording establishes how a reading carries it, decode maps `None` to
+    /// `Innate::Unknown`, never to `Innate::Absent` (`scheme-code.md`).
     pub innate: Option<AttributeReading>,
     pub locked: Option<bool>,
     pub discarded: Option<bool>,
