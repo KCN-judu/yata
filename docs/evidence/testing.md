@@ -132,6 +132,64 @@ Integration tests in `crates/yata-daemon/tests/facts.rs`, and unit tests in
 | a probe message survives encoding, framing, and decoding unchanged | `a_probe_message_survives_a_frame`             |
 | an unrecorded roll count is distinct from zero rolls on the wire   | `an_absent_roll_count_differs_from_zero_rolls` |
 
+| Claim in [probe-protocol.md](../spec/probe-protocol.md)                                    | Test                                                                                                                    |
+| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| an export survives its JSON text; the text is the proto3 JSON mapping                      | `export::tests::an_export_survives_its_json_text`, `the_text_follows_the_proto3_json_mapping`                           |
+| an unset typed field stays unset through the file                                          | `export::tests::an_unset_typed_field_stays_unset`                                                                       |
+| a future major version is unsupported, not malformed; a missing version is refused         | `export::tests::a_future_major_version_is_unsupported_not_malformed`, `a_missing_version_is_refused`                    |
+| a newer minor version is read without its new fields                                       | `export::tests::a_newer_minor_version_is_read_without_its_new_fields`                                                   |
+| a byte-order mark and Windows line ends are not content; oversized and non-JSON is refused | `export::tests::a_byte_order_mark_and_windows_line_ends_are_not_content`, `an_oversized_file_is_refused_before_parsing` |
+| ids start at 1 and only grow; exactly one answer; progress only before it; cancel effects  | `discipline::tests`                                                                                                     |
+
+## Probe sessions, recordings, and exports — `yata-daemon`
+
+Integration tests in `crates/yata-daemon/tests/probe_session.rs` run the live
+session against a scripted reader over in-memory pipes, then replay what it
+recorded.
+
+| Claim in [probe-protocol.md](../spec/probe-protocol.md)                          | Test                                                                                 |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| a framed request gets its progress and one result; the recording replays to them | `a_framed_request_gets_its_progress_and_one_result`                                  |
+| a cancel is sent once and the request still gets one answer                      | `a_cancel_is_sent_once_and_the_request_still_gets_one_answer`                        |
+| a session-level failure ends the handshake and is a whole capture                | `a_session_level_failure_ends_the_handshake`                                         |
+| a malformed frame, and a frame that is not a message, end the session            | `a_malformed_frame_ends_the_session`, `a_frame_that_is_not_a_message_is_undecodable` |
+| a second answer to one request breaks the discipline                             | `a_reader_that_answers_twice_breaks_the_discipline`                                  |
+| a reader of another major version is refused                                     | `a_reader_of_another_major_version_is_refused`                                       |
+| a reader that dies inside a frame leaves a truncated capture                     | `a_reader_that_dies_mid_frame_leaves_a_truncated_capture`                            |
+| a capture ending with a request open is broken                                   | `a_capture_that_ends_with_a_request_open_is_broken`                                  |
+| a reading has the same results and blob by recording and by export               | `a_reading_arrives_the_same_by_recording_and_by_export`                              |
+
+`crates/yata-daemon/tests/probe_fixtures.rs` replays
+`tests/fixtures/synthetic-souls.frames`, a recording the reader's own session
+code made over synthetic memory (a pinned copy of the reader repository's
+fixture): its provenance, four souls with every typed field unset and the
+recognition rule inherited, their container keys, a deterministic survey, a
+presence/absence cross-tabulation, and a suit-code ledger that stays unretired.
+
+| Claim                                                                                                     | Test in `probe::convert::tests` or `probe::launch::tests` (Windows)                                       |
+| --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| a typed value without an evidence entry is not taken as mapped; evidence is carried and never raised      | `a_typed_value_without_evidence_is_not_taken_as_mapped`, `evidence_is_carried_as_stated_and_never_raised` |
+| unstated or repeated evidence is refused; the recognition rule has its own evidence                       | `unstated_or_repeated_evidence_is_refused`, `the_recognition_rule_has_its_own_evidence`                   |
+| the request id is not part of a reading's blob                                                            | `the_request_id_is_not_part_of_the_blob`                                                                  |
+| the pipe's descriptor grants its owner only; the owner connects and its process id is checked (R10, part) | `the_pipe_refuses_everyone_but_its_owner`, `the_owner_connects_and_its_process_id_is_checked`             |
+| a client that is not the reader is refused; a second server cannot take the first instance                | `a_client_that_is_not_the_reader_is_refused`, `the_first_instance_cannot_be_taken_by_a_second_server`     |
+| a file's hash is its SHA-256 (R7)                                                                         | `a_file_hash_is_its_sha256`, `hashes_are_read_and_written_as_hex`                                         |
+
+## Soul observations and evidence analyses — `yata-core::import`
+
+| Claim                                                                                           | Tests                                                                                                                  |
+| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| field names round-trip; inherited is weaker than established; renderings keep kinds apart       | `observation::tests`                                                                                                   |
+| a survey counts kinds, integer ranges, and distinct values                                      | `evidence::tests::a_survey_counts_kinds_ranges_and_distinct_values`                                                    |
+| groups order absent first, then integers numerically; a crosstab separates absent, null, values | `evidence::tests::groups_order_absent_then_integers_numerically`, `a_crosstab_separates_absent_null_and_values`        |
+| matching codes re-establish a bit; a code attested for two bits contradicts both                | `evidence::tests::matching_codes_reestablish_their_bits`, `a_code_attested_for_two_bits_contradicts_both`              |
+| unjoinable attestations are reported; only every bit re-established retires the inheritance     | `evidence::tests::unjoinable_attestations_are_reported_not_dropped`, `every_bit_reestablished_retires_the_inheritance` |
+
+The reader's own tests — discovery, attach classification, the layout decoder on
+synthetic memory and on a live process of the runtime it reads, its session
+side, and the fixtures' byte-for-byte reproduction — are in the `yata-reader`
+repository, `docs/project/status.md` there.
+
 ## Scheme selection and evaluation — `yata-core::scheme`
 
 | Claim in [scheme-code.md](../spec/scheme-code.md)                                                                                                                                                    | Tests                                                                                                                                                                                                                                                                                    |
@@ -228,3 +286,7 @@ no `sorry` (`lake build` in `formal/lean`, the `lean-build` check).
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
 implemented.
+
+The probe channel's live elevation path — a UAC prompt accepted or declined —
+runs only by hand; no CI can answer a prompt. R10's check that a second user's
+token cannot connect is not written. No recording of the game exists yet.
