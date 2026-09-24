@@ -15,13 +15,11 @@ use super::layout::{LayoutError, MAX_FIELD_LEN, Record};
 /// Soul bits in use: one per soul set, 0 to 69.
 pub const SOUL_BIT_COUNT: u16 = 70;
 
-/// The solved filter bits: slot 0–5, star 6–11, main attribute 12–22; sub-attribute include and
-/// exclude for `AtkPercent` 25–26, `DefPercent` 29–30, `HpPercent` 33–34 and the five special
-/// attributes 35–44; sub-attribute count 45–48; level 49–54; innate attribute 55–60 (options one
-/// to six, left to right in the editor). Open: 23–24, the flat attributes' pairs 27–28 and
-/// 31–32, and 61 and above. The flat attributes were once placed by elimination at 27–28, 31–32
-/// and 45–46; an import on 2026-09-24 showed 45–46 to be the count, so none of the three is placed.
-const SOLVED_FILTER_BITS: [(u16, u16); 4] = [(0, 22), (25, 26), (29, 30), (33, 60)];
+/// The solved filter bits, every one from 0 to 60, each confirmed by a controlled export:
+/// slot 0–5, star 6–11, main attribute 12–22; sub-attribute include and exclude 23–44, two bits
+/// per attribute in the main-attribute order (`AtkFlat` 23–24 … `CritDmg` 43–44); sub-attribute
+/// count 45–48; level 49–54; innate attribute 55–60. Bits 61 and above are open.
+const SOLVED_FILTER_BITS: [(u16, u16); 1] = [(0, 60)];
 
 /// The filter length every observed plan has; a filter built from scratch has it.
 pub const FILTER_LEN: usize = 7;
@@ -219,10 +217,12 @@ mod tests {
     #[test]
     fn only_solved_bits_can_be_named() {
         assert!(SoulBit::new(69).is_some() && SoulBit::new(70).is_none());
-        for open in [23, 24, 27, 28, 31, 32, 61, 63] {
+        for open in [61, 62, 63, 64, 200] {
             assert_eq!(FilterBit::new(open), None, "{open}");
         }
-        for solved in [0, 11, 22, 25, 26, 29, 30, 33, 44, 45, 48, 49, 54, 55, 60] {
+        for solved in [
+            0, 11, 22, 23, 24, 27, 28, 31, 32, 44, 45, 48, 49, 54, 55, 60,
+        ] {
             assert!(FilterBit::new(solved).is_some(), "{solved}");
         }
     }
@@ -263,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn the_count_and_innate_plans_imported_on_2026_09_24_are_rebuilt() {
+    fn the_controlled_plans_exported_on_2026_09_24_are_rebuilt() {
         // The game's own export of the controlled plans: one extra bit each over the baseline.
         let base = [0u16, 1, 2, 3, 4, 5, 11, 49];
         let with = |extra: &[u16]| {
@@ -271,6 +271,10 @@ mod tests {
             Record::from_bits("p", Some(&[soul(33)]), &bits).expect("valid")
         };
         assert_eq!(with(&[45]).filter(), &[0x3f, 0x08, 0, 0, 0, 0x20, 0x02]);
+        // The flat sub-attributes, from the export of the third template.
+        assert_eq!(with(&[23]).filter(), &[0x3f, 0x08, 0x80, 0, 0, 0, 0x02]);
+        assert_eq!(with(&[28]).filter(), &[0x3f, 0x08, 0, 0x10, 0, 0, 0x02]);
+        assert_eq!(with(&[32]).filter(), &[0x3f, 0x08, 0, 0, 0x01, 0, 0x02]);
         assert_eq!(with(&[48]).filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x03]);
         assert_eq!(with(&[55]).filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x82]);
         assert_eq!(with(&[56]).filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x02, 0x01]);
@@ -361,16 +365,16 @@ mod tests {
 
     #[test]
     fn unsolved_bits_already_set_are_kept_by_every_edit() {
-        // A filter as read, with open bits 23, 27, 31 and 61 set.
+        // A filter as read, with open bits 61, 62 and 63 set.
         let mut filter = vec![0u8; 8];
-        for b in [23usize, 27, 31, 61] {
+        for b in [61usize, 62, 63] {
             filter[b / 8] |= 1 << (b % 8);
         }
         let mut r = Record::new("x", vec![0x01], filter).expect("valid");
         r.set_filter(filt(12), true).expect("valid");
         r.set_filter(filt(12), false).expect("valid");
         r.set_soul(soul(1), true).expect("valid");
-        assert_eq!(r.filter_bits(), vec![23, 27, 31, 61]);
+        assert_eq!(r.filter_bits(), vec![61, 62, 63]);
     }
 
     mod properties {

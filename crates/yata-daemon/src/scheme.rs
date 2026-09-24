@@ -336,10 +336,10 @@ mod tests {
     #[test]
     fn a_plan_file_refuses_open_bits_and_names_the_line() {
         assert_eq!(
-            parse_plan_file("ok | all | 1\nbad | all | 1,27\n"),
+            parse_plan_file("ok | all | 1\nbad | all | 1,61\n"),
             Err(PlanFileError {
                 line: 2,
-                problem: PlanLineProblem::UnsolvedFilterBit { bit: 27 }
+                problem: PlanLineProblem::UnsolvedFilterBit { bit: 61 }
             })
         );
         assert_eq!(
@@ -359,9 +359,9 @@ mod tests {
     #[test]
     fn plans_list_marks_open_bits_and_never_prints_the_account() {
         use yata_core::scheme::layout::{AccountSegment, SchemeHeader};
-        let mut filter = vec![0u8; 7];
-        filter[3] = 0x08; // open bit 27
+        let mut filter = vec![0u8; 8];
         filter[6] = 0x02; // level bit 49
+        filter[7] = 0x20; // open bit 61
         let layout = SchemeLayout {
             header: SchemeHeader {
                 account: AccountSegment::from_bytes([0xab; 14]),
@@ -377,7 +377,7 @@ mod tests {
              records: 1\n  \
              0  p\n     \
              souls: 0\n     \
-             filter: 00000008000002  bits: 27*,49\n"
+             filter: 0000000000000220  bits: 49,61*\n"
         );
         assert!(!text.to_lowercase().contains("ab ab"));
     }
