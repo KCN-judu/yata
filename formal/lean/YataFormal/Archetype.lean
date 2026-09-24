@@ -2,17 +2,19 @@ import Mathlib
 import YataFormal.Soul
 
 /-!
-# Archetypes: four useful attributes, equal weight
+# Archetypes: a set of useful attributes, equal weight
 
-The quality profiles of `docs/spec/quality-model.md` each value four attributes with weight 1.
-For them the attainable maximum is nine roll units, reached by the paper's theoretical output
-soul, and the two structural facts the tiers rest on hold: a soul whose useful value lies on one
-line reaches at most six, and a soul above eight has put every increment on a useful line.
+An archetype of `docs/spec/quality-model.md` values a set of attributes with weight 1. The
+facts here hold for a set of any size. Nine is the attainable maximum of a four-attribute
+archetype, reached by the paper's theoretical output soul; a one-attribute archetype reaches at
+most six (`speed_utility_bounds`). For the four-attribute archetypes the two structural facts the
+tiers rest on hold: a soul whose useful value lies on one line reaches at most six, and a soul
+above eight has put every increment on a useful line.
 -/
 
 namespace Yata
 
-/-- A profile valuing four attributes, each with weight 1. -/
+/-- A profile valuing the attributes of `A`, each with weight 1. -/
 def archetype (A : Finset Attr) : Profile where
   useful := A
   weight := fun a => if a ∈ A then 1 else 0
@@ -40,7 +42,7 @@ theorem useful_hits_le_nine (s : Soul) : ∑ a ∈ A, s.hits a ≤ 9 := by
         Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ A) (fun _ _ _ => Nat.zero_le _)
     _ ≤ 9 := h
 
-/-- The attainable maximum: no soul exceeds nine roll units on an archetype. -/
+/-- No soul exceeds nine roll units on an archetype: a soul has nine increments in all. -/
 theorem utility_le_nine (s : Soul) : (archetype A).utility s.features ≤ 9 := by
   have h1 := utility_le_useful_hits A s
   have h2 : (∑ a ∈ A, (s.hits a : ℚ)) ≤ 9 := by exact_mod_cast useful_hits_le_nine A s
