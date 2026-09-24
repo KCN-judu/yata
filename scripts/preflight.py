@@ -462,12 +462,21 @@ def dart_format() -> Result:
     return _app(["dart", "format", "--page-width", "100", "--output=none", "--set-exit-if-changed", *_dart_sources()])
 
 
+def _flutter(cmd: list[str]) -> Result:
+    """A Flutter check, after generating the localizations: they are not committed (ADR-0012), and
+    `flutter analyze` on a fresh checkout does not generate them."""
+    generated = _app(["flutter", "gen-l10n"])
+    if not generated.ok or generated.skipped or generated.na:
+        return generated
+    return _app(cmd)
+
+
 def flutter_analyze() -> Result:
-    return _app(["flutter", "analyze"])
+    return _flutter(["flutter", "analyze"])
 
 
 def flutter_test() -> Result:
-    return _app(["flutter", "test"])
+    return _flutter(["flutter", "test"])
 
 
 def dart_layers() -> Result:
@@ -481,7 +490,7 @@ def dart_layers() -> Result:
 def dart_bindings() -> Result:
     """The committed Dart bindings are what protoc generates from the schema (ADR-0004, rule 2)."""
     if not _has_app():
-        return Result(True, "no app/ yet", skipped=True)
+        return Result(True, "no app/ yet", na=True)
     proc = subprocess.run(
         [sys.executable, "scripts/gen_dart_protocol.py", "--check"],
         cwd=ROOT,
@@ -497,7 +506,7 @@ def dart_bindings() -> Result:
 def error_codes() -> Result:
     """Every code a view can meet maps to Chinese text; `internal.*` is a bug and stays generic."""
     if not _has_app():
-        return Result(True, "no app/ yet", skipped=True)
+        return Result(True, "no app/ yet", na=True)
     raised: dict[str, str] = {}
     for f in tracked_files():
         if f.startswith(ERROR_CODE_SOURCES) and f.endswith((".rs", ".dart")) and "/gen/" not in f:
