@@ -154,6 +154,9 @@ Design questions under active consideration. Close with `accepted` (→ ADR) or
   — the pass-2 contract: need profiles, hard gates and soft preferences, set
   plans, and evaluation per soul, per loadout, and per swap; **accepted** →
   ADR-0028
+- [proposals/0005-soul-kind-follows-its-set.md](proposals/0005-soul-kind-follows-its-set.md)
+  — a soul's kind follows its set, from the thirteen boss-style sets; **draft**,
+  waiting on the suit codes of imported souls
 - PRP-0001 and PRP-0002 are kept in local research (ADR-0016).
 
 ## Issues — `issues/`
