@@ -220,9 +220,9 @@ impl IntField {
 impl NumberField {
     pub(super) fn value(self, soul: &Soul) -> f64 {
         match self {
-            NumberField::MainValue => soul.main_value,
+            NumberField::MainValue => soul.main_value.get(),
             // No nulls (`query.md`): a sub-attribute the soul lacks has value 0.
-            NumberField::SubValue(a) => soul.sub(a).map_or(0.0, |s| s.value),
+            NumberField::SubValue(a) => soul.sub(a).map_or(0.0, |s| s.value.get()),
         }
     }
 }

@@ -3,7 +3,7 @@
 use super::Undecided;
 use super::inference::{HitCount, Hits, hits};
 use super::values::{VALUE_TOLERANCE, increment_range, main_value};
-use crate::soul::{Soul, SoulAttribute, SoulSlot};
+use crate::soul::{Soul, SoulAttribute, SoulSlot, StoredValue};
 
 /// Why a soul is not well-formed. Each variant carries the values that broke the rule.
 #[derive(Debug, Clone, PartialEq)]
@@ -24,15 +24,10 @@ pub enum Violation {
     DuplicateSubAttribute {
         attribute: SoulAttribute,
     },
-    /// A stored value that is negative, infinite, or not a number.
-    InvalidValue {
-        attribute: SoulAttribute,
-        value: f64,
-    },
     /// A recorded `c(a)` whose `hits · [lo, hi]` does not contain the value.
     ValueOutsideRange {
         attribute: SoulAttribute,
-        value: f64,
+        value: StoredValue,
         hits: HitCount,
         least: f64,
         most: f64,
@@ -40,7 +35,7 @@ pub enum Violation {
     /// No number of increments the level allows sums to the value.
     ValueUnreachable {
         attribute: SoulAttribute,
-        value: f64,
+        value: StoredValue,
         level: u8,
     },
     /// `Σ c(a) > nodes(ℓ)`: more rolls than the level has had. `rolls` is a lower bound when
@@ -59,7 +54,7 @@ pub enum Warning {
     MainValueMismatch {
         main: SoulAttribute,
         expected: f64,
-        actual: f64,
+        actual: StoredValue,
     },
 }
 
@@ -126,13 +121,6 @@ pub fn assess(soul: &Soul) -> Assessment {
     }
     let mut rolls: u32 = 0;
     for sub in &soul.subs {
-        if !sub.value.is_finite() || sub.value < 0.0 {
-            out.violations.push(Violation::InvalidValue {
-                attribute: sub.attribute,
-                value: sub.value,
-            });
-            continue;
-        }
         match hits(soul, sub) {
             Err(u) => out.undecided.push(u),
             Ok(Hits::Unreachable) => out.violations.push(Violation::ValueUnreachable {
@@ -153,7 +141,7 @@ pub fn assess(soul: &Soul) -> Assessment {
             .push(Violation::RollsExceedNodes { rolls, nodes });
     }
     if let Some(expected) = main_value(soul.main, soul.star, soul.level)
-        && (soul.main_value - expected).abs() > VALUE_TOLERANCE
+        && (soul.main_value.get() - expected).abs() > VALUE_TOLERANCE
     {
         out.warnings.push(Warning::MainValueMismatch {
             main: soul.main,
@@ -168,7 +156,7 @@ pub fn assess(soul: &Soul) -> Assessment {
 fn check_recorded(
     soul: &Soul,
     attribute: SoulAttribute,
-    value: f64,
+    value: StoredValue,
     k: HitCount,
     out: &mut Assessment,
 ) {
@@ -180,7 +168,7 @@ fn check_recorded(
         return;
     };
     let (least, most) = (range.floor_of(k), range.ceiling_of(k));
-    if value < least - VALUE_TOLERANCE || value > most + VALUE_TOLERANCE {
+    if value.get() < least - VALUE_TOLERANCE || value.get() > most + VALUE_TOLERANCE {
         out.violations.push(Violation::ValueOutsideRange {
             attribute,
             value,
@@ -197,10 +185,14 @@ mod tests {
     use crate::soul::{RollCount, SubAttribute};
     use SoulAttribute::*;
 
+    fn v(x: f64) -> StoredValue {
+        StoredValue::new(x).expect("a stored value")
+    }
+
     fn sub(attribute: SoulAttribute, value: f64) -> SubAttribute {
         SubAttribute {
             attribute,
-            value,
+            value: v(value),
             enhancement_count: None,
         }
     }
@@ -213,7 +205,7 @@ mod tests {
             star: 6,
             level: 15,
             main: Spd,
-            main_value: 57.0,
+            main_value: v(57.0),
             subs: vec![
                 sub(Spd, 14.8),
                 sub(Crit, 2.7),
@@ -271,7 +263,7 @@ mod tests {
     fn a_value_no_roll_count_reaches_is_malformed() {
         let mut s = soul();
         s.level = 0;
-        s.main_value = 12.0;
+        s.main_value = v(12.0);
         s.subs = vec![sub(Spd, 4.0)];
         assert_eq!(assess(&s).verdict(), Verdict::Malformed);
     }
@@ -287,11 +279,11 @@ mod tests {
     }
 
     #[test]
-    fn invalid_values_are_malformed() {
-        let mut s = soul();
-        s.subs[1].value = f64::NAN;
-        s.subs[2].value = -1.0;
-        assert_eq!(assess(&s).violations.len(), 2);
+    fn a_main_value_that_is_not_a_stored_value_cannot_reach_a_soul() {
+        // A NaN main value used to assess as well-formed: no comparison with NaN is true. It is
+        // refused where a value is built, so no rule meets it.
+        assert_eq!(StoredValue::new(f64::NAN), None);
+        assert_eq!(StoredValue::new(-1.0), None);
     }
 
     #[test]
@@ -307,7 +299,7 @@ mod tests {
     #[test]
     fn a_main_value_off_the_growth_line_is_a_warning_only() {
         let mut s = soul();
-        s.main_value = 56.0;
+        s.main_value = v(56.0);
         let a = assess(&s);
         assert_eq!(a.verdict(), Verdict::WellFormed);
         assert_eq!(
@@ -315,7 +307,7 @@ mod tests {
             vec![Warning::MainValueMismatch {
                 main: Spd,
                 expected: 57.0,
-                actual: 56.0
+                actual: v(56.0)
             }]
         );
     }

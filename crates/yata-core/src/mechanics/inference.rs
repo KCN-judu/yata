@@ -103,8 +103,10 @@ pub fn hits(soul: &Soul, sub: &SubAttribute) -> Result<Hits, Undecided> {
             attribute: sub.attribute,
             star: soul.star,
         })?;
-    let least = ((sub.value - VALUE_TOLERANCE) / range.hi()).ceil().max(1.0);
-    let most = ((sub.value + VALUE_TOLERANCE) / range.lo())
+    let least = ((sub.value.get() - VALUE_TOLERANCE) / range.hi())
+        .ceil()
+        .max(1.0);
+    let most = ((sub.value.get() + VALUE_TOLERANCE) / range.lo())
         .floor()
         .min(f64::from(1 + soul.nodes()));
     // Both bounds lie in 1..=6 when finite and ordered, so the conversions cannot truncate; a
@@ -123,7 +125,7 @@ pub fn hits(soul: &Soul, sub: &SubAttribute) -> Result<Hits, Undecided> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::{SoulAttribute, SoulSlot};
+    use crate::soul::{SoulAttribute, SoulSlot, StoredValue};
 
     fn spd_soul(level: u8, value: f64) -> Soul {
         Soul {
@@ -132,10 +134,10 @@ mod tests {
             star: 6,
             level,
             main: SoulAttribute::Spd,
-            main_value: 57.0,
+            main_value: StoredValue::new(57.0).expect("stored"),
             subs: vec![SubAttribute {
                 attribute: SoulAttribute::Spd,
-                value,
+                value: StoredValue::new(value).expect("stored"),
                 enhancement_count: None,
             }],
             kind: crate::soul::SoulKind::Ordinary,

@@ -10,7 +10,7 @@ use crate::scheme::evaluate::{OpenRule, Verdict};
 use crate::scheme::layout::{AccountSegment, Record, SchemeLayout, serialize};
 use crate::scheme::selection::{InnateAttribute, SetChoice, SoulSelection};
 use crate::scheme::transport::encode_text;
-use crate::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
+use crate::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute};
 
 use SoulAttribute::*;
 
@@ -21,7 +21,7 @@ fn soul(set: u8, slot: SoulSlot, star: u8, level: u8, main: SoulAttribute) -> So
         star,
         level,
         main,
-        main_value: 57.0,
+        main_value: StoredValue::from_tenths(570),
         subs: Vec::new(),
         kind: SoulKind::Ordinary,
     }
@@ -32,7 +32,7 @@ fn with_subs(mut s: Soul, subs: &[(SoulAttribute, f64)]) -> Soul {
         .iter()
         .map(|&(attribute, value)| SubAttribute {
             attribute,
-            value,
+            value: StoredValue::new(value).expect("a stored value"),
             enhancement_count: None,
         })
         .collect();

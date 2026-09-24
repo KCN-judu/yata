@@ -15,7 +15,9 @@ use yata_core::query::{
 use yata_core::scheme::selection::{
     InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
 };
-use yata_core::soul::{RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
+use yata_core::soul::{
+    RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute,
+};
 use yata_protocol::core as wire;
 
 use super::{MAX_INVENTORY_SOULS, RequestError, WireProblem};
@@ -64,7 +66,7 @@ fn soul(s: wire::Soul) -> Result<Soul, WireProblem> {
         .map(|sub| {
             Ok(SubAttribute {
                 attribute: attribute(sub.attribute)?,
-                value: sub.value,
+                value: stored(sub.value)?,
                 enhancement_count: sub
                     .enhancement_count
                     .map(|c| {
@@ -87,10 +89,15 @@ fn soul(s: wire::Soul) -> Result<Soul, WireProblem> {
         star: byte(s.star)?,
         level: byte(s.level)?,
         main: attribute(s.main)?,
-        main_value: s.main_value,
+        main_value: stored(s.main_value)?,
         subs,
         kind: kind(s.kind)?,
     })
+}
+
+/// A wire value as a stored value: finite and not negative, or out of range.
+fn stored(v: f64) -> Result<StoredValue, WireProblem> {
+    StoredValue::new(v).ok_or(WireProblem::OutOfRange)
 }
 
 /// A soul's kind. There is no unknown kind (ADR-0029): a soul that states neither is refused.

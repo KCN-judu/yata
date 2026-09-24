@@ -250,13 +250,13 @@ pub fn soul(id: &str, s: &Soul) -> pb::Soul {
         star: u32::from(s.star),
         level: u32::from(s.level),
         main: attribute(s.main),
-        main_value: s.main_value,
+        main_value: s.main_value.get(),
         subs: s
             .subs
             .iter()
             .map(|sub| pb::SubAttribute {
                 attribute: attribute(sub.attribute),
-                value: sub.value,
+                value: sub.value.get(),
                 enhancement_count: sub.enhancement_count.map(|c| u32::from(c.get())),
             })
             .collect(),
@@ -366,7 +366,7 @@ pub fn scheme_source(m: pb::DecodeSchemeCode) -> Result<SchemeSource, Failure> {
 
 #[cfg(test)]
 mod tests {
-    use yata_core::soul::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot};
+    use yata_core::soul::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, StoredValue};
 
     use super::*;
 
@@ -377,7 +377,7 @@ mod tests {
             star: 6,
             level: 15,
             main: SoulAttribute::Spd,
-            main_value: 57.0,
+            main_value: StoredValue::from_tenths(570),
             subs: vec![],
             kind,
         }

@@ -1,11 +1,11 @@
-use super::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot};
+use super::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, StoredValue};
 
 /// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus its set, the
 /// main attribute's value, and whether it is a boss soul.
 ///
 /// This is the shape decoded input takes before any rule is applied, so nothing here is
 /// guaranteed legal: [`crate::mechanics::assess`] decides that. Values are stored values in
-/// display units, never rounded display values.
+/// display units, never rounded display values, and never NaN or negative ([`StoredValue`]).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Soul {
     /// The set the soul belongs to. The roll rules do not depend on it; a scheme's 类型 group
@@ -15,7 +15,7 @@ pub struct Soul {
     pub star: u8,
     pub level: u8,
     pub main: SoulAttribute,
-    pub main_value: f64,
+    pub main_value: StoredValue,
     pub subs: Vec<SubAttribute>,
     /// Ordinary, or a boss soul with its 固有属性, held beside `subs`, never among them.
     pub kind: SoulKind,
@@ -37,7 +37,7 @@ pub enum SoulKind {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SubAttribute {
     pub attribute: SoulAttribute,
-    pub value: f64,
+    pub value: StoredValue,
     /// `c(a)`, the rolls this sub-attribute received after it appeared. `None` when the reading
     /// does not carry it: whether the game records it is open, and it is then inferred
     /// (`soul-mechanics.md`, § Inferring roll counts).

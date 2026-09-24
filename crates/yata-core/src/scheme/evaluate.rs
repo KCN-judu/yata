@@ -146,7 +146,9 @@ mod tests {
     use super::super::mapping::soul_set;
     use super::super::selection::decode_selection;
     use super::*;
-    use crate::soul::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, SubAttribute};
+    use crate::soul::{
+        InnateAttribute, SoulAttribute, SoulSet, SoulSlot, StoredValue, SubAttribute,
+    };
 
     use SoulAttribute::*;
 
@@ -158,12 +160,12 @@ mod tests {
             star,
             level,
             main: Spd,
-            main_value: 57.0,
+            main_value: StoredValue::from_tenths(570),
             subs: subs
                 .iter()
                 .map(|&attribute| SubAttribute {
                     attribute,
-                    value: 1.0,
+                    value: StoredValue::from_tenths(10),
                     enhancement_count: None,
                 })
                 .collect(),
@@ -434,7 +436,7 @@ mod tests {
         let mut both = innate_only.clone();
         both.subs.push(SubAttribute {
             attribute: EffectHit,
-            value: 1.0,
+            value: StoredValue::from_tenths(10),
             enhancement_count: None,
         });
         assert_eq!(matches(&sel, &both), Verdict::Matches);

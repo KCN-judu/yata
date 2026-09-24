@@ -472,6 +472,18 @@ fn request_level_refusals_carry_their_codes() {
 }
 
 #[test]
+fn a_value_that_is_not_a_stored_value_is_malformed() {
+    for bad in [f64::NAN, f64::INFINITY, -1.0] {
+        let mut sub = request(1, query(None));
+        sub.inventory.push(soul("s9", 6, bad));
+        assert_eq!(code(&sub), "query.malformed", "sub value {bad}");
+        let mut main = request(1, query(None));
+        main.inventory[0].main_value = bad;
+        assert_eq!(code(&main), "query.malformed", "main value {bad}");
+    }
+}
+
+#[test]
 fn a_soul_must_state_its_kind() {
     // ADR-0029: there is no unknown kind, and a boss soul's innate attribute is one of six.
     let with = |kind| {

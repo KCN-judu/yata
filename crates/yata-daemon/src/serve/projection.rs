@@ -43,7 +43,9 @@ pub mod fixture {
     use std::collections::BTreeMap;
 
     use yata_core::fact::{GameSoulId, ProfileId, Revision, Seq};
-    use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
+    use yata_core::soul::{
+        Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute,
+    };
 
     use super::{ProfileEntry, Projection};
 
@@ -57,9 +59,18 @@ pub mod fixture {
         SoulSlot,
         u8,
         SoulAttribute,
-        f64,
-        &'static [(SoulAttribute, f64)],
+        StoredValue,
+        &'static [(SoulAttribute, StoredValue)],
     );
+
+    /// A literal as a stored value. Only called in the constant below, so a literal that is not
+    /// one fails the build, not the daemon.
+    const fn v(x: f64) -> StoredValue {
+        match StoredValue::new(x) {
+            Some(v) => v,
+            None => panic!("a fixture value is not a stored value"),
+        }
+    }
 
     use SoulAttribute::*;
     use SoulSlot::*;
@@ -67,18 +78,18 @@ pub mod fixture {
     /// `(id, suit code, slot, level, main, main value, subs)`, every soul 6★.
     #[rustfmt::skip]
     pub(super) const SOULS: [Row; 12] = [
-        ("fixture-01", 30, Slot2, 15, Spd, 57.0, &[(Crit, 8.4), (CritDmg, 7.2), (AtkPercent, 5.2), (HpPercent, 5.0)]),
-        ("fixture-02", 30, Slot4, 15, AtkPercent, 55.0, &[(Spd, 16.8), (Crit, 2.7), (CritDmg, 3.5), (EffectHit, 3.9)]),
-        ("fixture-03", 12, Slot6, 15, CritDmg, 89.0, &[(Spd, 11.2), (Crit, 5.4), (AtkPercent, 5.5), (HpFlat, 105.0)]),
-        ("fixture-04", 12, Slot1, 15, AtkFlat, 486.0, &[(Spd, 8.1), (Crit, 8.7), (CritDmg, 3.3), (EffectRes, 7.1)]),
-        ("fixture-05", 20, Slot3, 15, DefFlat, 104.0, &[(Spd, 5.5), (EffectHit, 11.4), (EffectRes, 7.6), (HpPercent, 5.8)]),
-        ("fixture-06", 20, Slot5, 15, HpFlat, 2052.0, &[(Spd, 13.9), (EffectHit, 3.4), (HpPercent, 2.9), (DefPercent, 5.1)]),
-        ("fixture-07", 7, Slot2, 0, Spd, 12.0, &[(Crit, 2.5), (CritDmg, 3.9), (AtkPercent, 2.9), (EffectHit, 3.3)]),
-        ("fixture-08", 7, Slot6, 0, Crit, 10.0, &[(Spd, 2.6), (CritDmg, 3.4), (AtkFlat, 25.0)]),
-        ("fixture-09", 2, Slot4, 9, EffectHit, 37.0, &[(Spd, 5.3), (EffectRes, 3.6), (HpPercent, 5.4), (DefFlat, 9.0)]),
-        ("fixture-10", 39, Slot2, 12, AtkPercent, 46.0, &[(Spd, 10.4), (Crit, 2.4), (CritDmg, 3.2), (AtkFlat, 48.0)]),
-        ("fixture-11", 39, Slot6, 15, Crit, 55.0, &[(CritDmg, 19.5), (Spd, 2.4), (AtkPercent, 2.9), (HpFlat, 200.0)]),
-        ("fixture-12", 48, Slot3, 3, DefFlat, 32.0, &[(Spd, 2.7), (Crit, 5.1), (HpPercent, 2.5)]),
+        ("fixture-01", 30, Slot2, 15, Spd, v(57.0), &[(Crit, v(8.4)), (CritDmg, v(7.2)), (AtkPercent, v(5.2)), (HpPercent, v(5.0))]),
+        ("fixture-02", 30, Slot4, 15, AtkPercent, v(55.0), &[(Spd, v(16.8)), (Crit, v(2.7)), (CritDmg, v(3.5)), (EffectHit, v(3.9))]),
+        ("fixture-03", 12, Slot6, 15, CritDmg, v(89.0), &[(Spd, v(11.2)), (Crit, v(5.4)), (AtkPercent, v(5.5)), (HpFlat, v(105.0))]),
+        ("fixture-04", 12, Slot1, 15, AtkFlat, v(486.0), &[(Spd, v(8.1)), (Crit, v(8.7)), (CritDmg, v(3.3)), (EffectRes, v(7.1))]),
+        ("fixture-05", 20, Slot3, 15, DefFlat, v(104.0), &[(Spd, v(5.5)), (EffectHit, v(11.4)), (EffectRes, v(7.6)), (HpPercent, v(5.8))]),
+        ("fixture-06", 20, Slot5, 15, HpFlat, v(2052.0), &[(Spd, v(13.9)), (EffectHit, v(3.4)), (HpPercent, v(2.9)), (DefPercent, v(5.1))]),
+        ("fixture-07", 7, Slot2, 0, Spd, v(12.0), &[(Crit, v(2.5)), (CritDmg, v(3.9)), (AtkPercent, v(2.9)), (EffectHit, v(3.3))]),
+        ("fixture-08", 7, Slot6, 0, Crit, v(10.0), &[(Spd, v(2.6)), (CritDmg, v(3.4)), (AtkFlat, v(25.0))]),
+        ("fixture-09", 2, Slot4, 9, EffectHit, v(37.0), &[(Spd, v(5.3)), (EffectRes, v(3.6)), (HpPercent, v(5.4)), (DefFlat, v(9.0))]),
+        ("fixture-10", 39, Slot2, 12, AtkPercent, v(46.0), &[(Spd, v(10.4)), (Crit, v(2.4)), (CritDmg, v(3.2)), (AtkFlat, v(48.0))]),
+        ("fixture-11", 39, Slot6, 15, Crit, v(55.0), &[(CritDmg, v(19.5)), (Spd, v(2.4)), (AtkPercent, v(2.9)), (HpFlat, v(200.0))]),
+        ("fixture-12", 48, Slot3, 3, DefFlat, v(32.0), &[(Spd, v(2.7)), (Crit, v(5.1)), (HpPercent, v(2.5))]),
     ];
 
     /// The fixture souls, all ordinary. The fixture is invented and makes no claim about which sets

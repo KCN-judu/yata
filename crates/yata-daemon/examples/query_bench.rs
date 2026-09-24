@@ -25,7 +25,9 @@ use yata_core::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningScheme
 use yata_core::scheme::layout::{AccountSegment, serialize};
 use yata_core::scheme::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode};
 use yata_core::scheme::transport::encode_text;
-use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
+use yata_core::soul::{
+    Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute,
+};
 use yata_protocol::core as wire;
 
 /// The first forty suit codes of the scheme mapping, in soul-bit order: sets a scheme can name.
@@ -77,7 +79,7 @@ fn inventory(n: usize, seed: u64) -> BTreeMap<String, Soul> {
                 .into_iter()
                 .map(|attribute| SubAttribute {
                     attribute,
-                    value: 1.0 + r.below(200) as f64 / 10.0,
+                    value: StoredValue::from_tenths(10 + r.below(200) as u32),
                     enhancement_count: None,
                 })
                 .collect();
@@ -87,7 +89,7 @@ fn inventory(n: usize, seed: u64) -> BTreeMap<String, Soul> {
                 star,
                 level,
                 main,
-                main_value: 10.0 + r.below(500) as f64 / 10.0,
+                main_value: StoredValue::from_tenths(100 + r.below(500) as u32),
                 subs,
                 kind: SoulKind::Ordinary,
             };
@@ -195,13 +197,13 @@ fn wire_soul(id: &str, s: &Soul) -> wire::Soul {
         star: u32::from(s.star),
         level: u32::from(s.level),
         main: attribute(s.main),
-        main_value: s.main_value,
+        main_value: s.main_value.get(),
         subs: s
             .subs
             .iter()
             .map(|x| wire::SubAttribute {
                 attribute: attribute(x.attribute),
-                value: x.value,
+                value: x.value.get(),
                 enhancement_count: None,
             })
             .collect(),

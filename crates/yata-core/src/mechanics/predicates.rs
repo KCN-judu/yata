@@ -57,7 +57,7 @@ pub fn maxed(soul: &Soul, attribute: SoulAttribute) -> Result<Truth, Undecided> 
 pub fn true_n(soul: &Soul, attribute: SoulAttribute, n: f64) -> Truth {
     Truth::of(
         soul.sub(attribute)
-            .is_some_and(|s| s.value + VALUE_TOLERANCE >= n),
+            .is_some_and(|s| s.value.get() + VALUE_TOLERANCE >= n),
     )
 }
 
@@ -70,7 +70,7 @@ pub fn top_band(soul: &Soul, attribute: SoulAttribute) -> Result<Truth, Undecide
         attribute,
         star: soul.star,
     })?;
-    if sub.value + VALUE_TOLERANCE < range.max() - 1.0 {
+    if sub.value.get() + VALUE_TOLERANCE < range.max() - 1.0 {
         return Ok(Truth::Impossible);
     }
     maxed(soul, attribute)
@@ -79,7 +79,7 @@ pub fn top_band(soul: &Soul, attribute: SoulAttribute) -> Result<Truth, Undecide
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::{RollCount, SubAttribute};
+    use crate::soul::{RollCount, StoredValue, SubAttribute};
     use SoulAttribute::*;
 
     fn soul(slot: SoulSlot, main: SoulAttribute, subs: &[(SoulAttribute, f64)]) -> Soul {
@@ -89,12 +89,12 @@ mod tests {
             star: 6,
             level: 15,
             main,
-            main_value: 0.0,
+            main_value: StoredValue::ZERO,
             subs: subs
                 .iter()
                 .map(|&(attribute, value)| SubAttribute {
                     attribute,
-                    value,
+                    value: StoredValue::new(value).expect("stored"),
                     enhancement_count: None,
                 })
                 .collect(),
