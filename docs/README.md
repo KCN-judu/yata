@@ -27,7 +27,7 @@ Current truth about what the system means. Edited in place.
   set, QualityScore, AffinityScore, MatchingResult
 - [spec/quality-model.md](spec/quality-model.md) — the quality score of pass 1
   exactly: archetypes, roll units, anchored normalization, tiers N to UR, test
-  vectors (`yata-quality-v1`)
+  vectors (`yata-quality-v1.1`)
 - [spec/feature-scope.md](spec/feature-scope.md) — what is in scope, what is
   cut, what is deferred, and why
 - [spec/core-protocol.md](spec/core-protocol.md) — the daemon ↔ Flutter wire:
@@ -124,6 +124,9 @@ rewrite.
 - [decisions/0024-quality-model-v1.md](decisions/0024-quality-model-v1.md) —
   Quality Model v1: six-star souls against equal-weight archetypes, anchored at
   zero, the expected soul, and the attainable maximum
+- [decisions/0025-ssr-at-one-perfect-line.md](decisions/0025-ssr-at-one-perfect-line.md)
+  — Quality Model v1.1: SSR begins at six roll units, one perfect line; SP keeps
+  its own floor at `7μ`
 
 ## Proposals — `proposals/`
 
@@ -203,6 +206,8 @@ What changed for someone. Append-only; one fragment per change.
   — `main` rewritten to remove agent attribution; reset old clones
 - [changes/unreleased/2026-09-quality-model.md](changes/unreleased/2026-09-quality-model.md)
   — Quality Model v1 defined, proved, and calibrated; not yet implemented
+- [changes/unreleased/2026-09-quality-model-v1-1.md](changes/unreleased/2026-09-quality-model-v1-1.md)
+  — Quality Model v1.1: the SSR edge moves to one perfect line
 
 ## Outside `docs/`
 
