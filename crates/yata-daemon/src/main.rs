@@ -23,6 +23,8 @@ const USAGE: &str = "usage: yata-daemon <command> ...
 commands:
   check <store.sqlite3>                   run SQLite's full integrity check on a store
   log <store.sqlite3>                     print every commit of a store's fact log, readably
+  query                                   answer EvaluateQuery frames on stdin, one result frame
+                                          each on stdout, until stdin ends
   scheme dump <code>                      print a scheme code's payload as hex
   scheme diff <code-a> <code-b>           compare two payloads byte by byte and bit by bit
   scheme decode <code> <payload.bin>      write a scheme code's payload to a file
@@ -51,6 +53,7 @@ fn main() -> ExitCode {
     match words.as_slice() {
         ["check", _] => check(path(1)),
         ["log", _] => dump_log(path(1)),
+        ["query"] => serve_queries(),
         ["scheme", "dump", _] => report(read_code(path(2)).map(|p| format_dump(&p))),
         ["scheme", "diff", _, _] => report(
             read_code(path(2)).and_then(|a| read_code(path(3)).map(|b| format_diff(&diff(&a, &b)))),
@@ -238,6 +241,17 @@ fn dump_log(path: &Path) -> ExitCode {
         }
         Err(e) => {
             eprintln!("{}: {e:?}", e.code());
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// The headless query endpoint on stdio: stdout carries frames and nothing else.
+fn serve_queries() -> ExitCode {
+    match yata_daemon::query::serve(&mut std::io::stdin().lock(), &mut std::io::stdout().lock()) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("query.serve_failed: {e:?}");
             ExitCode::FAILURE
         }
     }
