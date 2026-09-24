@@ -46,6 +46,8 @@ Current truth about what the system means. Edited in place.
   compaction
 - [spec/query.md](spec/query.md) — collections, fields, and the filter, sort,
   group, and aggregate vocabulary a core-protocol query accepts
+- [spec/release-manifest.md](spec/release-manifest.md) — the draft release
+  package names, manifest, checksums, and signing slot of ADR-0011
 
 ## Architecture — `architecture/`
 

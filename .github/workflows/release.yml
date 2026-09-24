@@ -1,0 +1,31 @@
+# The release skeleton of ADR-0011: build and stage an unsigned package per shipping platform and
+# keep it as a workflow artifact. It publishes nothing: the release feed and the signing key are
+# still open (ADR-0011), and scripts/release.py refuses to sign until they are wired.
+name: release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+      - run: rustup show active-toolchain || rustup toolchain install
+      - run: python scripts/release.py package --unsigned --out target/release-stage
+      - uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-${{ matrix.os }}-${{ github.sha }}
+          path: target/release-stage/
+          if-no-files-found: error
+          retention-days: 7
