@@ -1,3 +1,6 @@
 # Every text file is checked out with LF on every platform: golden tests compare bytes, the
 # Markdown formatter and linters assume LF, and Windows must match the Linux CI byte for byte.
 * text=auto eol=lf
+
+# Generated papers are binary: never normalize their line endings or diff them as text.
+*.pdf binary
