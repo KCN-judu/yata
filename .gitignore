@@ -7,6 +7,9 @@ Thumbs.db
 # Rust build output
 target/
 
+# Lean build output and the pinned Mathlib checkout (formal/lean, ADR-0023)
+.lake/
+
 # Flutter build output; app/.gitignore from `flutter create` covers the rest
 app/.dart_tool/
 app/build/
