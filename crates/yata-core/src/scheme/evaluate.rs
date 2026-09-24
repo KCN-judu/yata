@@ -455,6 +455,17 @@ mod tests {
     }
 
     #[test]
+    fn the_count_group_does_not_count_the_innate_attribute() {
+        // 2026-09-25: a boss soul with three sub-attributes shows under 3条.
+        let three = boss(Innate::Present(Crit));
+        let mut sel = with_innate(&[]);
+        sel.sub_counts = BTreeSet::from([SubCount::Three]);
+        assert_eq!(matches(&sel, &three), Verdict::Matches);
+        sel.sub_counts = BTreeSet::from([SubCount::Four]);
+        assert_eq!(matches(&sel, &three), Verdict::DoesNotMatch);
+    }
+
+    #[test]
     fn a_decided_failure_wins_over_an_open_innate_choice() {
         let mut sel = with_innate(&[Crit]);
         sel.stars = BTreeSet::from([4]);

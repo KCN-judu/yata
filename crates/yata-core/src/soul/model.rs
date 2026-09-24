@@ -23,11 +23,12 @@ pub struct Soul {
 
 /// A soul's 固有属性, as far as the input says.
 ///
-/// Only a boss soul (首领御魂) carries one (the maintainer, 2026-09-25). It is not a
-/// sub-attribute: the 副属性 group does not see it (`scheme-code.md`, "Evaluation").
+/// Every boss soul (首领御魂) carries exactly one, and no other soul does (the maintainer,
+/// 2026-09-25). It is not a sub-attribute: neither 副属性 nor 数量 sees it (`scheme-code.md`,
+/// "Evaluation").
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Innate {
-    /// The soul carries none.
+    /// The soul carries none: it is not a boss soul.
     Absent,
     /// The soul's innate attribute.
     Present(SoulAttribute),
