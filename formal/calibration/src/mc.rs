@@ -90,6 +90,7 @@ pub struct F64Thresholds {
     pub c_r: f64,
     pub c_sr: f64,
     pub c_ssr: f64,
+    pub c_sp: f64,
     pub t_ur: f64,
 }
 
@@ -102,6 +103,7 @@ pub fn f64_thresholds(arch: Arch) -> F64Thresholds {
         c_r: f(&t.c_r),
         c_sr: f(&t.c_sr),
         c_ssr: f(&t.c_ssr),
+        c_sp: f(&t.c_sp),
         t_ur: f(&t.t_ur),
     }
 }
@@ -123,7 +125,7 @@ pub fn g(t: &F64Thresholds, u: f64) -> f64 {
 pub fn tier(t: &F64Thresholds, score: f64, spec: bool) -> usize {
     if score > t.t_ur {
         5
-    } else if spec && score >= t.c_ssr {
+    } else if spec && score >= t.c_sp {
         4
     } else if score < t.c_r {
         0

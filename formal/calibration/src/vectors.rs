@@ -50,7 +50,7 @@ pub fn all() -> Vec<SoulInput> {
         },
         SoulInput {
             id: "V04",
-            what: "one perfect line, nothing useful beside it: fails the SP floor",
+            what: "one perfect line, nothing useful beside it: SSR, not SP (SR in v1)",
             slot: 1,
             main: ATK_FLAT,
             level: 15,
@@ -89,7 +89,7 @@ pub fn all() -> Vec<SoulInput> {
         },
         SoulInput {
             id: "V07",
-            what: "near SP: specialized, below the SSR floor",
+            what: "specialized, below the SP floor: SSR, not SP (SR in v1)",
             slot: 1,
             main: ATK_FLAT,
             level: 15,

@@ -4,7 +4,7 @@ use num_traits::{One, Zero};
 
 use crate::law::{self, Law};
 use crate::model::{self, Measure, Q, q};
-use crate::standard::{Arch, anchors, thresholds};
+use crate::standard::{Arch, Thresholds, anchors, thresholds};
 
 pub struct Rates {
     pub n: Q,
@@ -50,10 +50,19 @@ fn spec_and_gt8(l: Law) -> Q {
 }
 
 pub fn tier_rates(m: &Measure, l: Law, arch: Arch) -> Rates {
+    tier_rates_with(m, l, arch, &thresholds(arch))
+}
+
+/// The rates under given thresholds. SP and UR lie inside `U ≥ u_ssr` as long as the SSR
+/// milestone is at most the SP floor, which every calibration compared here satisfies.
+pub fn tier_rates_with(m: &Measure, l: Law, arch: Arch, t: &Thresholds) -> Rates {
+    assert!(
+        t.u_ssr <= t.u_sp,
+        "SSR's edge must not lie above the SP floor"
+    );
     let d = model::final_hits(m);
     let ul = model::useful_law(&d, &arch.attrs());
     let e = crate::standard::mu() * model::mean_k(&model::k_law(&ul));
-    let t = thresholds(arch);
     let a = anchors(arch);
     // The band edges are v1's, whatever measure the rates are computed under.
     let ge = |u: &Q| -> Q {
@@ -75,7 +84,7 @@ pub fn tier_rates(m: &Measure, l: Law, arch: Arch) -> Rates {
             ur += p * tail_gt(l, 9, &t.u_ur);
         }
         if v.first() == Some(&6) {
-            let mut s = law::specialized_and_total(l, k - 6, &t.u_ssr);
+            let mut s = law::specialized_and_total(l, k - 6, &t.u_sp);
             if k == 9 {
                 s -= spec_and_gt8(l);
             }

@@ -9,7 +9,7 @@ use num_traits::{One, Zero};
 
 use crate::model::{self, ATTRS, Dist, HI_TENTHS, Measure, Q, attr, q};
 
-pub const MODEL_ID: &str = "yata-quality-v1";
+pub const MODEL_ID: &str = "yata-quality-v1.1";
 
 /// The reference measure of v1: the official notice's class weights, shared equally within a
 /// class, and the initial count 2, 3, 4 with 1/3 each.
@@ -65,30 +65,64 @@ pub fn anchors(arch: Arch) -> Anchors {
     }
 }
 
-/// The band edges are utility milestones, the same for every archetype: R at the archetype's E,
-/// SR at μ·5, SSR at μ·7, UR above M − 1. Their scores follow from the archetype's anchors.
+/// SR's utility milestone: five useful increments at mean value.
+pub fn u_sr() -> Q {
+    mu() * q(5, 1)
+}
+
+/// SSR's utility milestone (v1.1): six roll units, the most one useful line can hold.
+pub fn u_ssr() -> Q {
+    q(6, 1)
+}
+
+/// v1's SSR milestone, replaced in v1.1: seven useful increments at mean value.
+pub fn u_ssr_v1() -> Q {
+    mu() * q(7, 1)
+}
+
+/// SP's quality floor: seven useful increments at mean value. In v1 it was also SSR's edge.
+pub fn u_sp_floor() -> Q {
+    mu() * q(7, 1)
+}
+
+/// UR's boundary: within one roll unit of the attainable maximum.
+pub fn u_ur() -> Q {
+    max_u() - Q::one()
+}
+
+/// The tier edges of one archetype. The utility milestones are the same for every archetype: R
+/// at the archetype's E, then SR, SSR, the SP floor, and UR. Their scores follow from the
+/// archetype's anchors.
 pub struct Thresholds {
     pub u_sr: Q,
     pub u_ssr: Q,
+    pub u_sp: Q,
     pub u_ur: Q,
     pub c_r: Q,
     pub c_sr: Q,
     pub c_ssr: Q,
+    pub c_sp: Q,
     pub t_ur: Q,
 }
 
+/// The v1.1 thresholds of an archetype.
 pub fn thresholds(arch: Arch) -> Thresholds {
+    thresholds_with(arch, u_ssr())
+}
+
+/// The thresholds with another SSR milestone, for comparing calibrations.
+pub fn thresholds_with(arch: Arch, u_ssr: Q) -> Thresholds {
     let a = anchors(arch);
-    let u_sr = mu() * q(5, 1);
-    let u_ssr = mu() * q(7, 1);
-    let u_ur = max_u() - Q::one();
+    let (u_sr, u_sp, u_ur) = (u_sr(), u_sp_floor(), u_ur());
     Thresholds {
         c_r: a.g(&a.e),
         c_sr: a.g(&u_sr),
         c_ssr: a.g(&u_ssr),
+        c_sp: a.g(&u_sp),
         t_ur: a.g(&u_ur),
         u_sr,
         u_ssr,
+        u_sp,
         u_ur,
     }
 }
@@ -119,7 +153,7 @@ impl Tier {
 pub fn tier(score: &Q, specialized: bool, t: &Thresholds) -> Tier {
     if score > &t.t_ur {
         Tier::Ur
-    } else if specialized && score >= &t.c_ssr {
+    } else if specialized && score >= &t.c_sp {
         Tier::Sp
     } else if score < &t.c_r {
         Tier::N
@@ -266,9 +300,12 @@ pub struct ArchScore {
 }
 
 pub fn score_arch(s: &SoulInput, arch: Arch) -> ArchScore {
+    score_arch_with(s, arch, &thresholds(arch))
+}
+
+pub fn score_arch_with(s: &SoulInput, arch: Arch, t: &Thresholds) -> ArchScore {
     let e = s.features();
     let a = anchors(arch);
-    let t = thresholds(arch);
     let vals: Vec<Q> = arch.attrs().iter().map(|&i| e[i].clone()).collect();
     let utility: Q = vals.iter().cloned().sum();
     let score = a.g(&utility);
@@ -288,7 +325,7 @@ pub fn score_arch(s: &SoulInput, arch: Arch) -> ArchScore {
     };
     ArchScore {
         arch,
-        tier: tier(&score, specialized, &t),
+        tier: tier(&score, specialized, t),
         utility,
         score,
         specialized,
@@ -299,10 +336,15 @@ pub fn score_arch(s: &SoulInput, arch: Arch) -> ArchScore {
 
 /// Quality: the best accepted archetype, tier first, then score; ties keep catalogue order.
 pub fn quality(s: &SoulInput) -> Vec<ArchScore> {
+    quality_with(s, &u_ssr())
+}
+
+/// Quality with another SSR milestone, for comparing calibrations.
+pub fn quality_with(s: &SoulInput, u_ssr: &Q) -> Vec<ArchScore> {
     let mut all: Vec<ArchScore> = ARCHES
         .iter()
         .filter(|a| a.accepts(s.slot, s.main))
-        .map(|&a| score_arch(s, a))
+        .map(|&a| score_arch_with(s, a, &thresholds_with(a, u_ssr.clone())))
         .collect();
     all.sort_by(|x, y| (y.tier, &y.score).cmp(&(x.tier, &x.score)));
     all

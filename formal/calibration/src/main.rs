@@ -47,7 +47,12 @@ fn constants() -> String {
     let hu = model::final_hits(&Measure::hu_reading());
     assert_eq!(standard::mean_useful(&hu, &Arch::Output.attrs()), q(32, 11));
     let t0 = thresholds(Arch::Output);
-    s += "| Constant | Exact | Meaning |\n| --- | --- | --- |\n";
+    assert!(
+        t0.u_sr < t0.u_ssr && t0.u_ssr < t0.u_sp && t0.u_sp < t0.u_ur,
+        "the milestones must be ordered: SR < SSR < SP floor < UR"
+    );
+    assert_eq!(t0.u_ssr, q(6, 1), "SSR begins at one perfect line");
+    s += "| Milestone | Roll units | Meaning |\n| --- | --- | --- |\n";
     let row = |s: &mut String, n: &str, x: &Q, m: &str| {
         let _ = writeln!(s, "| {n} | {} | {m} |", frac(x));
     };
@@ -58,22 +63,36 @@ fn constants() -> String {
         &standard::max_u(),
         "attainable maximum, every archetype",
     );
-    row(&mut s, "u_SR", &t0.u_sr, "SR milestone: μ · 5");
+    row(
+        &mut s,
+        "u_SR",
+        &t0.u_sr,
+        "SR: five useful increments at mean value, 5μ",
+    );
     row(
         &mut s,
         "u_SSR",
         &t0.u_ssr,
-        "SSR milestone and SP floor: μ · 7",
+        "SSR: the most one useful line can hold, six increments at maximum",
     );
-    row(&mut s, "u_UR", &t0.u_ur, "UR: utility above M − 1");
-    s += "\n| Archetype | E[K] | E = μ · E[K] | c_R | c_SR | c_SSR | t_UR | g(6) |\n";
+    row(
+        &mut s,
+        "u_SP_floor",
+        &t0.u_sp,
+        "SP's quality floor: seven useful increments at mean value, 7μ",
+    );
+    row(&mut s, "u_UR", &t0.u_ur, "UR: above M − 1");
+    s += "\n| Archetype | E[K] | E = μ · E[K] | c_R | c_SR | c_SSR = g(6) | c_SP | t_UR |\n";
     s += "| --- | --- | --- | --- | --- | --- | --- | --- |\n";
     for a in ARCHES {
         let an = anchors(a);
         let t = thresholds(a);
         let k = standard::mean_useful(standard::reference_final(), &a.attrs());
-        let g6 = an.g(&q(6, 1));
-        assert!(g6 < t.c_ssr, "one line alone must stay below the SP floor");
+        assert!(
+            an.g(&q(6, 1)) < t.c_sp,
+            "one line alone must stay below the SP floor"
+        );
+        assert_eq!(t.c_ssr, an.g(&q(6, 1)));
         let _ = writeln!(
             s,
             "| {} | {} | {} | {} | {} | {} | {} | {} |",
@@ -83,8 +102,8 @@ fn constants() -> String {
             frac(&t.c_r),
             dp(&t.c_sr, 6),
             dp(&t.c_ssr, 6),
+            dp(&t.c_sp, 6),
             dp(&t.t_ur, 6),
-            dp(&g6, 6),
         );
     }
     s
@@ -93,22 +112,27 @@ fn constants() -> String {
 /// Every v1 constant as an exact fraction, for the implementation.
 fn constants_json() -> String {
     let mut s = format!(
-        "{{\n  \"model\": \"{}\",\n  \"mu\": \"{}\",\n  \"M\": \"{}\",\n  \"archetypes\": {{\n",
+        "{{\n  \"model\": \"{}\",\n  \"mu\": \"{}\",\n  \"M\": \"{}\",\n  \"u_SR\": \"{}\",\n  \"u_SSR\": \"{}\",\n  \"u_SP_floor\": \"{}\",\n  \"u_UR\": \"{}\",\n  \"archetypes\": {{\n",
         standard::MODEL_ID,
         frac(&mu()),
-        frac(&standard::max_u())
+        frac(&standard::max_u()),
+        frac(&standard::u_sr()),
+        frac(&standard::u_ssr()),
+        frac(&standard::u_sp_floor()),
+        frac(&standard::u_ur())
     );
     for (i, a) in ARCHES.iter().enumerate() {
         let an = anchors(*a);
         let t = thresholds(*a);
         let _ = writeln!(
             s,
-            "    \"{}\": {{\"E\": \"{}\", \"c_R\": \"{}\", \"c_SR\": \"{}\", \"c_SSR\": \"{}\", \"t_UR\": \"{}\"}}{}",
+            "    \"{}\": {{\"E\": \"{}\", \"c_R\": \"{}\", \"c_SR\": \"{}\", \"c_SSR\": \"{}\", \"c_SP\": \"{}\", \"t_UR\": \"{}\"}}{}",
             a.key(),
             frac(&an.e),
             frac(&t.c_r),
             frac(&t.c_sr),
             frac(&t.c_ssr),
+            frac(&t.c_sp),
             frac(&t.t_ur),
             if i + 1 < ARCHES.len() { "," } else { "" }
         );
@@ -442,9 +466,108 @@ fn normalization() -> String {
     s
 }
 
+/// The utility at which "SSR or better" is `share` of +15 souls under the uniform law, for
+/// `output`: a distribution-calibrated alternative, found by bisection on the exact tail.
+fn tail_quantile(share: &Q) -> Q {
+    let ul = model::useful_law(standard::reference_final(), &Arch::Output.attrs());
+    let ge = |u: &Q| -> Q {
+        ul.iter()
+            .map(|(v, p)| {
+                let k: u32 = v.iter().map(|&x| u32::from(x)).sum();
+                p * law::tail(Law::Uniform, k, u)
+            })
+            .sum()
+    };
+    let (mut lo, mut hi) = (standard::u_sr(), standard::u_sp_floor());
+    for _ in 0..30 {
+        let mid = (&lo + &hi) / q(2, 1);
+        if ge(&mid) > *share {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    // Rounded to 1/1000 of a roll unit, so the value can be written down.
+    (hi * q(1000, 1)).round() / q(1000, 1)
+}
+
+/// Tier rates under four SSR milestones, every increment law and archetype group.
+fn ssr_candidates() -> String {
+    let m = standard::reference();
+    let d = tail_quantile(&q(5, 100));
+    let cands: [(&str, Q); 4] = [
+        ("A. v1: 7μ", standard::u_ssr_v1()),
+        ("B. v1.1: one perfect line", standard::u_ssr()),
+        ("C. 6μ", mu() * q(6, 1)),
+        ("D. SSR or better at 5% (uniform, output)", d),
+    ];
+    let mut s = String::from(
+        "SP's floor stays 7μ = 6.3 and UR's boundary 8 in every row; only SSR's edge moves.\n\n| Candidate | u_SSR | Increment law | Archetype | N | R | SR | SSR | SP | UR | SSR or better |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+    );
+    for (name, u) in &cands {
+        for l in [Law::Uniform, Law::Steps(7), Law::Steps(2)] {
+            for (label, a) in [("output", Arch::Output), ("hit, resist", Arch::Hit)] {
+                let t = standard::thresholds_with(a, u.clone());
+                let r = rates::tier_rates_with(&m, l, a, &t);
+                if label != "output" {
+                    let o = rates::tier_rates_with(
+                        &m,
+                        l,
+                        Arch::Resist,
+                        &standard::thresholds_with(Arch::Resist, u.clone()),
+                    );
+                    assert!(o.ssr == r.ssr && o.sp == r.sp, "hit and resist must agree");
+                }
+                let top = &r.ssr + &r.sp + &r.ur;
+                let _ = writeln!(
+                    s,
+                    "| {name} | {} | {} | {label} | {} | {} | {} | {} | {} | {} | {} |",
+                    dp(u, 3),
+                    l.name(),
+                    pct(&r.n),
+                    pct(&r.r),
+                    pct(&r.sr),
+                    pct(&r.ssr),
+                    pct(&r.sp),
+                    pct(&r.ur),
+                    pct(&top)
+                );
+            }
+        }
+    }
+    s
+}
+
+/// The Lean files name the same milestones; a divergence fails `render` and `check` alike.
+fn lean_milestones_agree(root: &Path) {
+    let path = root.join("../lean/YataFormal/Quality.lean");
+    let text = std::fs::read_to_string(&path).unwrap_or_default();
+    let value = |name: &str| -> Option<Q> {
+        let line = text
+            .lines()
+            .find(|l| l.starts_with(&format!("def {name} : ℚ := ")))?;
+        let expr = line.split(":= ").nth(1)?.trim();
+        let (n, d) = expr.split_once('/').unwrap_or((expr, "1"));
+        Some(q(n.trim().parse().ok()?, d.trim().parse().ok()?))
+    };
+    for (name, ours) in [
+        ("uSR", standard::u_sr()),
+        ("uSSR", standard::u_ssr()),
+        ("uSPFloor", standard::u_sp_floor()),
+        ("uUR", standard::u_ur()),
+    ] {
+        assert_eq!(
+            value(name).as_ref(),
+            Some(&ours),
+            "{name} in {} differs from the calibration",
+            path.display()
+        );
+    }
+}
+
 fn vectors_table(vs: &[standard::SoulInput]) -> (String, String) {
     let mut md = String::from(
-        "| Id | Soul | Slot, main, level | Archetype | U | Score | Specialized | Tier | Depth | Breadth | Growth |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+        "| Id | Soul | Slot, main, level | Archetype | U | Score | Specialized | Tier | Tier in v1 | Depth | Breadth | Growth |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
     );
     let mut json = String::from("[\n");
     for (i, v) in vs.iter().enumerate() {
@@ -468,7 +591,7 @@ fn vectors_table(vs: &[standard::SoulInput]) -> (String, String) {
         }
         let _ = writeln!(
             md,
-            "| {} | {} | {}, {}, +{} | {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {} | {} | {}, {}, +{} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             v.id,
             lines.join("; "),
             v.slot,
@@ -479,6 +602,9 @@ fn vectors_table(vs: &[standard::SoulInput]) -> (String, String) {
             dp(&best.score, 2),
             if best.specialized { "yes" } else { "no" },
             best.tier.name(),
+            standard::quality_with(v, &standard::u_ssr_v1())[0]
+                .tier
+                .name(),
             dp(&best.depth, 1),
             dp(&best.breadth, 1),
             growth.as_ref().map_or("—".to_owned(), |g| dp(g, 2)),
@@ -526,6 +652,37 @@ fn vectors_table(vs: &[standard::SoulInput]) -> (String, String) {
         );
     }
     json += "]\n";
+    // The regressions the v1.1 recalibration exists for, and what it must not change.
+    let tier_of = |id: &str| {
+        let v = vs.iter().find(|v| v.id == id).expect("vector");
+        let b = standard::quality(v).remove(0);
+        (b.tier, b.specialized, b.score)
+    };
+    use standard::Tier;
+    assert_eq!(
+        tier_of("V04").0,
+        Tier::Ssr,
+        "one perfect line is SSR, not SP"
+    );
+    assert!(tier_of("V04").1, "V04 is specialized");
+    assert_eq!(
+        tier_of("V05").0,
+        Tier::Sp,
+        "specialized and above the SP floor is SP"
+    );
+    assert_ne!(
+        tier_of("V06").0,
+        Tier::Sp,
+        "five roll units exactly is not specialized"
+    );
+    assert_ne!(
+        tier_of("V07").0,
+        Tier::Sp,
+        "specialization alone does not reach SP"
+    );
+    assert_eq!(tier_of("V08").0, Tier::Ur);
+    assert_eq!(tier_of("V09").0, Tier::Ur);
+    assert!(tier_of("V15").2 > tier_of("V14").2 && tier_of("V15").0 >= tier_of("V14").0);
     let mut why = String::from("\n| Id | What it shows |\n| --- | --- |\n");
     for v in vs {
         let _ = writeln!(why, "| {} | {} |", v.id, v.what);
@@ -546,6 +703,7 @@ fn blocks() -> BTreeMap<&'static str, String> {
         ("monte-carlo", monte_carlo()),
         ("normalization", normalization()),
         ("vectors", vmd),
+        ("ssr-candidates", ssr_candidates()),
     ])
 }
 
@@ -588,6 +746,7 @@ fn main() -> ExitCode {
         }
     };
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    lean_milestones_agree(&root);
     let b = blocks();
     let (_, json) = vectors_table(&vectors::all());
     let mut files: Vec<(PathBuf, String)> = b
