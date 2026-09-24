@@ -2,7 +2,8 @@
 
 《阴阳师》御魂品质评分标准：概率归一化与形式化验证
 
-Yata Quality Model v1 (`yata-quality-v1`). Manuscript, 2026-09-24.
+Yata Quality Model v1.1 (`yata-quality-v1.1`), which revises v1
+(`yata-quality-v1`, 2026-09-24) in one threshold (§ 7). Manuscript, 2026-09-25.
 
 ## Abstract
 
@@ -12,8 +13,9 @@ in **roll units**, the value over the largest single increment, and summed over
 the four attributes of an **archetype**, a published role profile. The sum is
 mapped to 0–100 by three anchors: 0 for no useful value, 50 for the expected
 soul under the game's generative process, and 100 for the attainable maximum.
-Tiers N to SSR are bands at utility milestones. SP is a specialized soul above
-the SSR floor. UR is the region within one roll unit of the maximum. Each
+Tiers N to SSR are bands at utility milestones; SSR begins at six roll units,
+the most one useful line can hold. SP is a specialized soul above a separate,
+higher quality floor. UR is the region within one roll unit of the maximum. Each
 archetype's expected utility is computed exactly under the official draw
 weights, and depends on the unknown law of one increment only through its mean.
 Every archetype's 50 is its own expected soul. Archetypes that the official
@@ -196,22 +198,24 @@ expected utility of the archetype. The v1 constants, generated:
 
 <!-- generated:constants -->
 
-Parameter set `yata-quality-v1`. Reference measure: the official class weights,
-equal within a class. Exact values: `formal/calibration/out/constants.json`.
+Parameter set `yata-quality-v1.1`. Reference measure: the official class
+weights, equal within a class. Exact values:
+`formal/calibration/out/constants.json`.
 
-| Constant | Exact | Meaning                             |
-| -------- | ----- | ----------------------------------- |
-| μ        | 9/10  | mean increment, roll units          |
-| M        | 9     | attainable maximum, every archetype |
-| u_SR     | 9/2   | SR milestone: μ · 5                 |
-| u_SSR    | 63/10 | SSR milestone and SP floor: μ · 7   |
-| u_UR     | 8     | UR: utility above M − 1             |
+| Milestone  | Roll units | Meaning                                                           |
+| ---------- | ---------- | ----------------------------------------------------------------- |
+| μ          | 9/10       | mean increment, roll units                                        |
+| M          | 9          | attainable maximum, every archetype                               |
+| u_SR       | 9/2        | SR: five useful increments at mean value, 5μ                      |
+| u_SSR      | 6          | SSR: the most one useful line can hold, six increments at maximum |
+| u_SP_floor | 63/10      | SP's quality floor: seven useful increments at mean value, 7μ     |
+| u_UR       | 8          | UR: above M − 1                                                   |
 
-| Archetype | E[K]        | E = μ · E[K] | c_R | c_SR      | c_SSR     | t_UR      | g(6)      |
-| --------- | ----------- | ------------ | --- | --------- | --------- | --------- | --------- |
-| output    | 2.907009880 | 2.616308892  | 50  | 64.753934 | 78.852360 | 92.167541 | 76.502622 |
-| hit       | 2.929901204 | 2.636911083  | 50  | 64.639815 | 78.783889 | 92.142181 | 76.426543 |
-| resist    | 2.929901204 | 2.636911083  | 50  | 64.639815 | 78.783889 | 92.142181 | 76.426543 |
+| Archetype | E[K]        | E = μ · E[K] | c_R | c_SR      | c_SSR = g(6) | c_SP      | t_UR      |
+| --------- | ----------- | ------------ | --- | --------- | ------------ | --------- | --------- |
+| output    | 2.907009880 | 2.616308892  | 50  | 64.753934 | 76.502622    | 78.852360 | 92.167541 |
+| hit       | 2.929901204 | 2.636911083  | 50  | 64.639815 | 76.426543    | 78.783889 | 92.142181 |
+| resist    | 2.929901204 | 2.636911083  | 50  | 64.639815 | 76.426543    | 78.783889 | 92.142181 |
 
 <!-- /generated:constants -->
 
@@ -271,46 +275,125 @@ added to it.
 **In players' terms.**
 
 - **N** is below the average soul for its role, **R** at least average, **SR**
-  about five useful rolls' worth, **SSR** about seven.
-- **SP** is not merely one spectacular line: the whole soul must already clear
-  the SSR floor, and one useful line must hold more than five rolls' worth,
-  which only a line that took all five rolls can.
+  about five useful rolls' worth.
+- **SSR** begins where one useful sub-attribute could, in theory, have received
+  the maximum six increments. Reaching beyond it needs useful value outside that
+  single perfect line.
+- **SP** requires both an extreme specialized line and a higher total useful
+  quality, so one spectacular line alone remains SSR.
 - **UR** is a soul on or next to the best the game allows: within one roll unit
   of the maximum.
+
+These are Yata's scoring-standard decisions, not rarity rules of the game.
 
 **The predicates.**
 
 ```text
 specialized_p(s) ⟺ ∃ a ∈ A_p. e_a > 5
 
-tier_p(s) = UR   if score > t_UR                          t_UR  = g_p(M − 1)
-          = SP   else if specialized and score ≥ c_SSR    c_SSR = g_p(7μ)
-          = SSR  else if score ≥ c_SSR
-          = SR   else if score ≥ c_SR                     c_SR  = g_p(5μ)
-          = R    else if score ≥ c_R                      c_R   = g_p(E_p) = 50
+tier_p(s) = UR   if score > t_UR                          t_UR = g_p(M − 1)
+          = SP   else if specialized and score ≥ c_SP     c_SP = g_p(7μ)
+          = SSR  else if score ≥ c_SSR                    c_SSR = g_p(6)
+          = SR   else if score ≥ c_SR                     c_SR = g_p(5μ)
+          = R    else if score ≥ c_R                      c_R  = g_p(E_p) = 50
           = N    otherwise
 ```
 
-The edges are the same utility milestones for every archetype; as scores they
-differ between archetypes in the second decimal.
+The edges are the same utility milestones for every archetype, ordered
+`5μ < 6 < 7μ < M − 1` (Lean: `milestones_ordered`); as scores they differ
+between archetypes in the second decimal.
 
-**(C) The threshold rule.** The band edges are utility milestones, not
-quantiles: the expected soul, then five and seven useful increments at mean
-value. They depend on `μ` only, never on the full law, and they read in roll
-units. Their rates are then calibration results (§ 11).
+**(C) The threshold rule.** The edges are utility milestones, not quantiles. SR
+is five useful increments at mean value. SSR is six roll units: one line holds
+at most six increments of at most one roll unit each, so six is the most useful
+value one line can carry, and a soul above six has useful value on a second line
+(Lean: `beyond_six_needs_another_line`). The SP floor is seven useful increments
+at mean value. Only UR's boundary and SSR's edge are independent of `μ`. Their
+rates are calibration results (§ 11).
+
+**Two thresholds, two questions.** SSR asks whether a soul reaches exceptional
+overall quality. The SP floor asks whether an already exceptional soul is also
+strong enough overall to carry the SP mark. The floor lies above the SSR edge,
+so every SP soul is of SSR quality (`sp_is_ssr_quality`). A soul whose only
+useful value is one perfect line is exactly SSR: at least SSR by the line, below
+the SP floor, and far from UR (`perfect_single_line_is_SSR`).
 
 **(B) Precedence.** The tier function is deterministic, and exactly one of three
 cases holds: UR, SP, or the band (Lean: `tier_cases`). UR takes precedence over
-SP, and SP over the band. At or above the SP floor only SSR, SP and UR occur
-(`high_tier`). A single perfect line with nothing useful beside it reaches
-`g(6) < c_SSR`, so it is never SP (`single_line_not_SP`).
+SP, and SP over the band. At or above the SSR edge only SSR, SP and UR occur
+(`at_ssr_floor_high_tier`). Specialization cannot bypass the SP floor
+(`sp_needs_floor`), and a single perfect line with nothing useful beside it is
+never SP (`single_line_not_SP`).
+
+**The revision from v1.** v1 put the SSR edge at `7μ = 6.3`, the same threshold
+as the SP floor. That is consistent, but a soul with six maximum increments on
+one useful line, `U = 6`, the best one line can be, was SR. v1.1 moves the SSR
+edge to six and keeps the SP floor at `7μ` (ADR-0025). Scores do not change;
+tiers change only for souls with `6 ≤ U < 6.3`, and only upward
+(`lower_ssr_floor_never_lowers_tier`). Four SSR edges were compared, with the SP
+floor and UR's boundary fixed:
+
+<!-- generated:ssr-candidates -->
+
+SP's floor stays 7μ = 6.3 and UR's boundary 8 in every row; only SSR's edge
+moves.
+
+| Candidate                                | u_SSR | Increment law                  | Archetype   | N        | R        | SR       | SSR     | SP      | UR      | SSR or better |
+| ---------------------------------------- | ----- | ------------------------------ | ----------- | -------- | -------- | -------- | ------- | ------- | ------- | ------------- |
+| A. v1: 7μ                                | 6.300 | continuous uniform on [0.8, 1] | output      | 48.6960% | 36.4318% | 12.7406% | 2.0388% | 0.0209% | 0.0719% | 2.1316%       |
+| A. v1: 7μ                                | 6.300 | continuous uniform on [0.8, 1] | hit, resist | 49.3844% | 35.4693% | 12.9568% | 2.0933% | 0.0212% | 0.0751% | 2.1896%       |
+| A. v1: 7μ                                | 6.300 | 7 equal steps on [0.8, 1]      | output      | 49.3366% | 35.3133% | 13.1256% | 2.1364% | 0.0218% | 0.0663% | 2.2245%       |
+| A. v1: 7μ                                | 6.300 | 7 equal steps on [0.8, 1]      | hit, resist | 50.6409% | 33.7287% | 13.3456% | 2.1934% | 0.0221% | 0.0692% | 2.2847%       |
+| A. v1: 7μ                                | 6.300 | 2 equal steps on [0.8, 1]      | output      | 54.0982% | 31.0296% | 12.7406% | 2.0613% | 0.0200% | 0.0503% | 2.1316%       |
+| A. v1: 7μ                                | 6.300 | 2 equal steps on [0.8, 1]      | hit, resist | 53.6107% | 31.2430% | 12.9568% | 2.1167% | 0.0203% | 0.0525% | 2.1896%       |
+| B. v1.1: one perfect line                | 6.000 | continuous uniform on [0.8, 1] | output      | 48.6960% | 36.4318% | 11.5411% | 3.2383% | 0.0209% | 0.0719% | 3.3311%       |
+| B. v1.1: one perfect line                | 6.000 | continuous uniform on [0.8, 1] | hit, resist | 49.3844% | 35.4693% | 11.7274% | 3.3227% | 0.0212% | 0.0751% | 3.4190%       |
+| B. v1.1: one perfect line                | 6.000 | 7 equal steps on [0.8, 1]      | output      | 49.3366% | 35.3133% | 12.0488% | 3.2133% | 0.0218% | 0.0663% | 3.3013%       |
+| B. v1.1: one perfect line                | 6.000 | 7 equal steps on [0.8, 1]      | hit, resist | 50.6409% | 33.7287% | 12.2419% | 3.2972% | 0.0221% | 0.0692% | 3.3885%       |
+| B. v1.1: one perfect line                | 6.000 | 2 equal steps on [0.8, 1]      | output      | 54.0982% | 31.0296% | 11.5452% | 3.2567% | 0.0200% | 0.0503% | 3.3270%       |
+| B. v1.1: one perfect line                | 6.000 | 2 equal steps on [0.8, 1]      | hit, resist | 53.6107% | 31.2430% | 11.7321% | 3.3414% | 0.0203% | 0.0525% | 3.4142%       |
+| C. 6μ                                    | 5.400 | continuous uniform on [0.8, 1] | output      | 48.6960% | 36.4318% | 8.5081%  | 6.2713% | 0.0209% | 0.0719% | 6.3641%       |
+| C. 6μ                                    | 5.400 | continuous uniform on [0.8, 1] | hit, resist | 49.3844% | 35.4693% | 8.6361%  | 6.4140% | 0.0212% | 0.0751% | 6.5103%       |
+| C. 6μ                                    | 5.400 | 7 equal steps on [0.8, 1]      | output      | 49.3366% | 35.3133% | 8.7502%  | 6.5118% | 0.0218% | 0.0663% | 6.5999%       |
+| C. 6μ                                    | 5.400 | 7 equal steps on [0.8, 1]      | hit, resist | 50.6409% | 33.7287% | 8.8799%  | 6.6592% | 0.0221% | 0.0692% | 6.7505%       |
+| C. 6μ                                    | 5.400 | 2 equal steps on [0.8, 1]      | output      | 54.0982% | 31.0296% | 7.5792%  | 7.2227% | 0.0200% | 0.0503% | 7.2930%       |
+| C. 6μ                                    | 5.400 | 2 equal steps on [0.8, 1]      | hit, resist | 53.6107% | 31.2430% | 7.6894%  | 7.3841% | 0.0203% | 0.0525% | 7.4569%       |
+| D. SSR or better at 5% (uniform, output) | 5.488 | continuous uniform on [0.8, 1] | output      | 48.6960% | 36.4318% | 9.8667%  | 4.9127% | 0.0209% | 0.0719% | 5.0055%       |
+| D. SSR or better at 5% (uniform, output) | 5.488 | continuous uniform on [0.8, 1] | hit, resist | 49.3844% | 35.4693% | 10.0206% | 5.0294% | 0.0212% | 0.0751% | 5.1257%       |
+| D. SSR or better at 5% (uniform, output) | 5.488 | 7 equal steps on [0.8, 1]      | output      | 49.3366% | 35.3133% | 10.1216% | 5.1404% | 0.0218% | 0.0663% | 5.2285%       |
+| D. SSR or better at 5% (uniform, output) | 5.488 | 7 equal steps on [0.8, 1]      | hit, resist | 50.6409% | 33.7287% | 10.2774% | 5.2616% | 0.0221% | 0.0692% | 5.3529%       |
+| D. SSR or better at 5% (uniform, output) | 5.488 | 2 equal steps on [0.8, 1]      | output      | 54.0982% | 31.0296% | 9.4370%  | 5.3649% | 0.0200% | 0.0503% | 5.4352%       |
+| D. SSR or better at 5% (uniform, output) | 5.488 | 2 equal steps on [0.8, 1]      | hit, resist | 53.6107% | 31.2430% | 9.5827%  | 5.4908% | 0.0203% | 0.0525% | 5.5636%       |
+
+<!-- /generated:ssr-candidates -->
+
+- **A, `7μ` (v1).** SSR or better is about 2.1–2.3% of +15 souls, and the best
+  single line is SR.
+- **B, six roll units (v1.1).** SSR or better is about 3.3–3.4%, one soul in
+  thirty, and barely moves with the increment law (3.30–3.33% for `output`). Six
+  is the most one line can reach, so a soul at or above it needs a seventh
+  useful increment, or exactly six useful increments all at maximum. Its rate
+  therefore follows the hit law, which is exact, more than the unknown value
+  law.
+- **C, `6μ = 5.4`.** SSR or better is 6.4–7.5%, and the rate moves most with the
+  increment law, because the edge falls in the middle of what six increments at
+  mean value produce. It also admits souls whose best line is well below
+  perfect.
+- **D, the edge at which SSR or better is 5% of souls** (uniform law, `output`):
+  5.488 roll units. The number has no structural meaning, and it moves with the
+  assumed increment law.
+
+B was chosen: it has a structural meaning, a rate that stays rare, and the least
+dependence on what is unknown. The archetypes keep the small residual of § 12:
+`hit` and `resist` reach SSR or better about 0.1 percentage point more often
+than `output`, as under v1, and in the same direction.
 
 **The exposed order is tier first, then score.** UR is first in both tier and
 score order: every non-UR soul scores strictly below every UR soul
 (`UR_score_gt`, `UR_top`). SP is above SSR in tier order, but an SSR soul can
-outscore an SP soul by up to `t_UR − c_SSR`. That is deliberate: SP marks a kind
-of excellence, a fully specialized line on an otherwise strong soul, not a
-higher number.
+outscore an SP soul by up to `t_UR − c_SP`. The split did not change this, and
+it remains deliberate: SP marks a kind of excellence, a fully specialized line
+on an otherwise strong soul, not a higher number.
 
 **The ladder orders quality, not rarity.** Under the reference measure SP is
 rarer than UR (§ 11). The names come from the game's rarity ladder; the order is
@@ -371,9 +454,9 @@ Every theorem below is checked by `lake build` in `formal/lean/`, with no
 | 4   | the score has no term for rarity                                                                         | `score_factors` (Soul)                                                                            |
 | 5   | the tier is a function, one of three cases                                                               | `Thresholds.tier`, `tier_cases` (Tier)                                                            |
 | 6   | precedence: UR over SP over bands; bands never give SP or UR                                             | `tier_UR_iff`, `tier_SP_iff`, `band_ne_SP`, `band_ne_UR` (Tier)                                   |
-| 7   | SP implies the quality floor and specialization                                                          | `SP_floor` (Tier)                                                                                 |
+| 7   | SP implies the SP floor and specialization, and SSR quality                                              | `sp_needs_floor`, `sp_is_ssr_quality` (Tier)                                                      |
 | 8   | UR outranks every non-UR soul, in score and in the exposed order                                         | `UR_score_gt`, `UR_top` (Tier)                                                                    |
-| 9   | at or above the SP floor, only SSR, SP, UR                                                               | `high_tier` (Tier)                                                                                |
+| 9   | at or above the SSR floor, only SSR, SP, UR; lowering the SSR edge never lowers a tier                   | `at_ssr_floor_high_tier`, `lower_ssr_floor_never_lowers_tier` (Tier)                              |
 | 10  | the maximum maps to 100; the paper's soul is UR                                                          | `g_M`, `utility_le_nine`, `paperSoul_score`, `paperSoul_UR` (Score, Archetype, Quality)           |
 | 11  | no useful value maps to 0; the expected soul to 50                                                       | `g_zero`, `g_E` (Score)                                                                           |
 | 12  | relabelled profiles score relabelled souls equally under a symmetric reference measure; scale invariance | `expected_relabel`, `score_relabel`, `g_scale` (Fairness, Score)                                  |
@@ -408,19 +491,19 @@ program asserts):
 
 | Increment law                  | Archetype   | N        | R        | SR       | SSR     | SP      | UR      |
 | ------------------------------ | ----------- | -------- | -------- | -------- | ------- | ------- | ------- |
-| continuous uniform on [0.8, 1] | output      | 48.6960% | 36.4318% | 12.7406% | 2.0388% | 0.0209% | 0.0719% |
-| continuous uniform on [0.8, 1] | hit, resist | 49.3844% | 35.4693% | 12.9568% | 2.0933% | 0.0212% | 0.0751% |
-| 7 equal steps on [0.8, 1]      | output      | 49.3366% | 35.3133% | 13.1256% | 2.1364% | 0.0218% | 0.0663% |
-| 7 equal steps on [0.8, 1]      | hit, resist | 50.6409% | 33.7287% | 13.3456% | 2.1934% | 0.0221% | 0.0692% |
-| 2 equal steps on [0.8, 1]      | output      | 54.0982% | 31.0296% | 12.7406% | 2.0613% | 0.0200% | 0.0503% |
-| 2 equal steps on [0.8, 1]      | hit, resist | 53.6107% | 31.2430% | 12.9568% | 2.1167% | 0.0203% | 0.0525% |
+| continuous uniform on [0.8, 1] | output      | 48.6960% | 36.4318% | 11.5411% | 3.2383% | 0.0209% | 0.0719% |
+| continuous uniform on [0.8, 1] | hit, resist | 49.3844% | 35.4693% | 11.7274% | 3.3227% | 0.0212% | 0.0751% |
+| 7 equal steps on [0.8, 1]      | output      | 49.3366% | 35.3133% | 12.0488% | 3.2133% | 0.0218% | 0.0663% |
+| 7 equal steps on [0.8, 1]      | hit, resist | 50.6409% | 33.7287% | 12.2419% | 3.2972% | 0.0221% | 0.0692% |
+| 2 equal steps on [0.8, 1]      | output      | 54.0982% | 31.0296% | 11.5452% | 3.2567% | 0.0200% | 0.0503% |
+| 2 equal steps on [0.8, 1]      | hit, resist | 53.6107% | 31.2430% | 11.7321% | 3.3414% | 0.0203% | 0.0525% |
 
 <!-- /generated:tier-rates -->
 
 About half of all +15 souls are below the expected soul for a given archetype,
-one in eight is SR, one in fifty SSR, and about one in 1 400 is UR. SP is rarer
-than UR: a line must take all five rolls, which happens to a given line with
-probability `(1/4)⁵` even when all four lines exist.
+about one in nine is SR, one in thirty is SSR or better, and about one in 1 400
+is UR. SP is rarer than UR: a line must take all five rolls, which happens to a
+given line with probability `(1/4)⁵` even when all four lines exist.
 
 **Monte Carlo check and the quality maximum.** The same process simulated with
 four million souls reproduces every exact rate; the table gives each rate's
@@ -437,23 +520,23 @@ rate.
 
 | Row                 | N                          | R                          | SR                         | SSR                       | SP                        | UR                        |
 | ------------------- | -------------------------- | -------------------------- | -------------------------- | ------------------------- | ------------------------- | ------------------------- |
-| exact, output       | 48.6960%                   | 36.4318%                   | 12.7406%                   | 2.0388%                   | 0.0209%                   | 0.0719%                   |
-| Monte Carlo, output | 48.7182% (0.0250%) z=+0.89 | 36.4113% (0.0241%) z=-0.85 | 12.7368% (0.0167%) z=-0.23 | 2.0434% (0.0071%) z=+0.64 | 0.0199% (0.0007%) z=-1.28 | 0.0705% (0.0013%) z=-1.08 |
-| exact, hit          | 49.3844%                   | 35.4693%                   | 12.9568%                   | 2.0933%                   | 0.0212%                   | 0.0751%                   |
-| Monte Carlo, hit    | 49.3473% (0.0250%) z=-1.48 | 35.5240% (0.0239%) z=+2.29 | 12.9330% (0.0168%) z=-1.42 | 2.1013% (0.0072%) z=+1.12 | 0.0200% (0.0007%) z=-1.64 | 0.0744% (0.0014%) z=-0.47 |
-| exact, resist       | 49.3844%                   | 35.4693%                   | 12.9568%                   | 2.0933%                   | 0.0212%                   | 0.0751%                   |
-| Monte Carlo, resist | 49.3971% (0.0250%) z=+0.51 | 35.4815% (0.0239%) z=+0.51 | 12.9365% (0.0168%) z=-1.21 | 2.0889% (0.0072%) z=-0.61 | 0.0197% (0.0007%) z=-2.05 | 0.0762% (0.0014%) z=+0.81 |
+| exact, output       | 48.6960%                   | 36.4318%                   | 11.5411%                   | 3.2383%                   | 0.0209%                   | 0.0719%                   |
+| Monte Carlo, output | 48.7182% (0.0250%) z=+0.89 | 36.4113% (0.0241%) z=-0.85 | 11.5315% (0.0160%) z=-0.60 | 3.2486% (0.0089%) z=+1.17 | 0.0199% (0.0007%) z=-1.28 | 0.0705% (0.0013%) z=-1.08 |
+| exact, hit          | 49.3844%                   | 35.4693%                   | 11.7274%                   | 3.3227%                   | 0.0212%                   | 0.0751%                   |
+| Monte Carlo, hit    | 49.3473% (0.0250%) z=-1.48 | 35.5240% (0.0239%) z=+2.29 | 11.7048% (0.0161%) z=-1.40 | 3.3295% (0.0090%) z=+0.76 | 0.0200% (0.0007%) z=-1.64 | 0.0744% (0.0014%) z=-0.47 |
+| exact, resist       | 49.3844%                   | 35.4693%                   | 11.7274%                   | 3.3227%                   | 0.0212%                   | 0.0751%                   |
+| Monte Carlo, resist | 49.3971% (0.0250%) z=+0.51 | 35.4815% (0.0239%) z=+0.51 | 11.7055% (0.0161%) z=-1.36 | 3.3199% (0.0090%) z=-0.31 | 0.0197% (0.0007%) z=-2.05 | 0.0762% (0.0014%) z=+0.81 |
 
 Largest |z| of a Monte Carlo rate against the exact rate: 2.29.
 
 | Quality over accepted archetypes | N                  | R                  | SR                 | SSR               | SP                | UR                |
 | -------------------------------- | ------------------ | ------------------ | ------------------ | ----------------- | ----------------- | ----------------- |
-| slot 1, 3, 5 (all archetypes)    | 14.1537% (0.0174%) | 50.7376% (0.0250%) | 29.2761% (0.0228%) | 5.5659% (0.0115%) | 0.0456% (0.0011%) | 0.2211% (0.0023%) |
-| slot 2 Spd (all archetypes)      | 14.1537% (0.0174%) | 50.7376% (0.0250%) | 29.2761% (0.0228%) | 5.5659% (0.0115%) | 0.0456% (0.0011%) | 0.2211% (0.0023%) |
-| slot 2 AtkPercent (output)       | 48.7182% (0.0250%) | 36.4113% (0.0241%) | 12.7368% (0.0167%) | 2.0434% (0.0071%) | 0.0199% (0.0007%) | 0.0705% (0.0013%) |
-| slot 4 EffectHit (hit)           | 49.3473% (0.0250%) | 35.5240% (0.0239%) | 12.9330% (0.0168%) | 2.1013% (0.0072%) | 0.0200% (0.0007%) | 0.0744% (0.0014%) |
-| slot 6 CritDmg (output)          | 48.7182% (0.0250%) | 36.4113% (0.0241%) | 12.7368% (0.0167%) | 2.0434% (0.0071%) | 0.0199% (0.0007%) | 0.0705% (0.0013%) |
-| slot 6 HpPercent (hit, resist)   | 36.8175% (0.0241%) | 40.9054% (0.0246%) | 18.5702% (0.0194%) | 3.5278% (0.0092%) | 0.0286% (0.0008%) | 0.1506% (0.0019%) |
+| slot 1, 3, 5 (all archetypes)    | 14.1537% (0.0174%) | 50.7376% (0.0250%) | 26.0865% (0.0220%) | 8.7554% (0.0141%) | 0.0456% (0.0011%) | 0.2211% (0.0023%) |
+| slot 2 Spd (all archetypes)      | 14.1537% (0.0174%) | 50.7376% (0.0250%) | 26.0865% (0.0220%) | 8.7554% (0.0141%) | 0.0456% (0.0011%) | 0.2211% (0.0023%) |
+| slot 2 AtkPercent (output)       | 48.7182% (0.0250%) | 36.4113% (0.0241%) | 11.5315% (0.0160%) | 3.2486% (0.0089%) | 0.0199% (0.0007%) | 0.0705% (0.0013%) |
+| slot 4 EffectHit (hit)           | 49.3473% (0.0250%) | 35.5240% (0.0239%) | 11.7048% (0.0161%) | 3.3295% (0.0090%) | 0.0200% (0.0007%) | 0.0744% (0.0014%) |
+| slot 6 CritDmg (output)          | 48.7182% (0.0250%) | 36.4113% (0.0241%) | 11.5315% (0.0160%) | 3.2486% (0.0089%) | 0.0199% (0.0007%) | 0.0705% (0.0013%) |
+| slot 6 HpPercent (hit, resist)   | 36.8175% (0.0241%) | 40.9054% (0.0246%) | 16.5747% (0.0186%) | 5.5232% (0.0114%) | 0.0286% (0.0008%) | 0.1506% (0.0019%) |
 
 <!-- /generated:monte-carlo -->
 
@@ -520,15 +603,15 @@ would give with v1's thresholds:
 
 | Measure                                       | Archetype | E      | N        | R        | SR       | SSR     | SP      | UR      |
 | --------------------------------------------- | --------- | ------ | -------- | -------- | -------- | ------- | ------- | ------- |
-| 36/36/28 per class (official notice; v1)      | output    | 2.6163 | 48.6960% | 36.4318% | 12.7406% | 2.0388% | 0.0209% | 0.0719% |
-| 36/36/28 per class (official notice; v1)      | hit       | 2.6369 | 49.3844% | 35.4693% | 12.9568% | 2.0933% | 0.0212% | 0.0751% |
-| 36/36/28 per class (official notice; v1)      | resist    | 2.6369 | 49.3844% | 35.4693% | 12.9568% | 2.0933% | 0.0212% | 0.0751% |
-| 1/11 per attribute (Hu 2026 reading)          | output    | 2.6182 | 48.6513% | 36.4509% | 12.7607% | 2.0441% | 0.0209% | 0.0722% |
-| 1/11 per attribute (Hu 2026 reading)          | hit       | 2.6182 | 49.8328% | 35.2693% | 12.7607% | 2.0441% | 0.0209% | 0.0722% |
-| 1/11 per attribute (Hu 2026 reading)          | resist    | 2.6182 | 49.8328% | 35.2693% | 12.7607% | 2.0441% | 0.0209% | 0.0722% |
-| official weights; initial count 1/2, 1/3, 1/6 | output    | 2.5073 | 50.8994% | 36.4873% | 11.2176% | 1.3492% | 0.0105% | 0.0360% |
-| official weights; initial count 1/2, 1/3, 1/6 | hit       | 2.5273 | 51.6120% | 35.5242% | 11.4282% | 1.3874% | 0.0107% | 0.0375% |
-| official weights; initial count 1/2, 1/3, 1/6 | resist    | 2.5273 | 51.6120% | 35.5242% | 11.4282% | 1.3874% | 0.0107% | 0.0375% |
+| 36/36/28 per class (official notice; v1)      | output    | 2.6163 | 48.6960% | 36.4318% | 11.5411% | 3.2383% | 0.0209% | 0.0719% |
+| 36/36/28 per class (official notice; v1)      | hit       | 2.6369 | 49.3844% | 35.4693% | 11.7274% | 3.3227% | 0.0212% | 0.0751% |
+| 36/36/28 per class (official notice; v1)      | resist    | 2.6369 | 49.3844% | 35.4693% | 11.7274% | 3.3227% | 0.0212% | 0.0751% |
+| 1/11 per attribute (Hu 2026 reading)          | output    | 2.6182 | 48.6513% | 36.4509% | 11.5584% | 3.2464% | 0.0209% | 0.0722% |
+| 1/11 per attribute (Hu 2026 reading)          | hit       | 2.6182 | 49.8328% | 35.2693% | 11.5584% | 3.2464% | 0.0209% | 0.0722% |
+| 1/11 per attribute (Hu 2026 reading)          | resist    | 2.6182 | 49.8328% | 35.2693% | 11.5584% | 3.2464% | 0.0209% | 0.0722% |
+| official weights; initial count 1/2, 1/3, 1/6 | output    | 2.5073 | 50.8994% | 36.4873% | 10.3522% | 2.2146% | 0.0105% | 0.0360% |
+| official weights; initial count 1/2, 1/3, 1/6 | hit       | 2.5273 | 51.6120% | 35.5242% | 10.5395% | 2.2761% | 0.0107% | 0.0375% |
+| official weights; initial count 1/2, 1/3, 1/6 | resist    | 2.5273 | 51.6120% | 35.5242% | 10.5395% | 2.2761% | 0.0107% | 0.0375% |
 
 <!-- /generated:measure-sensitivity -->
 
@@ -563,18 +646,18 @@ c_R / c_SR / c_SSR / above its t_UR, and the mean score.
 
 | Normalization                   | Profile                         | ≥ c_R   | ≥ c_SR  | ≥ c_SSR | > t_UR   | mean  |
 | ------------------------------- | ------------------------------- | ------- | ------- | ------- | -------- | ----- |
-| A. bound: 100·U/M               | speed only (1 attribute)        | 2.153%  | 0.247%  | 0.021%  | 0.0019%  | 11.16 |
-| A. bound: 100·U/M               | crit pair (2 attributes)        | 8.774%  | 2.035%  | 0.277%  | 0.0197%  | 18.54 |
-| A. bound: 100·U/M               | output archetype (4 attributes) | 14.883% | 3.387%  | 0.684%  | 0.0134%  | 29.08 |
+| A. bound: 100·U/M               | speed only (1 attribute)        | 2.153%  | 0.247%  | 0.070%  | 0.0019%  | 11.16 |
+| A. bound: 100·U/M               | crit pair (2 attributes)        | 8.774%  | 2.035%  | 0.616%  | 0.0197%  | 18.54 |
+| A. bound: 100·U/M               | output archetype (4 attributes) | 14.883% | 3.387%  | 0.872%  | 0.0134%  | 29.08 |
 | C. mean ratio: min(100, 50·U/E) | speed only (1 attribute)        | 37.183% | 33.089% | 25.022% | 25.0223% | 33.19 |
-| C. mean ratio: min(100, 50·U/E) | crit pair (2 attributes)        | 44.801% | 43.026% | 23.260% | 23.2598% | 43.90 |
-| C. mean ratio: min(100, 50·U/E) | output archetype (4 attributes) | 51.295% | 36.025% | 20.386% | 9.4334%  | 48.95 |
-| H. anchored (v1)                | speed only (1 attribute)        | 37.183% | 9.821%  | 0.438%  | 0.0119%  | 22.54 |
-| H. anchored (v1)                | crit pair (2 attributes)        | 44.801% | 10.053% | 1.609%  | 0.1019%  | 33.12 |
-| H. anchored (v1)                | output archetype (4 attributes) | 51.295% | 14.883% | 2.142%  | 0.0748%  | 42.29 |
-| B. percentile (mid-rank)        | speed only (1 attribute)        | 37.183% | 35.246% | 21.148% | 7.8325%  | 50.00 |
-| B. percentile (mid-rank)        | crit pair (2 attributes)        | 50.000% | 35.246% | 21.148% | 7.8325%  | 50.00 |
-| B. percentile (mid-rank)        | output archetype (4 attributes) | 50.000% | 35.246% | 21.148% | 7.8325%  | 50.00 |
+| C. mean ratio: min(100, 50·U/E) | crit pair (2 attributes)        | 44.801% | 43.026% | 23.312% | 23.2598% | 43.90 |
+| C. mean ratio: min(100, 50·U/E) | output archetype (4 attributes) | 51.295% | 36.025% | 20.394% | 9.4334%  | 48.95 |
+| H. anchored (v1)                | speed only (1 attribute)        | 37.183% | 9.821%  | 1.784%  | 0.0119%  | 22.54 |
+| H. anchored (v1)                | crit pair (2 attributes)        | 44.801% | 10.053% | 3.470%  | 0.1019%  | 33.12 |
+| H. anchored (v1)                | output archetype (4 attributes) | 51.295% | 14.883% | 3.324%  | 0.0748%  | 42.29 |
+| B. percentile (mid-rank)        | speed only (1 attribute)        | 37.183% | 35.246% | 23.497% | 7.8325%  | 50.00 |
+| B. percentile (mid-rank)        | crit pair (2 attributes)        | 50.000% | 35.246% | 23.497% | 7.8325%  | 50.00 |
+| B. percentile (mid-rank)        | output archetype (4 attributes) | 50.000% | 35.246% | 23.497% | 7.8325%  | 50.00 |
 
 <!-- /generated:normalization -->
 
@@ -607,24 +690,27 @@ single-attribute needs are scored in pass 2, comparable only within one need.
    therefore the region of the utility gap, `U > M − 1`, which for equal weights
    is the same as distance to the frontier.
 6. **SP as "one wanted attribute took every roll"** (the UI draft). V04 has 18
-   Crit and three useless lines. It would be SP, yet scores 76.50, below the SSR
-   floor. The floor is now part of SP.
-7. **The main attribute's value in utility.** The analysis converts a CritDmg
+   Crit and three useless lines. It would be SP on one line alone. SP needs a
+   quality floor, which V04 does not reach; V04 is SSR.
+7. **v1's SSR edge at `7μ`**, the same as the SP floor. Superseded in v1.1
+   (ADR-0025): the best possible single line, V04, stayed SR, and one threshold
+   answered two questions. § 7 has the comparison.
+8. **The main attribute's value in utility.** The analysis converts a CritDmg
    main into 22.3 roll units, more than the whole sub-attribute maximum of 9, so
    every CritDmg-main soul would outscore every slot-1 soul whatever its lines.
    It would also break the archetypes' symmetry, since mains are drawn with
    unequal probabilities. The main gates; a need profile weighs its value.
-8. **Single-attribute profiles in the quality maximum.** § 12's residual: their
+9. **Single-attribute profiles in the quality maximum.** § 12's residual: their
    tails differ from four-attribute profiles, so they would bias the maximum.
-9. **Depth as concentration of all value** (a Herfindahl index over every line).
-   V01, three flat lines and one useful increment, would have high depth. Depth
-   counts useful lines only.
+10. **Depth as concentration of all value** (a Herfindahl index over every
+    line). V01, three flat lines and one useful increment, would have high
+    depth. Depth counts useful lines only.
 
 The test vectors cover the pathological cases of the brief: a rare but useless
-soul (V16, 0), one maxed line and garbage (V04, SR), a balanced excellent soul
-against a specialized one (V03, V05), a dominated pair (V14, V15), speed against
-crit (V11, V12, V13), UR against SP (V09, V10), and the thresholds' neighbours
-(V06, V07, V10).
+soul (V16, 0), one maxed line and garbage (V04, SSR, not SP), a balanced
+excellent soul against a specialized one (V03, V05), a dominated pair (V14,
+V15), speed against crit (V11, V12, V13), UR against SP (V09, V10), and the
+thresholds' neighbours (V06, V07, V10).
 
 ## 14. Limitations
 
@@ -642,7 +728,7 @@ crit (V11, V12, V13), UR against SP (V09, V10), and the thresholds' neighbours
 - **Interactions are out of pass 1.** Crit's cap, speed thresholds, and set
   bonuses are need-profile matters.
 - **Boss souls' innate attributes** are not scored.
-- **SP and SSR overlap in score** by up to `t_UR − c_SSR`, by design (§ 7).
+- **SP and SSR overlap in score** by up to `t_UR − c_SP`, by design (§ 7).
 - **Lean's scope.** The anchors are parameters in Lean; their values, and every
   rate, rest on the calibration program, which is tested against Monte Carlo but
   not proved.
@@ -683,6 +769,7 @@ E_p             = μ · E[K_p] under the reference measure (§ 5);  M = 9;  μ =
 g_p(u)          = max(0, 50u/E_p)  if u ≤ E_p;  min(100, 50 + 50(u − E_p)/(M − E_p))  otherwise
 score_p(s)      = g_p(U_p(s))
 specialized_p   ⟺ ∃ a ∈ A_p. e_a > 5
+u_SR = 5μ, u_SSR = 6, u_SP_floor = 7μ, u_UR = M − 1;  c_X,p = g_p(u_X)
 tier_p          = UR | SP | band, as § 7
 quality(s)      = max over accepting archetypes of (tier_p, score_p), lexicographic
 depth_p         = 100 · max_{a ∈ A_p} e_a / 6
@@ -699,45 +786,45 @@ their fixed flat main under every archetype.
 
 <!-- generated:vectors -->
 
-| Id  | Soul                                                                    | Slot, main, level  | Archetype | U      | Score  | Specialized | Tier | Depth | Breadth | Growth |
-| --- | ----------------------------------------------------------------------- | ------------------ | --------- | ------ | ------ | ----------- | ---- | ----- | ------- | ------ |
-| V01 | AtkFlat 72.0 (3); HpFlat 205.0 (2); DefFlat 13.5 (3); EffectRes 3.6 (1) | 1, AtkFlat, +15    | resist    | 0.9000 | 17.07  | no          | N    | 15.0  | 0.0     | —      |
-| V02 | Crit 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3); DefFlat 13.8 (3)    | 3, DefFlat, +15    | output    | 2.7000 | 50.66  | no          | R    | 30.0  | 26.7    | —      |
-| V03 | Crit 8.4 (3); Spd 5.4 (2); AtkPercent 5.4 (2); HpFlat 205.0 (2)         | 6, CritDmg, +15    | output    | 6.4000 | 79.64  | no          | SSR  | 46.7  | 62.0    | —      |
-| V04 | Crit 18.0 (6); HpFlat 114.0 (1); DefFlat 5.0 (1); AtkFlat 27.0 (1)      | 1, AtkFlat, +15    | output    | 6.0000 | 76.50  | yes         | SR   | 100.0 | 0.0     | —      |
-| V05 | Crit 16.5 (6); CritDmg 3.6 (1); AtkPercent 2.7 (1); HpFlat 100.0 (1)    | 5, HpFlat, +15     | output    | 7.3000 | 86.68  | yes         | SP   | 91.7  | 22.4    | —      |
-| V06 | Crit 15.0 (5); CritDmg 3.6 (1); AtkPercent 2.7 (1); HpFlat 200.0 (2)    | 5, HpFlat, +15     | output    | 6.8000 | 82.77  | no          | SSR  | 83.3  | 24.6    | —      |
-| V07 | Crit 15.3 (6); AtkPercent 3.0 (1); DefFlat 4.5 (1); HpFlat 100.0 (1)    | 1, AtkFlat, +15    | output    | 6.1000 | 77.29  | yes         | SR   | 85.0  | 12.6    | —      |
-| V08 | Crit 18.0 (6); CritDmg 4.0 (1); AtkPercent 3.0 (1); Spd 3.0 (1)         | 6, CritDmg, +15    | output    | 9.0000 | 100.00 | yes         | UR   | 100.0 | 35.9    | —      |
-| V09 | Crit 8.7 (3); CritDmg 7.8 (2); AtkPercent 5.8 (2); Spd 5.8 (2)          | 2, Spd, +15        | output    | 8.7167 | 97.78  | no          | UR   | 48.3  | 95.3    | —      |
-| V10 | Crit 18.0 (6); CritDmg 4.0 (1); AtkPercent 3.0 (1); HpFlat 114.0 (1)    | 6, CritDmg, +15    | output    | 8.0000 | 92.17  | yes         | SP   | 100.0 | 22.8    | —      |
-| V11 | Spd 17.4 (6); EffectHit 3.6 (1); HpPercent 2.7 (1); DefFlat 4.5 (1)     | 2, Spd, +15        | hit       | 7.6000 | 89.00  | yes         | SP   | 96.7  | 21.3    | —      |
-| V12 | Crit 17.4 (6); AtkPercent 2.7 (1); Spd 2.7 (1); DefFlat 4.5 (1)         | 6, CritDmg, +15    | output    | 7.6000 | 89.03  | yes         | SP   | 96.7  | 21.3    | —      |
-| V13 | CritDmg 23.2 (6); AtkPercent 2.7 (1); Spd 2.7 (1); HpFlat 110.0 (1)     | 6, Crit, +15       | output    | 7.6000 | 89.03  | yes         | SP   | 96.7  | 21.3    | —      |
-| V14 | Crit 8.1 (3); Spd 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3)         | 4, AtkPercent, +15 | output    | 5.4000 | 71.80  | no          | SR   | 45.0  | 52.4    | —      |
-| V15 | Crit 8.4 (3); Spd 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3)         | 4, AtkPercent, +15 | output    | 5.5000 | 72.59  | no          | SR   | 46.7  | 51.5    | —      |
-| V16 | AtkFlat 72.0 (3); HpFlat 205.0 (2); DefFlat 13.5 (3); CritDmg 3.6 (1)   | 4, EffectHit, +15  | hit       | 0.0000 | 0.00   | no          | N    | 0.0   | 0.0     | —      |
-| V17 | Spd 5.7 (2); Crit 5.6 (2); AtkPercent 2.8 (1)                           | 2, Spd, +9         | output    | 4.7000 | 66.32  | no          | SR   | 31.7  | 59.1    | 73.58  |
+| Id  | Soul                                                                    | Slot, main, level  | Archetype | U      | Score  | Specialized | Tier | Tier in v1 | Depth | Breadth | Growth |
+| --- | ----------------------------------------------------------------------- | ------------------ | --------- | ------ | ------ | ----------- | ---- | ---------- | ----- | ------- | ------ |
+| V01 | AtkFlat 72.0 (3); HpFlat 205.0 (2); DefFlat 13.5 (3); EffectRes 3.6 (1) | 1, AtkFlat, +15    | resist    | 0.9000 | 17.07  | no          | N    | N          | 15.0  | 0.0     | —      |
+| V02 | Crit 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3); DefFlat 13.8 (3)    | 3, DefFlat, +15    | output    | 2.7000 | 50.66  | no          | R    | R          | 30.0  | 26.7    | —      |
+| V03 | Crit 8.4 (3); Spd 5.4 (2); AtkPercent 5.4 (2); HpFlat 205.0 (2)         | 6, CritDmg, +15    | output    | 6.4000 | 79.64  | no          | SSR  | SSR        | 46.7  | 62.0    | —      |
+| V04 | Crit 18.0 (6); HpFlat 114.0 (1); DefFlat 5.0 (1); AtkFlat 27.0 (1)      | 1, AtkFlat, +15    | output    | 6.0000 | 76.50  | yes         | SSR  | SR         | 100.0 | 0.0     | —      |
+| V05 | Crit 16.5 (6); CritDmg 3.6 (1); AtkPercent 2.7 (1); HpFlat 100.0 (1)    | 5, HpFlat, +15     | output    | 7.3000 | 86.68  | yes         | SP   | SP         | 91.7  | 22.4    | —      |
+| V06 | Crit 15.0 (5); CritDmg 3.6 (1); AtkPercent 2.7 (1); HpFlat 200.0 (2)    | 5, HpFlat, +15     | output    | 6.8000 | 82.77  | no          | SSR  | SSR        | 83.3  | 24.6    | —      |
+| V07 | Crit 15.3 (6); AtkPercent 3.0 (1); DefFlat 4.5 (1); HpFlat 100.0 (1)    | 1, AtkFlat, +15    | output    | 6.1000 | 77.29  | yes         | SSR  | SR         | 85.0  | 12.6    | —      |
+| V08 | Crit 18.0 (6); CritDmg 4.0 (1); AtkPercent 3.0 (1); Spd 3.0 (1)         | 6, CritDmg, +15    | output    | 9.0000 | 100.00 | yes         | UR   | UR         | 100.0 | 35.9    | —      |
+| V09 | Crit 8.7 (3); CritDmg 7.8 (2); AtkPercent 5.8 (2); Spd 5.8 (2)          | 2, Spd, +15        | output    | 8.7167 | 97.78  | no          | UR   | UR         | 48.3  | 95.3    | —      |
+| V10 | Crit 18.0 (6); CritDmg 4.0 (1); AtkPercent 3.0 (1); HpFlat 114.0 (1)    | 6, CritDmg, +15    | output    | 8.0000 | 92.17  | yes         | SP   | SP         | 100.0 | 22.8    | —      |
+| V11 | Spd 17.4 (6); EffectHit 3.6 (1); HpPercent 2.7 (1); DefFlat 4.5 (1)     | 2, Spd, +15        | hit       | 7.6000 | 89.00  | yes         | SP   | SP         | 96.7  | 21.3    | —      |
+| V12 | Crit 17.4 (6); AtkPercent 2.7 (1); Spd 2.7 (1); DefFlat 4.5 (1)         | 6, CritDmg, +15    | output    | 7.6000 | 89.03  | yes         | SP   | SP         | 96.7  | 21.3    | —      |
+| V13 | CritDmg 23.2 (6); AtkPercent 2.7 (1); Spd 2.7 (1); HpFlat 110.0 (1)     | 6, Crit, +15       | output    | 7.6000 | 89.03  | yes         | SP   | SP         | 96.7  | 21.3    | —      |
+| V14 | Crit 8.1 (3); Spd 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3)         | 4, AtkPercent, +15 | output    | 5.4000 | 71.80  | no          | SR   | SR         | 45.0  | 52.4    | —      |
+| V15 | Crit 8.4 (3); Spd 5.4 (2); AtkPercent 2.7 (1); HpFlat 300.0 (3)         | 4, AtkPercent, +15 | output    | 5.5000 | 72.59  | no          | SR   | SR         | 46.7  | 51.5    | —      |
+| V16 | AtkFlat 72.0 (3); HpFlat 205.0 (2); DefFlat 13.5 (3); CritDmg 3.6 (1)   | 4, EffectHit, +15  | hit       | 0.0000 | 0.00   | no          | N    | N          | 0.0   | 0.0     | —      |
+| V17 | Spd 5.7 (2); Crit 5.6 (2); AtkPercent 2.8 (1)                           | 2, Spd, +9         | output    | 4.7000 | 66.32  | no          | SR   | SR         | 31.7  | 59.1    | 73.58  |
 
-| Id  | What it shows                                                  |
-| --- | -------------------------------------------------------------- |
-| V01 | obviously poor: flat lines and one useful increment            |
-| V02 | ordinary useful: three useful increments                       |
-| V03 | strong balanced SSR, no specialized line                       |
-| V04 | one perfect line, nothing useful beside it: fails the SP floor |
-| V05 | valid SP                                                       |
-| V06 | near SP: five roll units exactly is not specialized            |
-| V07 | near SP: specialized, below the SSR floor                      |
-| V08 | valid UR: the paper's theoretical output soul                  |
-| V09 | valid UR without a specialized line                            |
-| V10 | near UR: eight useful increments at maximum, one wasted        |
-| V11 | Speed-focused                                                  |
-| V12 | Crit-focused: the counterpart of V11                           |
-| V13 | CritDmg-focused: the counterpart of V11                        |
-| V14 | dominated: V15 improves its Crit                               |
-| V15 | dominates V14                                                  |
-| V16 | rare main, useless lines: a rare main earns nothing            |
-| V17 | growth: +9, two rolls left                                     |
+| Id  | What it shows                                                      |
+| --- | ------------------------------------------------------------------ |
+| V01 | obviously poor: flat lines and one useful increment                |
+| V02 | ordinary useful: three useful increments                           |
+| V03 | strong balanced SSR, no specialized line                           |
+| V04 | one perfect line, nothing useful beside it: SSR, not SP (SR in v1) |
+| V05 | valid SP                                                           |
+| V06 | near SP: five roll units exactly is not specialized                |
+| V07 | specialized, below the SP floor: SSR, not SP (SR in v1)            |
+| V08 | valid UR: the paper's theoretical output soul                      |
+| V09 | valid UR without a specialized line                                |
+| V10 | near UR: eight useful increments at maximum, one wasted            |
+| V11 | Speed-focused                                                      |
+| V12 | Crit-focused: the counterpart of V11                               |
+| V13 | CritDmg-focused: the counterpart of V11                            |
+| V14 | dominated: V15 improves its Crit                                   |
+| V15 | dominates V14                                                      |
+| V16 | rare main, useless lines: a rare main earns nothing                |
+| V17 | growth: +9, two rolls left                                         |
 
 <!-- /generated:vectors -->
 
