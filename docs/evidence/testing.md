@@ -79,6 +79,35 @@ SQLite file under a directory whose name has Chinese characters and a space
 | a probe message survives encoding, framing, and decoding unchanged | `a_probe_message_survives_a_frame`             |
 | an unrecorded roll count is distinct from zero rolls on the wire   | `an_absent_roll_count_differs_from_zero_rolls` |
 
+## Scheme-code transport — `yata-core::scheme`
+
+| Claim in [scheme-code.md](../spec/scheme-code.md), § Transport                                | Tests                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a text from another zlib and Base64 implementation decodes                                    | `transport::tests::a_text_from_another_implementation_decodes`, `padding_and_a_stored_block_decode`                                                            |
+| malformed Base64, whitespace, and the URL-safe alphabet fail in the Base64 layer              | `malformed_base64_is_a_base64_error`, `surrounding_whitespace_is_not_part_of_a_code`                                                                           |
+| truncated, corrupted, and non-zlib streams fail in the zlib layer; trailing bytes are refused | `a_truncated_stream_is_a_zlib_error`, `a_corrupted_checksum_is_a_zlib_error`, `bytes_that_are_not_zlib_are_a_zlib_error`, `bytes_after_the_stream_are_refused` |
+| decompression stops at `MAX_PAYLOAD_LEN`, inclusive; a bomb is refused                        | `a_decompression_bomb_stops_at_the_limit`, `the_payload_limit_is_inclusive`                                                                                    |
+| an empty payload is refused; the text and compressed limits hold                              | `an_empty_stream_is_not_a_scheme`, `an_overlong_text_is_refused_before_decoding`, `an_incompressible_payload_too_big_for_a_code_is_refused`, `payload::tests`  |
+| payload identity: `decode(encode(p)) = p`                                                     | property `every_encodable_payload_round_trips` (1 byte to 2 KiB); `encoding_is_deterministic_and_decodes_to_the_same_payload`                                  |
+| dump rows, diff by offset with XOR and bits, no alignment across lengths                      | `inspect::tests`; properties `changes_are_exactly_the_offsets_whose_xor_is_nonzero`, `diff_is_symmetric`, `a_payload_never_differs_from_itself`                |
+| bits read LSB-first; spans are bounded                                                        | `bits_are_read_lsb_first_across_bytes`, `a_span_past_the_end_or_of_no_length_is_refused`                                                                       |
+
+## QR codes and research commands — `yata-daemon`
+
+| Claim in [scheme-code.md](../spec/scheme-code.md), § QR codes                                               | Tests                                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| the same text always gives the same matrix                                                                  | `qr::tests::the_same_text_always_gives_the_same_matrix`                                                                                                                  |
+| a rendered code, as pixels or as a PNG, reads back as its text                                              | `a_rendered_code_reads_back_as_its_text`, `a_png_rendering_reads_back_as_its_text`                                                                                       |
+| a text beyond version 40 is refused; oversized images, non-PNG bytes, and images without a code are refused | `a_text_beyond_version_forty_is_refused`, `oversized_images_are_refused_before_reading`, `bytes_that_are_not_a_png_are_refused`, `an_image_without_a_code_reads_as_none` |
+| the render scale is bounded                                                                                 | `the_render_scale_is_bounded`                                                                                                                                            |
+| dump and diff output is fixed                                                                               | `scheme::tests`                                                                                                                                                          |
+| code files read as text or PNG, bounded                                                                     | `tests/scheme_files.rs`                                                                                                                                                  |
+| every real code decodes, re-encodes to the same payload, and survives the QR loop                           | `tests/scheme_corpus.rs`, over the local corpus only; in CI it checks nothing                                                                                            |
+
+On the one real code in the local corpus (a 30-plan strengthening set, 1 102
+bytes), the payload round-trips and survives the QR loop. The text this encoder
+produces differs from the game's, as § Transport allows.
+
 ## Not covered
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not

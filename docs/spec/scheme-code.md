@@ -247,11 +247,17 @@ which carries a `SchemeCode`. There is one registered codec.
 
 The encoder is built in three stages, each gated on the wire page:
 
-| Stage                       | Produces                                                              | Gated on                               |
-| --------------------------- | --------------------------------------------------------------------- | -------------------------------------- |
-| 1. template edit            | a code derived from a decoded code, with only modelled fields changed | nothing further; designable now        |
-| 2. single plan from scratch | a strengthening plan with no template                                 | plan framing and boundary              |
-| 3. whole set from scratch   | a complete strengthening scheme set                                   | container header, plan count, metadata |
+| Stage                       | Produces                                                              | Gated on                                                                      |
+| --------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| 1. template edit            | a code derived from a decoded code, with only modelled fields changed | locating a plan's filter mask: the payload's header length and record framing |
+| 2. single plan from scratch | a strengthening plan with no template                                 | plan framing and boundary                                                     |
+| 3. whole set from scratch   | a complete strengthening scheme set                                   | container header, plan count, metadata                                        |
+
+Stage 1 is not yet safe. The filter bits it would edit are solved, but finding
+them in a payload needs the header length and the record framing, which the
+research record does not yet mark solved; a parse that fits one sample is a
+hypothesis, not a layout. Until they are solved, the codec reads and writes the
+payload only as raw bytes.
 
 Until stage 2, **authoring a new scheme starts from a template**: a known-good
 code from the corpus, bundled with the application, whose preserved content is
