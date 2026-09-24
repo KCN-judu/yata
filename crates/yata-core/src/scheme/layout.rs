@@ -142,6 +142,9 @@ pub enum LayoutError {
     Truncated { offset: usize },
     /// A discard code holds other than one record.
     DiscardRecordCount { count: usize },
+    /// A discard scheme built with the "all souls" choice: that choice exists in the
+    /// strengthening editor only (`scheme-code.md`, "SoulSelection"), so it is not encoded.
+    DiscardAllSouls,
     /// A field longer than a one-byte length can state.
     FieldTooLong { length: usize },
     /// A written payload would exceed the transport's limit.
@@ -224,8 +227,33 @@ fn check_kind(layout: &SchemeLayout) -> Result<(), LayoutError> {
 }
 
 impl SchemeLayout {
-    /// The same layout with another header's account: how a code is made to carry the user's
-    /// own account (`scheme-code.md`, "The header and the user's account"). The kind is kept.
+    /// A new strengthening scheme set for an account.
+    pub fn strengthening(account: AccountSegment, plans: Vec<Record>) -> SchemeLayout {
+        SchemeLayout {
+            header: SchemeHeader {
+                account,
+                kind: SchemeKind::Strengthening,
+            },
+            records: plans,
+        }
+    }
+
+    /// A new discard scheme for an account: one record, which must name its souls.
+    pub fn discard(account: AccountSegment, scheme: Record) -> Result<SchemeLayout, LayoutError> {
+        if scheme.soul_mask.is_empty() {
+            return Err(LayoutError::DiscardAllSouls);
+        }
+        Ok(SchemeLayout {
+            header: SchemeHeader {
+                account,
+                kind: SchemeKind::Discard,
+            },
+            records: vec![scheme],
+        })
+    }
+
+    /// The same layout with another header's account (`scheme-code.md`, "The header and the
+    /// user's account"). The kind is kept.
     pub fn with_account(mut self, account: AccountSegment) -> SchemeLayout {
         self.header.account = account;
         self
@@ -352,6 +380,25 @@ mod tests {
         );
         layout.records.pop();
         assert!(serialize(&layout).is_ok());
+    }
+
+    #[test]
+    fn a_new_discard_scheme_is_one_record_with_kind_zero() {
+        let account = AccountSegment::from_bytes(ACCOUNT);
+        let scheme = record("弃置", &[0x01], &[0x3f, 0x08, 0, 0, 0, 0, 0x02]);
+        let layout = SchemeLayout::discard(account, scheme).expect("names its souls");
+        let bytes = serialize(&layout).expect("writable").into_bytes();
+        assert_eq!(bytes[16], 0);
+        assert_eq!(parse(&payload(bytes)), Ok(layout));
+    }
+
+    #[test]
+    fn a_new_discard_scheme_cannot_choose_all_souls() {
+        let account = AccountSegment::from_bytes(ACCOUNT);
+        assert_eq!(
+            SchemeLayout::discard(account, record("x", &[], &[0x01])),
+            Err(LayoutError::DiscardAllSouls)
+        );
     }
 
     #[test]

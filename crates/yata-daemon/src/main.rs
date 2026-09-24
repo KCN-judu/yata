@@ -8,9 +8,7 @@ use std::process::ExitCode;
 
 use yata_core::scheme::RawSchemePayload;
 use yata_core::scheme::inspect::diff;
-use yata_core::scheme::layout::{
-    SchemeHeader, SchemeKind, SchemeLayout, header_of, parse, serialize,
-};
+use yata_core::scheme::layout::{SchemeKind, SchemeLayout, header_of, parse, serialize};
 use yata_core::scheme::transport;
 use yata_daemon::qr;
 use yata_daemon::scheme::{
@@ -31,6 +29,8 @@ commands:
                                           the same code carrying the account of <account-code>
   scheme build <account-code> <plans.txt> [<qr.png>]
                                           a strengthening set from a plan file, for that account
+  scheme build-discard <account-code> <plan.txt> [<qr.png>]
+                                          a discard scheme from a one-line plan file
 
 A <code> is a PNG image holding one QR code, or a text file holding the Base64 text.
 A plan file has one plan per line: name | souls (all, or soul bits) | solved filter bits.";
@@ -66,8 +66,14 @@ fn main() -> ExitCode {
         ),
         ["scheme", "retarget", _, _] => retarget(path(2), path(3), None),
         ["scheme", "retarget", _, _, _] => retarget(path(2), path(3), Some(path(4))),
-        ["scheme", "build", _, _] => build(path(2), path(3), None),
-        ["scheme", "build", _, _, _] => build(path(2), path(3), Some(path(4))),
+        ["scheme", "build", _, _] => build(path(2), path(3), None, SchemeKind::Strengthening),
+        ["scheme", "build", _, _, _] => {
+            build(path(2), path(3), Some(path(4)), SchemeKind::Strengthening)
+        }
+        ["scheme", "build-discard", _, _] => build(path(2), path(3), None, SchemeKind::Discard),
+        ["scheme", "build-discard", _, _, _] => {
+            build(path(2), path(3), Some(path(4)), SchemeKind::Discard)
+        }
         _ => {
             eprintln!("{USAGE}");
             ExitCode::from(2)
@@ -108,8 +114,9 @@ fn retarget(code: &Path, account_code: &Path, png: Option<&Path>) -> ExitCode {
     }
 }
 
-/// A strengthening set built from a plan file, carrying the account of `<account-code>`.
-fn build(account_code: &Path, plans: &Path, png: Option<&Path>) -> ExitCode {
+/// A scheme built from a plan file, carrying the account of `<account-code>`: a strengthening
+/// set of every plan, or a discard scheme of the file's one plan.
+fn build(account_code: &Path, plans: &Path, png: Option<&Path>, kind: SchemeKind) -> ExitCode {
     let account = match account_of(account_code) {
         Ok(a) => a,
         Err(e) => return fail(e),
@@ -117,17 +124,15 @@ fn build(account_code: &Path, plans: &Path, png: Option<&Path>) -> ExitCode {
     let records = std::fs::read_to_string(plans)
         .map_err(|e| format!("{}: {e}", plans.display()))
         .and_then(|text| parse_plan_file(&text).map_err(|e| format!("{e:?}")));
-    match records {
-        Ok(records) => write_layout(
-            &SchemeLayout {
-                header: SchemeHeader {
-                    account,
-                    kind: SchemeKind::Strengthening,
-                },
-                records,
-            },
-            png,
-        ),
+    let layout = records.and_then(|mut records| match kind {
+        SchemeKind::Strengthening => Ok(SchemeLayout::strengthening(account, records)),
+        SchemeKind::Discard => match (records.pop(), records.is_empty()) {
+            (Some(one), true) => SchemeLayout::discard(account, one).map_err(|e| format!("{e:?}")),
+            _ => Err("a discard scheme is one plan: the file must have exactly one".to_owned()),
+        },
+    });
+    match layout {
+        Ok(layout) => write_layout(&layout, png),
         Err(e) => fail(e),
     }
 }

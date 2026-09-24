@@ -22,6 +22,8 @@
 - `yata-daemon scheme build <account-code> <plans.txt> [<qr.png>]` builds a
   strengthening set from a plan file (`name | souls | solved filter bits` per
   line) for that account. Open bits cannot be written.
+- `yata-daemon scheme build-discard <account-code> <plan.txt> [<qr.png>]` builds
+  a discard scheme from a one-line plan file; it must name its souls.
 
 ## Compatibility and migration
 
