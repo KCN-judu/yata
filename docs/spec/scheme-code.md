@@ -209,6 +209,24 @@ What a round trip guarantees, and what it does not:
 | compressed stream and text of a game code | no          | the game's compressor and settings are unknown; a re-encoded code may differ in bytes |
 | meaning                                   | not claimed | the payload is not interpreted at this layer                                          |
 
+### QR codes
+
+`yata-daemon::qr` makes and reads the QR layer. A code it makes is plain and
+standard, for testing in the game: no logo, colour, or styling. Its parameters
+are fixed, so the same text always gives the same matrix:
+
+| Parameter        | Value                                                                 | Why                                                                |
+| ---------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| mode             | byte, one segment                                                     | the text is carried exactly as it is                               |
+| error correction | M                                                                     | tolerates blur from a photographed screen; the game's is not known |
+| version          | the smallest that holds it                                            | the smallest code                                                  |
+| mask             | the standard's penalty rule                                           | deterministic                                                      |
+| rendering        | quiet zone of 4 modules, black on white, at most 16 pixels per module | the standard's quiet zone                                          |
+
+Reading accepts one PNG image of at most 32 MiB, 8 192 pixels per side, and 32
+Mi pixels in all. An image with no code, or with more than one, is refused
+rather than guessed at.
+
 ### Codec rules
 
 - **Marked bits only.** The codec reads and writes only what

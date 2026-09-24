@@ -9,7 +9,11 @@ repository.workspace = true
 
 [dependencies]
 getrandom = { workspace = true }
+png = { workspace = true }
+qrcodegen = { workspace = true }
+rqrr = { workspace = true }
 rusqlite = { workspace = true }
+yata-core = { workspace = true }
 yata-store = { workspace = true }
 
 [lints]
