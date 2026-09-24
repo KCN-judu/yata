@@ -12,7 +12,7 @@ one, and what compaction may and may not remove. ADR-0002 decides that
 persistence is an append-only fact log plus a rebuildable projection; this page
 defines the records.
 
-Everything here is _designed_. Nothing is _implemented_.
+What exists is listed in § Implemented; everything else here is _designed_.
 
 ## Tables
 
@@ -73,6 +73,14 @@ Commit {
 - **Blob writes share the commit's transaction.** A commit that references a
   blob and the write of that blob land together, so a fact never points at bytes
   that are not there.
+- **A commit is checked by the fold before it is written.** The daemon applies
+  the commit to the projection first; a commit the fold refuses is never
+  written, so the rules that refuse a command are the rules that would refuse
+  the log. A commit is a no-op when the projection's state after it equals the
+  state before it. An acquisition always adds to the state, so importing the
+  same bytes twice writes two commits.
+- **A commit's bytes carry its `seq`**, which must equal the row it is stored
+  under. An encoded commit is at most 1 MiB, written or read.
 
 ## The fact envelope
 
@@ -137,7 +145,19 @@ the non-acquisition facts.
 
 **An import never crosses profiles.** If a snapshot's observed game account id
 differs from the one its target profile already knows, the import is refused
-with `import.profile_mismatch` and nothing is committed.
+with `import.profile_mismatch` and nothing is committed. The account a profile
+knows is the one named in `ProfileCreated`, else the observed account of its
+earliest acquisition that carries one and is not retracted. A reading that did
+not read the account is never a mismatch.
+
+**No complete snapshot yet.** Until a `(profile, scope)` has a live complete
+snapshot, every non-retracted partial one is live, oldest first, and the
+inventory holds only the souls they observed.
+
+**What a retraction withdraws.** `SnapshotRetracted` withdraws every earlier
+acquisition of that blob in the same profile. A later acquisition of the same
+bytes is a new observation and stands. A retraction that withdraws nothing — the
+blob was never acquired in that profile, or already withdrawn — does not apply.
 
 ### User decisions
 
@@ -172,21 +192,54 @@ Need profiles are not in this catalogue. Their authoring is undecided
 
 ## Blobs and content addressing
 
-A blob is the protobuf serialization of one probe `ReadResult`: the bytes as
-received from the pipe, or, for an export file, the result re-serialized after
-parsing the JSON (ADR-0008). Both paths serialize with `yata-protocol`, so the
-same reading has the same digest.
+A blob is the protobuf serialization of one probe `ReadResult` with its request
+id left out, which belongs to the session and not to the reading
+(`probe-protocol.md`, § Export file). A reading from the pipe and the same
+reading from an export file are serialized by `yata-protocol` alike, so they
+have the same digest.
 
 - **The digest is SHA-256 over the uncompressed bytes.** Identity does not
   depend on how the bytes are stored, so the compression codec can change
   without re-keying anything.
-- **Blobs are compressed at rest** with a codec named in the blob's own header.
-  The initial codec is zstd.
+- **Blobs are compressed at rest** with a codec named in the blob's own header:
+  one byte, then the compressed bytes. The initial codec is zstd, byte `1`. An
+  unknown codec byte is an error, never a guess.
+- **A blob holds at most one frame's payload**, 16 MiB (`core-protocol.md`, §
+  Frame), and decompression stops at that bound. Opening a blob checks its bytes
+  against its digest; bytes that do not hash to their name are never used.
 - **Identical bytes are stored once.** Two reads that return the same bytes
   produce two `SnapshotAcquired` facts pointing at one blob: the observation
   happened twice, the data exists once.
 
 A blob is never modified. It is written once and later either kept or pruned.
+
+## Ingestion
+
+A reading reaches the fact log as a soul observation: the typed fields the
+reader fills, each with the evidence behind its mapping (`probe-protocol.md`, §
+Evidence), and the records as the reader saw them. Importing it checks two
+levels, which fail differently:
+
+- **A reading without soul identity is refused**, and nothing is committed.
+  Unless the reading states `SoulRecord.soul_id` as established, no record has
+  an identity the inventory can key on, and the import is
+  `import.unestablished_identity`. Two records of one soul are
+  `import.duplicate_soul`. A record without a soul id, a reading that does not
+  state its coverage, and a result that is not a soul reading are
+  `import.malformed_reading`.
+- **A record that cannot be a row is kept and reported.** A row needs its set,
+  slot, star, level, main attribute, and sub-attributes, each established by the
+  reading and present on the record; then the premises of W-Soul that need no
+  code table (`soul-mechanics.md`: star, level, at most four sub-attributes, no
+  attribute twice, finite non-negative values, recorded rolls within the nodes
+  reached). The innate attribute and the lock and discard flags are carried as
+  read. A record that fails is not a row (`query.md`) and is listed with the
+  import and the inventory. The blob keeps it as read; nothing is guessed or
+  repaired.
+
+Until the reader establishes these fields, every real reading is refused at the
+first level. That is the intended state: the store holds no soul whose identity
+rests on an inherited hypothesis (ADR-0014).
 
 ## Reading old facts
 
@@ -251,6 +304,27 @@ fact whose blob is pruned as superseded history with no readable content.
 **What compaction never does:** rewrite, merge, or delete a fact; prune a blob
 the fold reads; run without appending the `BlobsPruned` record of what it
 removed.
+
+## Implemented
+
+At HEAD, with the tests named in `evidence/testing.md`:
+
+- the fact kinds `ProfileCreated`, `ProfileRenamed`, `ProfileRetired`,
+  `ProfileRestored`, `SnapshotAcquired`, `SnapshotRetracted`, `SoulMarked`, and
+  `SoulNoted`, each at version 1, in `crates/yata-daemon/proto/fact.proto`
+- the codec and the lift chain (no steps yet), `store.newer_format` and
+  `store.malformed_commit`
+- the fold, as `yata-core::fact`; the soul inventory derived from the live
+  snapshots over `yata-core::import`'s observations, carrying the game's raw
+  codes, because decode to `SoulSet`, `SoulSlot`, and `SoulAttribute` waits on
+  the game's code tables
+- blobs, ingestion, and replay on open, in the daemon's store module;
+  `yata-daemon log` dumps the log, showing account ids only as present
+
+Not yet: `SchemeAccountLearned`, `SchemeSaved`, `SchemeRemoved`,
+`ParamSetActivated`, `BlobsPruned`, compaction, and the projection cache. The
+store starts with an empty cache table and replays the whole log on open; the
+cache is never read.
 
 ## Not decided here
 

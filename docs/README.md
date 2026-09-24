@@ -222,6 +222,8 @@ What changed for someone. Append-only; one fragment per change.
   daemon unsigned
 - [changes/unreleased/2026-09-reader-acquisition.md](changes/unreleased/2026-09-reader-acquisition.md)
   — the probe channel reads, records, and replays; readings carry their evidence
+- [changes/unreleased/2026-09-fact-log.md](changes/unreleased/2026-09-fact-log.md)
+  — the store records facts; the soul inventory is derived from them
 
 ## Outside `docs/`
 
