@@ -35,6 +35,8 @@ sha2 = "0.11"
 widestring = "1.2"
 # SQLite built in, so every platform runs the same version (ADR-0019)
 rusqlite = { version = "0.40", features = ["bundled"] }
+# the blob codec (fact-format.md, Blobs and content addressing)
+zstd = { version = "0.14", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

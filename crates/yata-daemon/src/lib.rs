@@ -8,7 +8,8 @@
 //!   readings into domain observations (ADR-0006, ADR-0008).
 //! - [`qr`]: QR matrices for scheme texts, and scheme texts from QR images (ADR-0009).
 //! - [`scheme`]: the scheme-code research commands' file reading and output.
-//! - [`store`]: the SQLite store behind `yata-store`'s instructions (ADR-0019).
+//! - [`store`]: the SQLite store behind `yata-store`'s instructions (ADR-0019), and the fact log
+//!   over it (ADR-0002).
 
 pub mod probe;
 pub mod qr;

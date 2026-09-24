@@ -1,0 +1,145 @@
+// The fact schema: the durable encoding of the log's commits (ADR-0002, fact-format.md).
+//
+// Owned by the store module of yata-daemon; nothing outside the daemon reads facts, so no Dart
+// bindings are generated. This file has its own version line: a change to a wire schema never
+// forces a change here, and a change here never forces a protocol bump.
+//
+// Evolution rules (ADR-0002, made strict):
+// - A tag number is never reused; a removed field's number and name go into `reserved`.
+// - Adding a field does not bump a kind's version. Its default must be a correct reading of
+//   every older payload, and the payload message says what the default means.
+// - A kind's version is bumped only when meaning changes, with a lift step in the daemon.
+// - Enum values are never renumbered or reused. An unknown enum value on load is a load error,
+//   and every enum's zero value is unused so that an absent value is never read as a real one.
+
+syntax = "proto3";
+
+package yata.fact.v1;
+
+// One commit of the log. The row key of the log table is `seq` as well, and the two must agree.
+message Commit {
+  uint64 seq = 1;
+  // The daemon's wall clock, in Unix milliseconds. Informational; order is `seq`.
+  sint64 recorded_at_unix_ms = 2;
+  Origin origin = 3;
+  // At least one.
+  repeated Fact facts = 4;
+}
+
+message Origin {
+  oneof kind {
+    uint64 command_request_id = 1;
+    uint64 job_id = 2;
+    Maintenance maintenance = 3;
+  }
+}
+
+message Maintenance {}
+
+// The envelope. `payload` is the message named by `kind`, at `version`.
+message Fact {
+  // The 16-byte ProfileId.
+  bytes profile = 1;
+  FactKind kind = 2;
+  uint32 version = 3;
+  bytes payload = 4;
+}
+
+// The kinds implemented so far. The rest of fact-format.md's catalogue is added, with new
+// numbers, when each is implemented.
+enum FactKind {
+  FACT_KIND_UNSPECIFIED = 0;
+  FACT_KIND_PROFILE_CREATED = 1;
+  FACT_KIND_PROFILE_RENAMED = 2;
+  FACT_KIND_PROFILE_RETIRED = 3;
+  FACT_KIND_PROFILE_RESTORED = 4;
+  FACT_KIND_SNAPSHOT_ACQUIRED = 5;
+  FACT_KIND_SNAPSHOT_RETRACTED = 6;
+  FACT_KIND_SOUL_MARKED = 7;
+  FACT_KIND_SOUL_NOTED = 8;
+}
+
+// Version 1.
+message ProfileCreated {
+  string display_name = 1;
+  // Absent when the profile was created without knowing its account.
+  optional string observed_account_id = 2;
+}
+
+// Version 1.
+message ProfileRenamed {
+  string display_name = 1;
+}
+
+// Version 1.
+message ProfileRetired {}
+
+// Version 1.
+message ProfileRestored {}
+
+enum Scope {
+  SCOPE_UNSPECIFIED = 0;
+  SCOPE_SOULS = 1;
+}
+
+enum Coverage {
+  COVERAGE_UNSPECIFIED = 0;
+  COVERAGE_COMPLETE = 1;
+  COVERAGE_PARTIAL = 2;
+}
+
+enum Channel {
+  CHANNEL_UNSPECIFIED = 0;
+  CHANNEL_DESKTOP_MEMORY = 1;
+  CHANNEL_MUMU_ADB = 2;
+}
+
+enum Source {
+  SOURCE_UNSPECIFIED = 0;
+  SOURCE_LIVE = 1;
+  SOURCE_EXPORT_FILE = 2;
+}
+
+// Version 1.
+message SnapshotAcquired {
+  // SHA-256 of the blob's uncompressed bytes.
+  bytes digest = 1;
+  Scope scope = 2;
+  Coverage coverage = 3;
+  Channel channel = 4;
+  Source source = 5;
+  string probe_build_id = 6;
+  uint32 probe_protocol_major = 7;
+  uint32 probe_protocol_minor = 8;
+  // Absent when the probe did not read the account.
+  optional string observed_account_id = 9;
+}
+
+// Version 1.
+message SnapshotRetracted {
+  bytes digest = 1;
+  // Informational; the fold never reads it.
+  string reason = 2;
+}
+
+enum Mark {
+  MARK_UNSPECIFIED = 0;
+  // Clears the mark.
+  MARK_NONE = 1;
+  MARK_KEEP = 2;
+  MARK_DISCARD = 3;
+  MARK_STRENGTHEN = 4;
+}
+
+// Version 1.
+message SoulMarked {
+  string soul_id = 1;
+  Mark mark = 2;
+}
+
+// Version 1.
+message SoulNoted {
+  string soul_id = 1;
+  // Empty clears the note.
+  string text = 2;
+}

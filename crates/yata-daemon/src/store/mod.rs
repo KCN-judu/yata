@@ -3,13 +3,24 @@
 //! This module decides what opening a store means — refusing a foreign file, a newer format,
 //! or a damaged one — and turns instructions into plans, plans into runs, and results back into
 //! outputs. It holds no SQL; [`executor`] runs it.
+//!
+//! - [`fact`]: the fact codec, `fact.proto` and the lift chain (ADR-0002).
+//! - [`blob`]: a reading's bytes at rest, named by their SHA-256.
+//! - [`FactLog`]: the log replayed into the projection; commits, imports, and inventories.
 
+pub mod blob;
 mod executor;
+pub mod fact;
+mod log;
 
 use std::path::{Path, PathBuf};
 
 pub use executor::ExecError;
 use executor::Executor;
+pub use log::{
+    CommitError, Committed, FactLog, IngestError, Ingested, InventoryReadError, LoadError,
+    Provenance, format_commit, read_commits,
+};
 use yata_store::{
     Instruction, MetaKey, Output, StoreError, StoreId, StoreKind, check_settings,
     connection_settings, plan,

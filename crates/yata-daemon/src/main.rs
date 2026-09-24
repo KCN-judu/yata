@@ -16,12 +16,13 @@ use yata_daemon::qr;
 use yata_daemon::scheme::{
     format_diff, format_dump, format_plans, parse_plan_file, read_code, read_payload,
 };
-use yata_daemon::store::{OpenError, Store};
+use yata_daemon::store::{OpenError, Store, format_commit, read_commits};
 
 const USAGE: &str = "usage: yata-daemon <command> ...
 
 commands:
   check <store.sqlite3>                   run SQLite's full integrity check on a store
+  log <store.sqlite3>                     print every commit of a store's fact log, readably
   scheme dump <code>                      print a scheme code's payload as hex
   scheme diff <code-a> <code-b>           compare two payloads byte by byte and bit by bit
   scheme decode <code> <payload.bin>      write a scheme code's payload to a file
@@ -49,6 +50,7 @@ fn main() -> ExitCode {
     let path = |i: usize| Path::new(&args[i]);
     match words.as_slice() {
         ["check", _] => check(path(1)),
+        ["log", _] => dump_log(path(1)),
         ["scheme", "dump", _] => report(read_code(path(2)).map(|p| format_dump(&p))),
         ["scheme", "diff", _, _] => report(
             read_code(path(2)).and_then(|a| read_code(path(3)).map(|b| format_diff(&diff(&a, &b)))),
@@ -212,6 +214,30 @@ fn check(path: &Path) -> ExitCode {
         }
         Err(e) => {
             eprintln!("store.check_failed: {e:?}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Print the log commit by commit. It decodes without folding, so a log the fold refuses still
+/// prints, up to the first commit that does not decode.
+fn dump_log(path: &Path) -> ExitCode {
+    let mut store = match Store::open(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("{}", describe(&e));
+            return ExitCode::FAILURE;
+        }
+    };
+    match read_commits(&mut store) {
+        Ok(commits) => {
+            for c in &commits {
+                print!("{}", format_commit(c));
+            }
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("{}: {e:?}", e.code());
             ExitCode::FAILURE
         }
     }
