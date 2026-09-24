@@ -26,6 +26,14 @@ const SOLVED_FILTER_BITS: [(u16, u16); 4] = [(0, 22), (25, 26), (29, 30), (33, 6
 /// The filter length every observed plan has; a filter built from scratch has it.
 pub const FILTER_LEN: usize = 7;
 
+/// The longest plan name the game imports, in characters. Names of 11 characters or more were
+/// refused on import, and the game's own exports never exceed 10 (2026-09-24).
+pub const MAX_NAME_CHARS: usize = 10;
+
+/// The longest plan name, in UTF-8 bytes, known to import: 26. Whether the game's limit counts
+/// characters or bytes is not yet told apart, so a name must meet both.
+pub const MAX_NAME_BYTES: usize = 26;
+
 /// A soul-set bit this codec may write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SoulBit(u16);
@@ -64,6 +72,12 @@ pub enum EditError {
     EmptySoulMask,
     /// A record from scratch was given an empty list of souls; "all souls" is `None`.
     NoSouls,
+    /// A name the game would refuse on import: longer than [`MAX_NAME_CHARS`] characters or
+    /// [`MAX_NAME_BYTES`] bytes.
+    NameTooLong {
+        chars: usize,
+        bytes: usize,
+    },
     Layout(LayoutError),
 }
 
@@ -147,12 +161,20 @@ impl Record {
     }
 
     /// A record from nothing: `souls` of `None` is "all souls"; the filter is [`FILTER_LEN`]
-    /// bytes with only the given solved bits set, every open bit clear.
+    /// bytes with only the given solved bits set, every open bit clear. The name must be one the
+    /// game imports.
     pub fn from_bits(
         name: &str,
         souls: Option<&[SoulBit]>,
         filter: &[FilterBit],
     ) -> Result<Record, EditError> {
+        let chars = name.chars().count();
+        if chars > MAX_NAME_CHARS || name.len() > MAX_NAME_BYTES {
+            return Err(EditError::NameTooLong {
+                chars,
+                bytes: name.len(),
+            });
+        }
         let mut soul_mask = Vec::new();
         if let Some(souls) = souls {
             if souls.is_empty() {
@@ -256,6 +278,25 @@ mod tests {
             with(&[55, 56, 57, 58, 59, 60]).filter(),
             &[0x3f, 0x08, 0, 0, 0, 0, 0x82, 0x1f]
         );
+    }
+
+    #[test]
+    fn names_the_game_refuses_are_refused() {
+        // Imported on 2026-09-24: 10 characters, 26 bytes.
+        assert!(Record::from_bits("基准-不要改-雪幽魂", None, &[]).is_ok());
+        // Refused on import: 11 characters, 29 bytes.
+        assert_eq!(
+            Record::from_bits("攻击固定值-排除-蝠翼", None, &[]),
+            Err(EditError::NameTooLong {
+                chars: 11,
+                bytes: 29
+            })
+        );
+        // Ten characters, but past the longest byte length known to import.
+        assert!(matches!(
+            Record::from_bits("攻击攻击攻击攻击攻击", None, &[]),
+            Err(EditError::NameTooLong { chars: 10, .. })
+        ));
     }
 
     #[test]
