@@ -1,6 +1,6 @@
 //! Scheme codes from the game, end to end: for each code in the local corpus, the payload
-//! survives decode → encode → decode byte for byte, and survives the whole QR loop — text → QR
-//! matrix → PNG → text → payload.
+//! survives decode → encode → decode byte for byte, parses into its layout and is written back
+//! byte for byte, and survives the whole QR loop — text → QR matrix → PNG → text → payload.
 //!
 //! The corpus is game-derived and stays out of the public repository (ADR-0016). It is read from
 //! the folder named by `YATA_SCHEME_CORPUS`, or `research/fixtures/scheme-codes/` in the working
@@ -9,6 +9,7 @@
 
 use std::path::PathBuf;
 
+use yata_core::scheme::layout::{parse, serialize};
 use yata_core::scheme::transport::{decode_text, encode_text};
 use yata_daemon::qr;
 use yata_daemon::scheme::read_code_text;
@@ -38,6 +39,13 @@ fn every_corpus_code_round_trips_through_text_and_qr() {
     for path in codes {
         let text = read_code_text(&path).expect("readable code");
         let payload = decode_text(&text).expect("decodable code");
+        let layout = parse(&payload).expect("the confirmed layout");
+        assert_eq!(
+            serialize(&layout).as_ref(),
+            Ok(&payload),
+            "{}: layout not written back byte for byte",
+            path.display()
+        );
         let ours = encode_text(&payload).expect("encodable payload");
         assert_eq!(
             decode_text(ours.as_str()).as_ref(),
@@ -50,9 +58,10 @@ fn every_corpus_code_round_trips_through_text_and_qr() {
         let read_back = qr::decode_png(&png).expect("readable QR code");
         assert_eq!(read_back, ours.as_str(), "{}", path.display());
         eprintln!(
-            "{}: {} bytes; our text is {} the game's",
+            "{}: {} bytes, {} records; our text is {} the game's",
             path.display(),
             payload.len(),
+            layout.records.len(),
             if ours.as_str() == text {
                 "identical to"
             } else {
