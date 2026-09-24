@@ -247,32 +247,40 @@ which carries a `SchemeCode`. There is one registered codec.
 
 ### Encoder stages
 
-The encoder is built in three stages, each gated on the wire page:
+| Stage                       | Produces                                                              | Gated on                                            |
+| --------------------------- | --------------------------------------------------------------------- | --------------------------------------------------- |
+| 1. template edit            | a code derived from a decoded code, with only modelled fields changed | nothing: the framing is solved                      |
+| 2. single plan from scratch | a strengthening plan with no template                                 | nothing: the plan record is solved                  |
+| 3. whole set from scratch   | a complete strengthening scheme set                                   | nothing for strengthening sets; see the header rule |
 
-| Stage                       | Produces                                                              | Gated on                                                                      |
-| --------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| 1. template edit            | a code derived from a decoded code, with only modelled fields changed | locating a plan's filter mask: the payload's header length and record framing |
-| 2. single plan from scratch | a strengthening plan with no template                                 | plan framing and boundary                                                     |
-| 3. whole set from scratch   | a complete strengthening scheme set                                   | container header, plan count, metadata                                        |
+**The framing is solved for strengthening sets.** On 2026-09-24 a set built from
+nothing by this project, with 14 plans, was imported into the game, which listed
+every plan by name and showed the soul each one selected
+(`research/scheme-code-protocol.md`, "Confirmed by import"). A discard scheme's
+framing is the same record shape and is inferred from exported codes, not yet
+from an import.
 
-Stage 1 is not yet safe. The filter bits it would edit are solved, but finding
-them in a payload needs the header length and the record framing, which the
-research record does not yet mark solved; a parse that fits one sample is a
-hypothesis, not a layout. Until they are solved, the codec reads and writes the
-payload only as raw bytes.
+A plan built from scratch writes only solved fields. Filter bits that are not
+solved (sub-attribute count, legs, innate attribute) are left clear, and a plan
+that needs one of them starts from a template that carries it, where the bit is
+preserved as read.
 
-Until stage 2, **authoring a new scheme starts from a template**: a known-good
-code from the corpus, bundled with the application, whose preserved content is
-known to be neutral. The user edits a `SoulSelection`; the encoder writes it
-into the template's structure.
+### The header and the user's account
 
-A discard scheme is closer to stage 3 than a strengthening set, because its
-framing is simpler; it may reach from-scratch encoding first.
+Every code carries a header that identifies **the account that exported it** and
+the scheme's kind. The game shows that account on import. The header is
+account-derived data: it stays on the user's machine, is never logged, and is
+never shown except as the account it names.
+
+**A code this application encodes carries the user's own header.** The
+application learns it from a scheme code the user shares with it — any code
+exported from their account — and keeps it with that game profile. Encoding for
+a profile with no known header asks the user to share a code first. The game has
+been observed to accept a header from another account, but the application does
+not rely on that.
 
 ## Open questions
 
-- how a decoder tells a discard code from a strengthening code, before the
-  header is solved
 - whether the game's import accepts Base64 text as well as a QR code
 - the three evaluation questions above
 
