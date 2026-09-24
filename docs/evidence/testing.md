@@ -260,6 +260,33 @@ On the one real code in the local corpus (a 30-plan strengthening set, 1 102
 bytes), the payload round-trips and survives the QR loop. The text this encoder
 produces differs from the game's, as § Transport allows.
 
+## Query evaluation — `yata-core::query`, `yata-daemon`
+
+Unit tests in `query::tests`; endpoint tests in
+`crates/yata-daemon/tests/query.rs`.
+
+| Claim in [query.md](../spec/query.md) and ADR-0026                                           | Tests                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| each predicate: enum `In`, int and number ranges, bools, `pristine`                          | `enum_predicates_test_membership`, `int_predicates_test_inclusive_ranges`, `number_predicates_read_stored_values_and_zero_for_an_absent_sub`, `bool_predicates_test_presence_and_pristine`                   |
+| number bounds use the domain's tolerance (rule 3)                                            | `number_bounds_compare_with_the_domain_tolerance`                                                                                                                                                            |
+| empty `And` is true, empty `Or` false; nested `And`, `Or`, `Not`                             | `empty_and_is_true_and_empty_or_is_false`, `nested_and_or_not_compose`                                                                                                                                       |
+| an open verdict stays open, is settled by a decided operand, names its rules                 | `an_open_verdict_stays_open_through_not`, `a_decided_operand_settles_an_open_one`, `an_open_result_names_every_open_rule_beneath_it`                                                                         |
+| Kleene logic is sound for every reading; De Morgan; `Not` an involution                      | `kleene_logic_is_sound_for_every_reading`, `not_is_an_involution_and_de_morgan_holds` (property tests)                                                                                                       |
+| `MatchesScheme` takes the scheme evaluator's `Matches`, `DoesNotMatch`, `Undetermined`       | `a_scheme_filter_takes_the_scheme_evaluators_verdict`; endpoint: `a_scheme_filter_reports_each_rows_verdict`                                                                                                 |
+| a scheme reference names exactly one entry                                                   | `a_scheme_reference_names_exactly_one_entry`                                                                                                                                                                 |
+| depth, node, value, and sort-key limits                                                      | `depth_is_limited`, `node_count_is_limited`, `test_values_and_sort_keys_are_limited`                                                                                                                         |
+| type mismatches, malformed tests, unsortable fields, gated scores                            | `a_test_must_fit_its_field`, `a_malformed_test_is_refused_not_read_as_false`, `has_sub_is_not_a_sort_key`, `a_score_field_needs_a_parameter_set_and_is_not_evaluated_yet`                                    |
+| identity order; sort keys then identity; any input order gives the same page                 | `the_default_order_is_row_identity`, `sort_keys_order_rows_and_identity_breaks_ties`; endpoint: `the_same_rows_in_any_order_give_the_same_bytes`                                                             |
+| pages continue from their cursor without gaps or repeats; a foreign cursor is refused        | `pages_continue_from_their_cursor_without_gaps_or_repeats`, `a_cursor_from_another_order_is_refused`; endpoint: `pages_follow_their_cursor_across_requests`                                                  |
+| malformed protocol trees are refused with their code; past the decoder's recursion limit too | `malformed_trees_are_refused_with_their_code`, `a_tree_past_the_decoders_recursion_limit_is_malformed_not_a_crash`, `bytes_that_are_not_a_request_are_malformed`, `request_level_refusals_carry_their_codes` |
+| a malformed request does not affect the next; a broken frame ends the stream                 | `a_bad_request_in_a_stream_does_not_affect_the_next`, `a_broken_frame_ends_the_stream_after_answering_what_came_before`                                                                                      |
+
+Timing, not a test: `cargo run --release -p yata-daemon --example query_bench`
+evaluates five queries over 1 000, 10 000, and 100 000 generated souls. On the
+maintainer's machine, 2026-09-25, every query over 10 000 souls took under 9 ms,
+and over 100 000 under 90 ms; a whole request of 100 000 souls, decode included,
+took 115 ms. No index is built.
+
 ## Quality model — `formal/`
 
 Pass 1 is not implemented in `yata-core`; its definition is checked by proofs
