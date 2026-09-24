@@ -139,19 +139,23 @@ that need it. That inversion is the feature; a single pass cannot produce it at
 any weight setting, because the weights would have to be the average over all
 Shikigami, and the average is exactly what erases the signal.
 
-Pass 2 also gets the search space it needs for free: no soul below the quality
-floor can be in the top six of any need, so pass 1 is the pruning predicate, not
-just a score to display.
+Pass 2 works at three levels (ADR-0028): one soul against a need, one loadout
+against a need, and one swap in a loadout. A need's floors and caps are sums
+over six souls, so they are decided on a loadout, never on one soul. Pass 1 does
+not bound pass 2, so it prunes nothing by itself; a quality threshold on
+candidates is a user's policy.
 
 The definitions are in `../spec/scoring.md`. The shapes in one line:
 
 ```text
-quality  : (params, Soul)                          -> QualityScore
-fit      : (params, NeedProfile, Soul)             -> AffinityScore     // one soul, one need
-match    : (params, Inventory, [NeedProfile])      -> MatchingResult    // assignment + deltas
+quality  : (params, Soul)                              -> QualityScore
+fit      : (params, NeedProfile, Soul)                 -> AffinityScore     // one soul, one need
+evaluate : (params, NeedProfile, Loadout, Baseline?)   -> LoadoutFit        // one loadout
+swap     : (params, NeedProfile, Loadout, slot, Soul, Baseline?) -> SwapDelta  // against what is worn
+match    : (params, Inventory, [NeedProfile])          -> MatchingResult    // assignment + deltas
 ```
 
-All three are total, pure, and parameterized by a versioned parameter set, so
+All of them are total, pure, and parameterized by a versioned parameter set, so
 the same code can be re-run under a different set of weights and the result is
 comparable rather than merely different.
 

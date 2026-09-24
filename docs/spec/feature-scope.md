@@ -104,6 +104,10 @@ a list to strengthen, both expressed as `SoulSelection` values (ADR-0009). These
 can be exported as scheme codes (QR codes), imported directly into the game's
 panel, and shared with other players.
 
+A soul whose rolls suit its own four-piece set's usual use gets a keep
+suggestion. Set use only ever adds such a suggestion; it never lowers a soul,
+and it never changes a score (ADR-0028).
+
 ### Automatic updates
 
 The application updates itself: a signed release manifest, download and

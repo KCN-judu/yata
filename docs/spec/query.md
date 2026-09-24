@@ -96,7 +96,7 @@ The one exception is not a field: the scheme evaluator's verdict, under
 | `has_note`                                          | bool                                       | user fact                                 |
 | `quality.total`, `quality.depth`, `quality.breadth` | score                                      | pass 1                                    |
 | `affinity(need).value`                              | score                                      | pass 2                                    |
-| `affinity(need).qualifies`                          | bool                                       | pass 2                                    |
+| `affinity(need).admitted`                           | bool                                       | pass 2                                    |
 
 Values are in the units the domain uses; this page does not restate them.
 
