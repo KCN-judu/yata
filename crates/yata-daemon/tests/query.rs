@@ -472,6 +472,25 @@ fn request_level_refusals_carry_their_codes() {
 }
 
 #[test]
+fn a_star_outside_one_to_six_is_malformed() {
+    for bad in [0, 7] {
+        let mut r = request(1, query(None));
+        r.inventory.push(soul("s9", bad, 1.0));
+        assert_eq!(code(&r), "query.malformed", "soul star {bad}");
+        let selection = WireSelection {
+            sets: Some(Sets::All(AnySet {})),
+            stars: vec![bad],
+            ..WireSelection::default()
+        };
+        assert_eq!(
+            code(&request(1, query(Some(node(Kind::Matches(selection)))))),
+            "query.malformed",
+            "selection star {bad}"
+        );
+    }
+}
+
+#[test]
 fn a_value_that_is_not_a_stored_value_is_malformed() {
     for bad in [f64::NAN, f64::INFINITY, -1.0] {
         let mut sub = request(1, query(None));

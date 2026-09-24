@@ -44,7 +44,7 @@ pub mod fixture {
 
     use yata_core::fact::{GameSoulId, ProfileId, Revision, Seq};
     use yata_core::soul::{
-        Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute,
+        Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
     };
 
     use super::{ProfileEntry, Projection};
@@ -103,7 +103,7 @@ pub mod fixture {
                 let soul = Soul {
                     set: SoulSet::from_suit_code(suit),
                     slot,
-                    star: 6,
+                    star: Star::Six,
                     level,
                     main,
                     main_value,

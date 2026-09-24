@@ -26,7 +26,7 @@ use yata_core::scheme::layout::{AccountSegment, serialize};
 use yata_core::scheme::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode};
 use yata_core::scheme::transport::encode_text;
 use yata_core::soul::{
-    Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute,
+    Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
 };
 use yata_protocol::core as wire;
 
@@ -61,9 +61,9 @@ fn inventory(n: usize, seed: u64) -> BTreeMap<String, Soul> {
             let options = slot.main_options();
             let main = options[r.below(options.len() as u64) as usize];
             let star = match r.below(10) {
-                0 => 4,
-                1 | 2 => 5,
-                _ => 6,
+                0 => Star::Four,
+                1 | 2 => Star::Five,
+                _ => Star::Six,
             };
             let level = match r.below(10) {
                 0..=3 => 0,
@@ -107,7 +107,7 @@ fn scheme_code() -> String {
             .collect(),
     ));
     s.slots = [SoulSlot::Slot2, SoulSlot::Slot4, SoulSlot::Slot6].into();
-    s.stars = [6].into();
+    s.stars = [Star::Six].into();
     s.levels = [LevelBand::L0to2, LevelBand::L15].into();
     s.sub_attributes
         .set(SoulAttribute::Spd, SubAttributeMode::Include);
@@ -194,7 +194,7 @@ fn wire_soul(id: &str, s: &Soul) -> wire::Soul {
         soul_id: id.to_owned(),
         suit_code: u32::from(s.set.suit_code()),
         slot,
-        star: u32::from(s.star),
+        star: u32::from(s.star.get()),
         level: u32::from(s.level),
         main: attribute(s.main),
         main_value: s.main_value.get(),

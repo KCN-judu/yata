@@ -79,14 +79,14 @@ pub fn top_band(soul: &Soul, attribute: SoulAttribute) -> Result<Truth, Undecide
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::{RollCount, StoredValue, SubAttribute};
+    use crate::soul::{RollCount, Star, StoredValue, SubAttribute};
     use SoulAttribute::*;
 
     fn soul(slot: SoulSlot, main: SoulAttribute, subs: &[(SoulAttribute, f64)]) -> Soul {
         Soul {
             set: crate::soul::SoulSet::from_suit_code(30),
             slot,
-            star: 6,
+            star: Star::Six,
             level: 15,
             main,
             main_value: StoredValue::ZERO,
@@ -168,7 +168,7 @@ mod tests {
     fn top_band_is_decidable_from_values_alone_for_every_attribute() {
         // Max − 1 > 5 · hi for every 6★ attribute, so the band forces six hits.
         for a in SoulAttribute::ALL {
-            let r = increment_range(a, 6).expect("known at 6 stars");
+            let r = increment_range(a, Star::Six).expect("known at 6 stars");
             let s = soul(SoulSlot::Slot1, AtkFlat, &[(a, r.max() - 1.0)]);
             assert_eq!(top_band(&s, a), Ok(Truth::Certain), "{a:?}");
         }
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn top_band_below_six_stars_is_undecided() {
         let mut s = soul(SoulSlot::Slot2, Spd, &[(Spd, 17.0)]);
-        s.star = 5;
+        s.star = Star::Five;
         assert!(top_band(&s, Spd).is_err());
     }
 }

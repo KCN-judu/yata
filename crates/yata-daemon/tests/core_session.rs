@@ -18,7 +18,7 @@ use yata_core::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningScheme
 use yata_core::scheme::layout::{AccountSegment, serialize};
 use yata_core::scheme::selection::{SetChoice, SoulSelection, SubAttributeMode};
 use yata_core::scheme::transport::encode_text;
-use yata_core::soul::{SoulAttribute, SoulSet, SoulSlot};
+use yata_core::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
 use yata_daemon::qr;
 use yata_daemon::serve::projection::{Projection, fixture};
 use yata_daemon::serve::session::Session;
@@ -342,7 +342,7 @@ fn sample_scheme_text() -> String {
     spd.sub_attributes
         .set(SoulAttribute::HpFlat, SubAttributeMode::Exclude);
     let mut all = SoulSelection::new(SetChoice::AnySet);
-    all.stars.insert(6);
+    all.stars.insert(Star::Six);
     let code = SchemeCode::Strengthening(StrengtheningSchemeSet {
         plans: vec![
             StrengtheningPlan::new("spd", spd),

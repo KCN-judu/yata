@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use crate::soul::InnateAttribute;
-use crate::soul::{SoulAttribute, SoulSet, SoulSlot};
+use crate::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
 
 use super::layout::{MAX_FIELD_LEN, Record, SchemeKind};
 use super::mapping::{
@@ -27,8 +27,8 @@ pub struct SoulSelection {
     pub sets: SetChoice,
     /// 位置.
     pub slots: BTreeSet<SoulSlot>,
-    /// 星级, 1 to 6.
-    pub stars: BTreeSet<u8>,
+    /// 星级.
+    pub stars: BTreeSet<Star>,
     /// 等级.
     pub levels: BTreeSet<LevelBand>,
     /// 主属性.
@@ -235,8 +235,6 @@ pub enum SelectionError {
     NoSets,
     /// A set whose suit code has no scheme bit.
     UnknownSet(SoulSet),
-    /// A star outside 1 to 6.
-    InvalidStar(u8),
     /// A field longer than its one-byte length prefix allows.
     FieldTooLong,
 }
@@ -366,9 +364,6 @@ pub fn encode_selection(
             mask
         }
     };
-    if let Some(&star) = selection.stars.iter().find(|s| !(1..=6).contains(*s)) {
-        return Err(SelectionError::InvalidStar(star));
-    }
     let mut filter = preserved.filter.clone();
     let f = &mut filter;
     write_group(f, &SLOT_BITS, &selection.slots)?;
@@ -446,10 +441,10 @@ mod tests {
 
     #[test]
     fn every_star_is_its_bit() {
-        for star in 1..=6u8 {
+        for star in Star::ALL {
             let mut s = any_set();
             s.stars.insert(star);
-            assert_one_bit(&s, 5 + u16::from(star));
+            assert_one_bit(&s, 5 + u16::from(star.get()));
         }
     }
 
@@ -608,12 +603,6 @@ mod tests {
             encode_selection(&s, SchemeKind::Discard, &none),
             Err(SelectionError::UnknownSet(unknown))
         );
-        let mut s = any_set();
-        s.stars.insert(7);
-        assert_eq!(
-            encode_selection(&s, SchemeKind::Strengthening, &none),
-            Err(SelectionError::InvalidStar(7))
-        );
         let (_, over_unknown) =
             decode_selection(&record(&with_bits(&[70]), &[]), SchemeKind::Strengthening)
                 .expect("ok");
@@ -682,7 +671,7 @@ mod tests {
         (
             sets,
             subsequence(SoulSlot::ALL.to_vec(), 0..=6),
-            subsequence(vec![1u8, 2, 3, 4, 5, 6], 0..=6),
+            subsequence(Star::ALL.to_vec(), 0..=6),
             subsequence(LevelBand::ALL.to_vec(), 0..=6),
             subsequence(SoulAttribute::ALL.to_vec(), 0..=11),
             subsequence(InnateAttribute::ALL.to_vec(), 0..=6),

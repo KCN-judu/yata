@@ -8,6 +8,7 @@ mod innate;
 mod model;
 mod set;
 mod slot;
+mod star;
 mod value;
 
 pub use attribute::{AttributeCategory, RollClass, SoulAttribute};
@@ -15,4 +16,5 @@ pub use innate::InnateAttribute;
 pub use model::{RollCount, Soul, SoulKind, SubAttribute};
 pub use set::SoulSet;
 pub use slot::SoulSlot;
+pub use star::{NotAStar, Star};
 pub use value::StoredValue;

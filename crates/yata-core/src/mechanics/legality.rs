@@ -8,9 +8,6 @@ use crate::soul::{Soul, SoulAttribute, SoulSlot, StoredValue};
 /// Why a soul is not well-formed. Each variant carries the values that broke the rule.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Violation {
-    StarOutOfRange {
-        star: u8,
-    },
     LevelOutOfRange {
         level: u8,
     },
@@ -91,9 +88,6 @@ impl Assessment {
 pub fn assess(soul: &Soul) -> Assessment {
     let mut out = Assessment::default();
     let v = &mut out.violations;
-    if !(1..=6).contains(&soul.star) {
-        v.push(Violation::StarOutOfRange { star: soul.star });
-    }
     if soul.level > 15 {
         v.push(Violation::LevelOutOfRange { level: soul.level });
     }
@@ -182,7 +176,7 @@ fn check_recorded(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::{RollCount, SubAttribute};
+    use crate::soul::{RollCount, Star, SubAttribute};
     use SoulAttribute::*;
 
     fn v(x: f64) -> StoredValue {
@@ -202,7 +196,7 @@ mod tests {
         Soul {
             set: crate::soul::SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,
-            star: 6,
+            star: Star::Six,
             level: 15,
             main: Spd,
             main_value: v(57.0),
@@ -233,12 +227,10 @@ mod tests {
     #[test]
     fn shape_violations_are_all_reported() {
         let mut s = soul();
-        s.star = 7;
         s.level = 16;
         s.slot = SoulSlot::Slot1;
         s.subs.push(sub(Crit, 2.5));
         let v = assess(&s).violations;
-        assert!(v.contains(&Violation::StarOutOfRange { star: 7 }));
         assert!(v.contains(&Violation::LevelOutOfRange { level: 16 }));
         assert!(v.contains(&Violation::MainNotAllowed {
             slot: SoulSlot::Slot1,
@@ -289,7 +281,7 @@ mod tests {
     #[test]
     fn below_six_stars_value_rules_are_undecidable() {
         let mut s = soul();
-        s.star = 5;
+        s.star = Star::Five;
         let a = assess(&s);
         assert_eq!(a.verdict(), Verdict::Undecidable);
         assert_eq!(a.undecided.len(), 4);

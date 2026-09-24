@@ -16,7 +16,7 @@ use yata_core::scheme::selection::{
     InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
 };
 use yata_core::soul::{
-    RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute,
+    RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
 };
 use yata_protocol::core as wire;
 
@@ -86,7 +86,7 @@ fn soul(s: wire::Soul) -> Result<Soul, WireProblem> {
     Ok(Soul {
         set: SoulSet::from_suit_code(byte(s.suit_code)?),
         slot: slot(s.slot)?,
-        star: byte(s.star)?,
+        star: star(s.star)?,
         level: byte(s.level)?,
         main: attribute(s.main)?,
         main_value: stored(s.main_value)?,
@@ -184,6 +184,10 @@ fn bounded<W: Copy, T>(
         return Err(too_complex(Limit::TestValues, values.len()));
     }
     values.iter().map(|&v| each(v).map_err(malformed)).collect()
+}
+
+fn star(n: u32) -> Result<Star, WireProblem> {
+    Star::try_from(n).map_err(|_| WireProblem::OutOfRange)
 }
 
 fn suit(code: u32) -> Result<SoulSet, WireProblem> {
@@ -404,11 +408,7 @@ pub fn selection(s: &wire::SoulSelection) -> Result<SoulSelection, RequestError>
     };
     let mut out = SoulSelection::new(sets);
     out.slots = bounded(&s.slots, slot)?.into_iter().collect();
-    out.stars = bounded(&s.stars, |v| {
-        u8::try_from(v).map_err(|_| WireProblem::OutOfRange)
-    })?
-    .into_iter()
-    .collect();
+    out.stars = bounded(&s.stars, star)?.into_iter().collect();
     out.levels = bounded(&s.levels, level_band)?.into_iter().collect();
     out.main_attributes = bounded(&s.main_attributes, attribute)?
         .into_iter()

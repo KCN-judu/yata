@@ -1,7 +1,7 @@
 //! The value tables of `soul-mechanics.md`: § Values and § Main-attribute values.
 
 use super::inference::HitCount;
-use crate::soul::{RollCount, SoulAttribute};
+use crate::soul::{RollCount, SoulAttribute, Star};
 
 /// The tolerance of every comparison between a stored value and a table bound, in display
 /// units (`soul-mechanics.md`, "Comparing values"). Stored values are binary floats; the
@@ -49,9 +49,9 @@ const fn range(lo_tenths: u32, hi_tenths: u32) -> IncrementRange {
 }
 
 /// `[lo(a), hi(a)]` at a star, or `None` where the spec marks it TBD (every star below 6).
-pub fn increment_range(attribute: SoulAttribute, star: u8) -> Option<IncrementRange> {
+pub fn increment_range(attribute: SoulAttribute, star: Star) -> Option<IncrementRange> {
     use SoulAttribute::*;
-    if star != 6 {
+    if star != Star::Six {
         return None;
     }
     Some(match attribute {
@@ -64,9 +64,9 @@ pub fn increment_range(attribute: SoulAttribute, star: u8) -> Option<IncrementRa
 }
 
 /// M-Main: `main(m, ℓ) = base(m) + ℓ · step(m)` for a 6★ soul, or `None` below 6★ (TBD).
-pub fn main_value(attribute: SoulAttribute, star: u8, level: u8) -> Option<f64> {
+pub fn main_value(attribute: SoulAttribute, star: Star, level: u8) -> Option<f64> {
     use SoulAttribute::*;
-    if star != 6 {
+    if star != Star::Six {
         return None;
     }
     let (base, step): (u32, u32) = match attribute {
@@ -86,7 +86,7 @@ mod tests {
     use SoulAttribute::*;
 
     fn six(a: SoulAttribute) -> IncrementRange {
-        increment_range(a, 6).expect("every attribute has a 6-star range")
+        increment_range(a, Star::Six).expect("every attribute has a 6-star range")
     }
 
     #[test]
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn ranges_below_six_stars_are_undecided() {
-        for star in 1..6 {
+        for star in [Star::One, Star::Two, Star::Three, Star::Four, Star::Five] {
             assert_eq!(increment_range(Spd, star), None);
             assert_eq!(main_value(Spd, star, 15), None);
         }
@@ -138,7 +138,7 @@ mod tests {
             (EffectRes, 55.0),
         ];
         for (a, v) in expected {
-            assert_eq!(main_value(a, 6, 15), Some(v), "{a:?}");
+            assert_eq!(main_value(a, Star::Six, 15), Some(v), "{a:?}");
         }
     }
 
@@ -147,9 +147,9 @@ mod tests {
         let atk = [81.0, 162.0, 243.0, 324.0, 405.0, 486.0];
         for (i, v) in atk.into_iter().enumerate() {
             let level = u8::try_from(i * 3).expect("small");
-            assert_eq!(main_value(AtkFlat, 6, level), Some(v));
+            assert_eq!(main_value(AtkFlat, Star::Six, level), Some(v));
         }
-        assert_eq!(main_value(CritDmg, 6, 0), Some(14.0));
-        assert_eq!(main_value(CritDmg, 6, 9), Some(59.0));
+        assert_eq!(main_value(CritDmg, Star::Six, 0), Some(14.0));
+        assert_eq!(main_value(CritDmg, Star::Six, 9), Some(59.0));
     }
 }

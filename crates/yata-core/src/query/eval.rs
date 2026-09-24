@@ -209,7 +209,7 @@ impl Cond {
 impl IntField {
     pub(super) fn value(self, soul: &Soul) -> i64 {
         match self {
-            IntField::Star => i64::from(soul.star),
+            IntField::Star => i64::from(soul.star.get()),
             IntField::Level => i64::from(soul.level),
             // A soul holds at most a handful of sub-attributes; the count always fits.
             IntField::SubCount => i64::try_from(soul.subs.len()).unwrap_or(i64::MAX),

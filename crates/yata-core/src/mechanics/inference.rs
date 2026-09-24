@@ -125,13 +125,13 @@ pub fn hits(soul: &Soul, sub: &SubAttribute) -> Result<Hits, Undecided> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::{SoulAttribute, SoulSlot, StoredValue};
+    use crate::soul::{SoulAttribute, SoulSlot, Star, StoredValue};
 
     fn spd_soul(level: u8, value: f64) -> Soul {
         Soul {
             set: crate::soul::SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,
-            star: 6,
+            star: Star::Six,
             level,
             main: SoulAttribute::Spd,
             main_value: StoredValue::new(57.0).expect("stored"),
@@ -190,12 +190,12 @@ mod tests {
     #[test]
     fn below_six_stars_the_inference_is_undecided() {
         let mut s = spd_soul(15, 10.0);
-        s.star = 5;
+        s.star = Star::Five;
         assert_eq!(
             hits(&s, &s.subs[0]),
             Err(Undecided::IncrementRangeUnknown {
                 attribute: SoulAttribute::Spd,
-                star: 5
+                star: Star::Five
             })
         );
     }

@@ -10,7 +10,9 @@ use crate::scheme::evaluate::{OpenRule, Verdict};
 use crate::scheme::layout::{AccountSegment, Record, SchemeLayout, serialize};
 use crate::scheme::selection::{InnateAttribute, SetChoice, SoulSelection};
 use crate::scheme::transport::encode_text;
-use crate::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, StoredValue, SubAttribute};
+use crate::soul::{
+    Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
+};
 
 use SoulAttribute::*;
 
@@ -18,7 +20,7 @@ fn soul(set: u8, slot: SoulSlot, star: u8, level: u8, main: SoulAttribute) -> So
     Soul {
         set: SoulSet::from_suit_code(set),
         slot,
-        star,
+        star: Star::try_from(star).expect("a star"),
         level,
         main,
         main_value: StoredValue::from_tenths(570),
@@ -380,7 +382,10 @@ fn a_scheme_filter_takes_the_scheme_evaluators_verdict() {
         verdict(scheme(&unknown, None), &s),
         open(&[OpenRule::UnknownConditions])
     );
-    let five_star = Soul { star: 5, ..s };
+    let five_star = Soul {
+        star: Star::Five,
+        ..s
+    };
     assert_eq!(verdict(scheme(&unknown, None), &five_star), NO);
 }
 

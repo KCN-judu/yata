@@ -11,7 +11,7 @@
 //! the game shows for each bit; the suit code of each soul is the prior tool's identifier, a
 //! hypothesis until a reader recording re-establishes it (ADR-0014).
 
-use crate::soul::{SoulAttribute, SoulSet, SoulSlot};
+use crate::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
 
 use super::selection::{InnateAttribute, LevelBand, SubCount};
 
@@ -42,7 +42,14 @@ pub(crate) const SLOT_BITS: [(SoulSlot, u16); 6] = [
 ];
 
 /// 星级: bit `5 + n` is `n` stars.
-pub(crate) const STAR_BITS: [(u8, u16); 6] = [(1, 6), (2, 7), (3, 8), (4, 9), (5, 10), (6, 11)];
+pub(crate) const STAR_BITS: [(Star, u16); 6] = [
+    (Star::One, 6),
+    (Star::Two, 7),
+    (Star::Three, 8),
+    (Star::Four, 9),
+    (Star::Five, 10),
+    (Star::Six, 11),
+];
 
 /// 主属性, in the game's attribute order.
 pub(crate) const MAIN_BITS: [(SoulAttribute, u16); 11] = [
@@ -191,7 +198,7 @@ mod tests {
         let subs: BTreeSet<_> = SUB_BITS.iter().map(|e| e.0).collect();
         assert_eq!(subs.len(), SoulAttribute::ALL.len());
         let stars: BTreeSet<_> = STAR_BITS.iter().map(|e| e.0).collect();
-        assert_eq!(stars, (1..=6).collect());
+        assert_eq!(stars, Star::ALL.into_iter().collect());
         let levels: BTreeSet<_> = LEVEL_BITS.iter().map(|e| e.0).collect();
         assert_eq!(levels.len(), LevelBand::ALL.len());
         let counts: BTreeSet<_> = COUNT_BITS.iter().map(|e| e.0).collect();

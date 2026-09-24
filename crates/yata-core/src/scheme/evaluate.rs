@@ -147,13 +147,14 @@ mod tests {
     use super::super::selection::decode_selection;
     use super::*;
     use crate::soul::{
-        InnateAttribute, SoulAttribute, SoulSet, SoulSlot, StoredValue, SubAttribute,
+        InnateAttribute, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
     };
 
     use SoulAttribute::*;
 
     /// A 破势 (30) soul with main attribute `Spd` and the given sub-attributes.
     fn with_subs(slot: SoulSlot, star: u8, level: u8, subs: &[SoulAttribute]) -> Soul {
+        let star = Star::try_from(star).expect("a star");
         Soul {
             set: SoulSet::from_suit_code(30),
             slot,
@@ -185,7 +186,7 @@ mod tests {
             SoulSet::from_suit_code(10),
         ])));
         s.slots = BTreeSet::from([SoulSlot::Slot2, SoulSlot::Slot4]);
-        s.stars = BTreeSet::from([6]);
+        s.stars = BTreeSet::from([Star::Six]);
         s.levels = BTreeSet::from([LevelBand::L15]);
         s.main_attributes = BTreeSet::from([Spd]);
         s
@@ -207,7 +208,7 @@ mod tests {
         sel.slots = BTreeSet::from([SoulSlot::Slot1]);
         out.push(sel);
         let mut sel = passing();
-        sel.stars = BTreeSet::from([5]);
+        sel.stars = BTreeSet::from([Star::Five]);
         out.push(sel);
         let mut sel = passing();
         sel.levels = BTreeSet::from([LevelBand::L12to14]);
@@ -298,7 +299,7 @@ mod tests {
         // all souls, slot 1, 6★, every level, main AtkFlat; and the maintainer's observations.
         let mut pool = SoulSelection::new(SetChoice::AnySet);
         pool.slots = BTreeSet::from([SoulSlot::Slot1]);
-        pool.stars = BTreeSet::from([6]);
+        pool.stars = BTreeSet::from([Star::Six]);
         pool.levels = LevelBand::ALL.into_iter().collect();
         pool.main_attributes = BTreeSet::from([AtkFlat]);
         let mut empty_levels = pool.clone();
@@ -459,7 +460,7 @@ mod tests {
         // group that rules it out decides it.
         let mut sel = with_innate(&[Crit]);
         sel.sets = SetChoice::AnySet;
-        sel.stars = BTreeSet::from([4]);
+        sel.stars = BTreeSet::from([Star::Four]);
         assert_eq!(matches(&sel, &boss(AtkPercent)), Verdict::DoesNotMatch);
     }
 
@@ -521,7 +522,7 @@ mod tests {
             Verdict::Undetermined(vec![OpenRule::UnknownConditions])
         );
         let mut other = soul();
-        other.star = 5;
+        other.star = Star::Five;
         assert_eq!(scheme.matches(&other), Verdict::DoesNotMatch);
     }
 

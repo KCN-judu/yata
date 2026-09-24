@@ -1,4 +1,4 @@
-use super::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, StoredValue};
+use super::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue};
 
 /// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus its set, the
 /// main attribute's value, and whether it is a boss soul.
@@ -12,7 +12,7 @@ pub struct Soul {
     /// does (`scheme-code.md`, "Evaluation").
     pub set: SoulSet,
     pub slot: SoulSlot,
-    pub star: u8,
+    pub star: Star,
     pub level: u8,
     pub main: SoulAttribute,
     pub main_value: StoredValue,

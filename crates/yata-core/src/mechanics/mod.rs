@@ -18,11 +18,14 @@ pub use legality::{Assessment, Verdict, Violation, Warning, assess};
 pub use predicates::{Truth, double_speed, maxed, top_band, true_n};
 pub use values::{IncrementRange, VALUE_TOLERANCE, increment_range, main_value};
 
-use crate::soul::SoulAttribute;
+use crate::soul::{SoulAttribute, Star};
 
 /// A rule could not be evaluated because a value it needs is TBD in the spec.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Undecided {
     /// `[lo(a), hi(a)]` is not sourced for this star (`soul-mechanics.md`, § Values).
-    IncrementRangeUnknown { attribute: SoulAttribute, star: u8 },
+    IncrementRangeUnknown {
+        attribute: SoulAttribute,
+        star: Star,
+    },
 }
