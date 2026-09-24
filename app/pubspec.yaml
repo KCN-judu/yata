@@ -1,0 +1,28 @@
+name: yata
+description: "Yata: a soul workbench for Onmyoji"
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  file_selector: ^1.1.0
+  fixnum: ^1.1.1
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  flutter_riverpod: ^3.4.3
+  flutter_svg: ^2.3.0
+  intl: ^0.20.2
+  protobuf: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  generate: true
+  uses-material-design: true

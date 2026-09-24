@@ -1,0 +1,8 @@
+# gen-l10n (ADR-0012, "Localization and error text"): Chinese is the only locale, and every
+# user-visible string is a message in lib/l10n/app_zh.arb.
+arb-dir: lib/l10n
+template-arb-file: app_zh.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+output-dir: lib/gen/l10n
+nullable-getter: false
