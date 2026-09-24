@@ -51,6 +51,11 @@ EXECUTOR = "crates/yata-daemon/src/store/executor.rs"
 SQL_LITERAL = re.compile(r'"[^"\n]*\b(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|PRAGMA|BEGIN|COMMIT)\b[^"\n]*"')
 SQL_CALL = re.compile(r"\.(execute|execute_batch|prepare|prepare_cached|query_row|query_map)\s*\(")
 
+# ADR-0023: the quality standard's formal artifacts, and the documents holding generated numbers.
+LEAN_DIR = "formal/lean"
+CALIBRATION = "formal/calibration/Cargo.toml"
+QUALITY_DOCS = ("docs/spec/quality-model.md", "papers/quality-model-v1/paper.md")
+
 # ADR-0017: the SVG profile of committed icons.
 ICON_ROOT = "app/assets/icons/"
 ICON_PATH = re.compile(r"^app/assets/icons/(soul-set|shikigami)/(emblem|portrait)/\d+\.svg$")
@@ -265,6 +270,39 @@ def rust_test() -> Result:
     return _rust(["cargo", "test", "--workspace", "--locked"])
 
 
+def _lake() -> str | None:
+    """Lake on PATH, or where elan installs it by default."""
+    found = shutil.which("lake")
+    if found:
+        return found
+    for name in ("lake.exe", "lake"):
+        candidate = Path.home() / ".elan" / "bin" / name
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+def lean_build() -> Result:
+    """Every theorem of the quality standard checks (ADR-0023)."""
+    lake = _lake()
+    if lake is None:
+        return Result(True, "lake not installed (elan)", skipped=True)
+    return _run([lake, "build"], ROOT / LEAN_DIR)
+
+
+def quality_calibration() -> Result:
+    """The calibration program is clean, and every number it generates matches what is committed."""
+    if shutil.which("cargo") is None:
+        return Result(True, "cargo not installed", skipped=True)
+    manifest = ["--manifest-path", CALIBRATION]
+    steps = [
+        _run(["cargo", "fmt", *manifest, "--check"]),
+        _run(["cargo", "clippy", *manifest, "--release", "--", "-D", "warnings"]),
+        _run(["cargo", "run", *manifest, "--release", "--quiet", "--", "check", *QUALITY_DOCS]),
+    ]
+    return Result(all(s.ok for s in steps), "\n".join(s.output for s in steps if not s.ok and s.output))
+
+
 def crate_graph() -> Result:
     """Every crate is classed; no pure crate depends on an effectful one; lints are inherited."""
     if not _has_rust():
@@ -409,6 +447,14 @@ CHECKS = [
     Check("flutter-test", "Flutter tests pass", flutter_test, (), "cd app; flutter test"),
     Check("dart-layers", "app/lib/ui never imports app/lib/daemon", dart_layers, (), "go through state/ (ADR-0012)"),
     Check("icon-profile", "committed icons follow the SVG profile and layout", icon_profile, (), "ADR-0017"),
+    Check("lean-build", "every Lean theorem of the quality standard checks", lean_build, (), "lake build"),
+    Check(
+        "quality-calibration",
+        "calibration clean; generated numbers match what is committed",
+        quality_calibration,
+        (),
+        "cargo run --manifest-path formal/calibration/Cargo.toml --release -- render <documents>",
+    ),
     Check("fix-formatting", "MUTATES: runs every formatter", fix_formatting, (), "fix what the formatters report"),
 ]
 STRUCTURE = [
@@ -426,12 +472,14 @@ PYTHON = ["python-lint", "python-types"]
 RUST_FAST = ["rust-format", "crate-graph", "rust-check"]
 RUST_FULL = ["rust-format", "crate-graph", "rust-clippy", "rust-test"]
 FLUTTER = ["dart-format", "flutter-analyze", "flutter-test"]
+FORMAL = ["lean-build", "quality-calibration"]
 PROFILES = {
     "fast": STRUCTURE + DOCS + PYTHON + RUST_FAST + ["dart-format", "flutter-analyze"],
-    "full": STRUCTURE + DOCS + PYTHON + RUST_FULL + FLUTTER,
+    "full": STRUCTURE + DOCS + PYTHON + RUST_FULL + FLUTTER + FORMAL,
     "docs-ci": STRUCTURE + DOCS + PYTHON,
     "rust-ci": RUST_FULL,
     "flutter-ci": FLUTTER,
+    "formal-ci": FORMAL,
     "fix": ["fix-formatting"],
 }
 

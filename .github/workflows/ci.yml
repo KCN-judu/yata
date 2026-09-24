@@ -50,3 +50,23 @@ jobs:
           flutter-version: 3.44.7
           channel: stable
       - run: python scripts/preflight.py flutter-ci
+
+  formal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+      - run: rustup show active-toolchain || rustup toolchain install
+      - name: Install elan (Lean toolchain manager)
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      - name: Fetch the pinned Mathlib build
+        working-directory: formal/lean
+        run: lake exe cache get
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: formal/calibration
+      - run: python scripts/preflight.py formal-ci
