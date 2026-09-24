@@ -5,8 +5,8 @@
 //!   proto3 JSON mapping, the error codes, and the reader's exit codes.
 //! - [`discipline`]: the request discipline, one state machine both peers run.
 //! - [`export`]: the export file, a `ProbeExport` in proto3 JSON (ADR-0008).
-//! - [`core`]: the core protocol's messages, generated from `proto/core.proto`: so far the query
-//!   messages and the headless query endpoint.
+//! - [`core`]: the core protocol's messages, generated from `proto/core.proto`: the session,
+//!   profiles, queries and pages, scheme-code decoding, and the headless query endpoint.
 //!
 //! The crate is pure and depends on no workspace crate, so the reader can depend on it without
 //! compiling the domain (ADR-0005, trigger 3). It moves bytes between frames and payloads and
@@ -15,7 +15,6 @@
 pub mod discipline;
 pub mod export;
 pub mod frame;
-
 /// The probe protocol (`probe-protocol.md`), generated from `proto/probe.proto` at build time.
 #[allow(
     clippy::all,

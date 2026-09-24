@@ -6,8 +6,9 @@
 // `reserved`. Adding a field or a message kind is a minor version; changing the meaning of an
 // existing tag is never allowed.
 //
-// A draft holding the query messages only. The session envelope, commands, jobs and
-// subscriptions are added when the session is built; version 1 stays reserved until then.
+// A draft: the domain and query messages, the headless query endpoint, and the session the
+// application speaks (envelopes, profiles, soul pages, scheme-code decoding). Commands and jobs
+// are added when they exist; version 1 stays reserved until then.
 
 syntax = "proto3";
 
@@ -242,6 +243,12 @@ message Query {
   repeated SortKey sort = 3;
   ParamSetRef params = 4;
   PageRequest page = 5;
+  // The session only (`ClientMessage.query`): the profile the rows come from. The headless
+  // endpoint supplies its own inventory and ignores it.
+  string profile_id = 6;
+  // The session only: absent on a scan's first page; every later page repeats the revision the
+  // first page was valid at, and is refused with `query.stale_revision` if the projection moved.
+  optional uint64 scan_revision = 7;
 }
 
 enum OpenRule {
@@ -255,6 +262,9 @@ message QueryRow {
   // Empty: the game's answer is exact. Otherwise the row is open and rests on these rules
   // (ADR-0026).
   repeated OpenRule open_rules = 2;
+  // The session only: the row's values, so the application shows what the daemon holds without a
+  // second request. The headless endpoint leaves it absent; its caller supplied the souls.
+  Soul soul = 3;
 }
 
 message QueryPage {
@@ -262,6 +272,10 @@ message QueryPage {
   bool has_more = 2;
   // Empty when `has_more` is false. Opaque: sent back unmodified, never parsed.
   bytes cursor = 3;
+  // The revision the page is valid at; zero from the headless endpoint, which has no projection.
+  uint64 revision = 4;
+  // Every row the query keeps, exact or open, across all pages.
+  uint64 total = 5;
 }
 
 // ---- the headless query endpoint (ADR-0026, rule 6) ----
@@ -282,4 +296,158 @@ message EvaluateQueryResult {
     QueryPage page = 2;
     Error error = 3;
   }
+}
+
+// ---- the session (core-protocol.md): envelopes ----
+
+// Client to daemon: one request per frame.
+message ClientMessage {
+  // The protocol version the client was built against. Compared at `OpenSession`.
+  ProtocolVersion protocol_version = 1;
+  // Chosen by the client, unique within the session, never reused. Never zero.
+  uint64 id = 2;
+  oneof kind {
+    OpenSession open_session = 10;
+    Shutdown shutdown = 11;
+    Subscribe subscribe = 12;
+    // Queries.
+    ListProfiles list_profiles = 20;
+    // Carries `profile_id`, and `scan_revision` after the first page.
+    Query query = 21;
+    DecodeSchemeCode decode_scheme_code = 22;
+  }
+}
+
+// Daemon to client: a response to one request, or an event.
+message ServerMessage {
+  oneof kind {
+    Response response = 1;
+    Event event = 2;
+  }
+}
+
+// Exactly one per request, carrying the request's id.
+message Response {
+  uint64 id = 1;
+  oneof result {
+    Error error = 2;
+    SessionOpened session_opened = 10;
+    ShutdownAccepted shutdown_accepted = 11;
+    Subscribed subscribed = 12;
+    ProfileList profile_list = 20;
+    // Every row carries `soul`, and the page its `revision` and `total`.
+    QueryPage query_page = 21;
+    SchemeCodeDecoded scheme_code_decoded = 22;
+  }
+}
+
+// Not a response: something the client did not ask for.
+message Event {
+  oneof kind {
+    ProjectionChanged projection_changed = 1;
+    Warning warning = 2;
+    // The session cannot continue, and the daemon exits after sending it: a frame that does not
+    // decode, or a payload that is not a `ClientMessage`. No request id is known for it.
+    Error session_failed = 3;
+  }
+}
+
+// Surfaced to the user; changes no state and advances no revision.
+message Warning {
+  string code = 1;
+  string message = 2;
+}
+
+// ---- the session: lifecycle and subscriptions ----
+
+// The first request of a session. Anything before it is refused with `session.not_open`.
+message OpenSession {}
+
+message SessionOpened {
+  ProtocolVersion daemon_version = 1;
+  // The projection's revision when the session opened.
+  uint64 revision = 2;
+}
+
+// Ends the session: the daemon answers, then exits once its output is flushed.
+message Shutdown {}
+
+message ShutdownAccepted {}
+
+// Asks for a `ProjectionChanged` whenever the projection moves past `revision`.
+message Subscribe {
+  // The latest revision the client holds.
+  uint64 revision = 1;
+}
+
+message Subscribed {
+  uint64 revision = 1;
+}
+
+// The projection moved. A revision, never a value: the client queries for what it shows.
+message ProjectionChanged {
+  uint64 revision = 1;
+}
+
+// ---- the session: profiles ----
+
+message ListProfiles {}
+
+message ProfileList {
+  uint64 revision = 1;
+  repeated Profile profiles = 2;
+}
+
+// One game account (GameProfile).
+message Profile {
+  // Opaque; sent back unmodified.
+  string id = 1;
+  // The user's own name for it.
+  string name = 2;
+}
+
+// ---- the session: scheme codes (scheme-code.md, "Codec") ----
+
+// A scheme code from its QR image or its Base64 text.
+message DecodeSchemeCode {
+  oneof source {
+    string text = 1;
+    // One PNG image holding one QR code.
+    bytes png = 2;
+  }
+}
+
+message SchemeCodeDecoded {
+  SchemeKind kind = 1;
+  // The plans of a strengthening scheme set, or the discard schemes, in code order.
+  repeated SchemeEntry entries = 2;
+  // The code as it was read, for presentation and sharing.
+  EncodedScheme encoded = 3;
+}
+
+enum SchemeKind {
+  SCHEME_KIND_UNSPECIFIED = 0;
+  SCHEME_KIND_STRENGTHENING = 1;
+  SCHEME_KIND_DISCARD = 2;
+}
+
+// A strengthening plan or a discard scheme: a name and a selection.
+message SchemeEntry {
+  string name = 1;
+  SoulSelection selection = 2;
+  // The record selects on a condition the model cannot see, so no evaluation of it is exact.
+  bool has_unknown_conditions = 3;
+}
+
+// The scheme text and the QR matrix the application draws; the application never encodes.
+message EncodedScheme {
+  string text = 1;
+  // Absent when the text does not fit a QR code.
+  QrMatrix qr = 2;
+}
+
+// Modules row by row from the top left, one byte each: 1 is dark. No quiet zone included.
+message QrMatrix {
+  uint32 size = 1;
+  bytes modules = 2;
 }
