@@ -103,3 +103,13 @@ of its own ([ADR-0025](0025-ssr-at-one-perfect-line.md)). Under this record a
 soul with one perfect useful line and nothing useful beside it was SR; it is now
 SSR, and still not SP. The model is `yata-quality-v1.1`. Everything else in this
 record stands.
+
+## Amendment 2026-09-25 (ADR-0027)
+
+The catalogue is `output`, `hit`, `healing` and `speed`; `resist` is removed
+([ADR-0027](0027-quality-model-v2-catalogue.md)). Archetypes may differ in size,
+each with its own anchors and maximum, and may carry an eligibility predicate:
+`speed`, of the one attribute `Spd`, is a candidate only at four Speed roll
+units and has its own tier rule. Decision 2's three archetypes, decision 3's
+"sum of its four `e`", and decision 5's identical scales of `hit` and `resist`
+describe v1 and v1.1. The model is `yata-quality-v2`.

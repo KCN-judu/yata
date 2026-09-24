@@ -90,3 +90,10 @@ so the rate follows the hit law, which is exact.
 **Harder.** The ladder has two thresholds between SR and UR, and the docs must
 say which question each answers. An SSR soul can outscore an SP soul by up to
 `t_UR − c_SP`, as before, because the exposed order is tier first.
+
+## Amendment 2026-09-25 (ADR-0027)
+
+These tiers are those of the four-attribute archetypes of `yata-quality-v2`:
+`output`, `hit` and `healing`. The one-attribute `speed` has its own rule, SSR
+from its gate and UR above five roll units
+([ADR-0027](0027-quality-model-v2-catalogue.md)).
