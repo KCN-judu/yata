@@ -89,7 +89,7 @@ SoulSelection {
   sub_attributes   : SoulAttribute → SubAttributeMode    // absent key = Ignore
   levels           : { LevelBand }
   innate           : { InnateAttribute }                  // 固有属性; boss souls only
-  sub_counts       : { SubCount }                         // 数量; also called "legs"
+  sub_counts       : { SubCount }                         // 数量: how many sub-attributes
 }
 
 SetChoice        = AnySet | Sets({ SoulSet })
@@ -158,8 +158,7 @@ name the game refuses on import are errors.
 matches : (SoulSelection, Soul) -> Verdict
 
 Verdict  = Matches | DoesNotMatch | Undetermined([OpenRule])
-OpenRule = EmptyGroup(Group) | SeveralIncludes | SubCount | Innate
-         | UnknownConditions
+OpenRule = Innate | UnknownConditions
 ```
 
 A total, pure function in `yata-core::scheme::evaluate` (ADR-0001), and the only
@@ -173,44 +172,47 @@ the game's own answer. `Undetermined` means that no decided rule rules the soul
 out and the answer rests on the open rules it names. A plain boolean would hide
 that difference, and a caller would show a guess as the game's selection.
 
-Groups combine by AND (◎, the panel's design; every experiment below also checks
-it): a soul is picked only when every group picks it. So one decided group that
-rules a soul out makes the verdict `DoesNotMatch`, whatever the open rules would
-say. The per-group rules:
+Groups combine by AND: a soul is picked only when every group picks it. So one
+group that rules a soul out makes the verdict `DoesNotMatch`, whatever an open
+rule would say. The per-group rules:
 
-| Group                                                 | A soul passes when                                             | Mark |
-| ----------------------------------------------------- | -------------------------------------------------------------- | ---- |
-| `sets`                                                | `AnySet`, or its set is in the chosen sets                     | ✓    |
-| `slots`, `stars`, `main_attributes`, `levels`         | its value is in the chosen set; a level above 15 is in no band | ✓    |
-| `sub_attributes`, `Exclude`                           | it does not have that sub-attribute                            | ◎    |
-| `sub_attributes`, `Include`, with `sub_counts` empty  | it has every included attribute; with none of them it fails    | ✓    |
-| a group with nothing chosen                           | ? — question 1                                                 | ?    |
-| `sub_attributes`, `Include`, some but not all present | ? — question 2                                                 | ?    |
-| `sub_counts`, alone or with `Include`                 | ? — question 3                                                 | ?    |
-| `innate`                                              | ? — a `Soul` does not carry its innate attribute yet           | ?    |
+| Group                                         | A soul passes when                                             | Mark |
+| --------------------------------------------- | -------------------------------------------------------------- | ---- |
+| any group with nothing chosen                 | always: an empty group is no constraint                        | ◎    |
+| `sets`                                        | `AnySet`, or its set is in the chosen sets                     | ✓    |
+| `slots`, `stars`, `main_attributes`, `levels` | its value is in the chosen set; a level above 15 is in no band | ✓    |
+| `sub_attributes`, `Include`                   | it has every included attribute                                | ✓    |
+| `sub_attributes`, `Exclude`                   | it has none of the excluded attributes                         | ◎    |
+| `sub_counts`                                  | its number of sub-attributes, all of them, is chosen           | ✓    |
+| `innate`, something chosen                    | ? — a `Soul` does not carry its innate attribute yet           | ?    |
 
-The ✓ for includes holds because both readings of question 2 agree there: a soul
-with every included attribute passes under AND and under OR, and one with none
-fails under both.
+`SubCount::of` places a soul's number of sub-attributes by the editor's labels:
+0 or 1 is 不足2条, then 2条, 3条, 4条; more than four is in no choice.
 
-Three semantic questions are open. They are about the game's behaviour, not
-about bytes, and are settled by filtering souls in the game and observing which
-it picks. The experiments are kept in local research
-(`research/experiments/2026-09-24-filter-semantics/`, not published).
+**The evidence.** Five strengthening plans built from nothing, imported and
+applied by the maintainer on 2026-09-24, each differing from one control in one
+group (local research, `research/experiments/2026-09-24-filter-semantics/`, not
+published):
 
-1. **An empty group.** Whether ticking nothing in a group means "no constraint"
-   or "match nothing". Until it is answered almost every verdict is
-   `Undetermined`, since most schemes leave 固有属性 or 数量 empty.
-2. **Several includes.** Whether `Include` on two sub-attributes requires both
-   (AND) or either (OR).
-3. **What 数量 counts**: all of a soul's sub-attributes, or only the included
-   ones ("legs" in the community's sense), and so how it combines with
-   `Include`.
+- with 等级 empty, a plan picks the same souls as with all six bands;
+  empty 数量, and an empty 固有属性 that the editor disables under 全部, picked
+  souls in every plan;
+- 速度 ○ and 暴击 ○ together pick only souls with both;
+- 数量 4条 alone picks only souls with four sub-attributes; 速度 ○ 暴击 ○
+  with 数量 2条 does not pick a soul with both and four sub-attributes.
+  So 数量 counts every sub-attribute, not only the included ones ("legs" in the
+  community's sense), and combines with `Include` by AND like any other group.
+
+The empty-group rule is observed for 等级, 数量 and a disabled 固有属性, and
+**extrapolated** to 类型, 位置, 星级 and 主属性 (the maintainer's choice,
+2026-09-24): hence ◎. An empty 类型 cannot be written anyway (`NoSets`). Of
+the 数量 choices, 2条 and 4条 were exercised; the other two are read from their
+labels.
 
 **`innate` waits on the soul model.** The reader records a soul's innate
 attribute where present (`probe-protocol.md`), but `Soul` does not hold it until
 its meaning for non-boss souls is established; a chosen innate attribute gives
-`Undetermined(Innate)`.
+`Undetermined(Innate)`. An empty one is no constraint, like any empty group.
 
 **A scheme with unknown conditions is never exact.** When
 `has_unknown_conditions` is true, a plan's or discard scheme's verdict is never
@@ -352,7 +354,8 @@ user could not import.
 ## Open questions
 
 - whether the game's import accepts Base64 text as well as a QR code
-- the three evaluation questions above, and a soul's innate attribute
+- a chosen innate attribute (above); whether an empty 位置, 星级 or 主属性 is no
+  constraint, as extrapolated, rather than observed
 - the suit code of each soul, to be re-established by a reader recording
 
 ## Related

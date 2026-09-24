@@ -182,6 +182,8 @@ What changed for someone. Append-only; one fragment per change.
   QR codes
 - [changes/unreleased/2026-09-scheme-selection.md](changes/unreleased/2026-09-scheme-selection.md)
   — scheme codes read as selections of souls; the game filter's verdict
+- [changes/unreleased/2026-09-filter-semantics.md](changes/unreleased/2026-09-filter-semantics.md)
+  — empty groups, several includes, and 数量 decided from the game's filter
 - [changes/unreleased/2026-09-repository-tooling.md](changes/unreleased/2026-09-repository-tooling.md)
   — preflight, formatting, and CI; the license
 - [changes/unreleased/2026-09-history-rewrite.md](changes/unreleased/2026-09-history-rewrite.md)
