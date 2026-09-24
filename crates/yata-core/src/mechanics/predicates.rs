@@ -97,7 +97,7 @@ mod tests {
                     enhancement_count: None,
                 })
                 .collect(),
-            innate: crate::soul::Innate::Absent,
+            kind: crate::soul::SoulKind::Ordinary,
         }
     }
 

@@ -19,15 +19,13 @@
 //! - 固有属性, with the soul's set itself chosen: a soul without an innate attribute passes; a
 //!   boss soul passes when its innate attribute is chosen
 //!
-//! Open, each an [`OpenRule`]: a chosen 固有属性 where the soul's innate attribute is unknown, or
-//! where a boss soul's set is not itself chosen; and a condition the model cannot see.
+//! Open, each an [`OpenRule`]: a chosen 固有属性 that a boss soul's innate attribute is not in,
+//! where the boss soul's set is not itself chosen; and a condition the model cannot see.
 
-use crate::soul::{Innate, Soul};
+use crate::soul::{Soul, SoulKind};
 
 use super::code::{DiscardScheme, StrengtheningPlan};
-use super::selection::{
-    InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
-};
+use super::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount};
 
 /// What the game's filter does with a soul.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,9 +41,8 @@ pub enum Verdict {
 /// A rule of the game's filter that the evidence does not settle yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum OpenRule {
-    /// A chosen 固有属性 that the evidence does not decide for this soul: its innate attribute is
-    /// [`Innate::Unknown`], or it is a boss soul whose set is not itself chosen and whose innate
-    /// attribute is not.
+    /// A chosen 固有属性 that the evidence does not decide for this soul: a boss soul whose set is
+    /// not itself chosen and whose innate attribute is not (ADR-0029, rule 3).
     Innate,
     /// The scheme selects on bits the model does not map.
     UnknownConditions,
@@ -92,20 +89,19 @@ pub fn matches(selection: &SoulSelection, soul: &Soul) -> Verdict {
 ///
 /// Observed with boss and ordinary souls chosen together in 类型: ordinary souls all pass, and a
 /// boss soul passes exactly when its innate attribute is chosen. The editor enables the group
-/// only once a boss soul is chosen, so a boss soul whose set is not itself chosen (`AnySet`) is
-/// not observed; it is open unless its innate attribute is chosen, when either reading picks it.
+/// only once a boss soul is chosen, so a boss soul whose set is not itself chosen (`AnySet`, or no
+/// set) is not observed; it is open unless its innate attribute is chosen, when either reading
+/// picks it (ADR-0029, rule 3).
 fn innate_picks(s: &SoulSelection, soul: &Soul) -> Option<bool> {
     if s.innate.is_empty() {
         return Some(true);
     }
     let set_chosen = matches!(&s.sets, SetChoice::Sets(sets) if sets.contains(&soul.set));
-    match soul.innate {
-        Innate::Absent => Some(true),
-        Innate::Present(a) if InnateAttribute::new(a).is_some_and(|i| s.innate.contains(&i)) => {
-            Some(true)
-        }
-        Innate::Present(_) if set_chosen => Some(false),
-        Innate::Present(_) | Innate::Unknown => None,
+    match soul.kind {
+        SoulKind::Ordinary => Some(true),
+        SoulKind::Boss(a) if s.innate.contains(&a) => Some(true),
+        SoulKind::Boss(_) if set_chosen => Some(false),
+        SoulKind::Boss(_) => None,
     }
 }
 
@@ -150,7 +146,7 @@ mod tests {
     use super::super::mapping::soul_set;
     use super::super::selection::decode_selection;
     use super::*;
-    use crate::soul::{SoulAttribute, SoulSet, SoulSlot, SubAttribute};
+    use crate::soul::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, SubAttribute};
 
     use SoulAttribute::*;
 
@@ -171,7 +167,7 @@ mod tests {
                     enhancement_count: None,
                 })
                 .collect(),
-            innate: Innate::Absent,
+            kind: SoulKind::Ordinary,
         }
     }
 
@@ -359,10 +355,10 @@ mod tests {
     }
 
     /// `soul()` as a 土蜘蛛 with innate attribute `innate`.
-    fn boss(innate: Innate) -> Soul {
+    fn boss(innate: SoulAttribute) -> Soul {
         Soul {
             set: boss_set(),
-            innate,
+            kind: SoulKind::Boss(InnateAttribute::new(innate).expect("an innate attribute")),
             ..soul()
         }
     }
@@ -380,7 +376,7 @@ mod tests {
 
     #[test]
     fn a_boss_soul_passes_exactly_when_its_innate_attribute_is_chosen() {
-        let crit = boss(Innate::Present(Crit));
+        let crit = boss(Crit);
         assert_eq!(matches(&with_innate(&[Crit]), &crit), Verdict::Matches);
         assert_eq!(
             matches(&with_innate(&[AtkPercent]), &crit),
@@ -389,7 +385,7 @@ mod tests {
         let every = InnateAttribute::ALL.map(InnateAttribute::attribute);
         for a in every {
             let others: Vec<_> = every.into_iter().filter(|&o| o != a).collect();
-            let s = boss(Innate::Present(a));
+            let s = boss(a);
             assert_eq!(matches(&with_innate(&every), &s), Verdict::Matches);
             assert_eq!(matches(&with_innate(&others), &s), Verdict::DoesNotMatch);
         }
@@ -408,33 +404,23 @@ mod tests {
     #[test]
     fn an_empty_innate_group_is_no_constraint() {
         let sel = with_innate(&[]);
-        for innate in [Innate::Absent, Innate::Present(Crit), Innate::Unknown] {
-            assert_eq!(matches(&sel, &boss(innate)), Verdict::Matches, "{innate:?}");
-        }
-    }
-
-    #[test]
-    fn an_unknown_innate_attribute_is_open() {
-        let open = Verdict::Undetermined(vec![OpenRule::Innate]);
-        assert_eq!(matches(&with_innate(&[Crit]), &boss(Innate::Unknown)), open);
-        let mut ordinary = soul();
-        ordinary.innate = Innate::Unknown;
-        assert_eq!(matches(&with_innate(&[Crit]), &ordinary), open);
+        assert_eq!(matches(&sel, &soul()), Verdict::Matches);
+        assert_eq!(matches(&sel, &boss(Crit)), Verdict::Matches);
     }
 
     #[test]
     fn a_boss_soul_whose_set_is_not_chosen_is_open_unless_its_innate_attribute_is() {
-        let mut sel = with_innate(&[Crit]);
-        sel.sets = SetChoice::AnySet;
-        assert_eq!(
-            matches(&sel, &boss(Innate::Present(Crit))),
-            Verdict::Matches
-        );
-        assert_eq!(
-            matches(&sel, &boss(Innate::Present(AtkPercent))),
-            Verdict::Undetermined(vec![OpenRule::Innate])
-        );
-        assert_eq!(matches(&sel, &soul()), Verdict::Matches);
+        // `AnySet`, and a 类型 with nothing chosen: neither chooses the boss soul's own set.
+        for sets in [SetChoice::AnySet, SetChoice::Sets(BTreeSet::new())] {
+            let mut sel = with_innate(&[Crit]);
+            sel.sets = sets;
+            assert_eq!(matches(&sel, &boss(Crit)), Verdict::Matches);
+            assert_eq!(
+                matches(&sel, &boss(AtkPercent)),
+                Verdict::Undetermined(vec![OpenRule::Innate])
+            );
+            assert_eq!(matches(&sel, &soul()), Verdict::Matches);
+        }
     }
 
     #[test]
@@ -443,7 +429,7 @@ mod tests {
         // picks one that has X as both.
         let mut sel = with_innate(&[]);
         sel.sub_attributes.set(EffectHit, SubAttributeMode::Include);
-        let innate_only = boss(Innate::Present(EffectHit));
+        let innate_only = boss(EffectHit);
         assert_eq!(matches(&sel, &innate_only), Verdict::DoesNotMatch);
         let mut both = innate_only.clone();
         both.subs.push(SubAttribute {
@@ -457,7 +443,7 @@ mod tests {
     #[test]
     fn the_count_group_does_not_count_the_innate_attribute() {
         // 2026-09-25: a boss soul with three sub-attributes shows under 3条.
-        let three = boss(Innate::Present(Crit));
+        let three = boss(Crit);
         let mut sel = with_innate(&[]);
         sel.sub_counts = BTreeSet::from([SubCount::Three]);
         assert_eq!(matches(&sel, &three), Verdict::Matches);
@@ -467,25 +453,19 @@ mod tests {
 
     #[test]
     fn a_decided_failure_wins_over_an_open_innate_choice() {
+        // Under `AnySet`, a boss soul whose innate attribute is not chosen would be open; a star
+        // group that rules it out decides it.
         let mut sel = with_innate(&[Crit]);
+        sel.sets = SetChoice::AnySet;
         sel.stars = BTreeSet::from([4]);
-        assert_eq!(matches(&sel, &boss(Innate::Unknown)), Verdict::DoesNotMatch);
-        let mut any = sel.clone();
-        any.sets = SetChoice::AnySet;
-        assert_eq!(
-            matches(&any, &boss(Innate::Present(AtkPercent))),
-            Verdict::DoesNotMatch
-        );
+        assert_eq!(matches(&sel, &boss(AtkPercent)), Verdict::DoesNotMatch);
     }
 
     #[test]
     fn an_unchosen_innate_attribute_fails_with_every_other_group() {
         let mut sel = with_innate(&[AtkPercent]);
         sel.slots = BTreeSet::from([SoulSlot::Slot1]);
-        assert_eq!(
-            matches(&sel, &boss(Innate::Present(Crit))),
-            Verdict::DoesNotMatch
-        );
+        assert_eq!(matches(&sel, &boss(Crit)), Verdict::DoesNotMatch);
     }
 
     #[test]
@@ -549,14 +529,14 @@ mod tests {
         let scheme = discard(record(vec![0, 0, 0x20, 0, 0x02], &[1, 11, 18, 54, 60, 61]));
         assert!(scheme.has_unknown_conditions());
         let unknown = Verdict::Undetermined(vec![OpenRule::UnknownConditions]);
-        assert_eq!(scheme.matches(&boss(Innate::Present(Crit))), unknown);
+        assert_eq!(scheme.matches(&boss(Crit)), unknown);
         assert_eq!(scheme.matches(&soul()), unknown);
+        assert_eq!(scheme.matches(&boss(AtkPercent)), Verdict::DoesNotMatch);
+        // A discard scheme cannot hold `AnySet`, so the open innate case is a plan's.
+        let mut any = with_innate(&[Crit]);
+        any.sets = SetChoice::AnySet;
         assert_eq!(
-            scheme.matches(&boss(Innate::Present(AtkPercent))),
-            Verdict::DoesNotMatch
-        );
-        assert_eq!(
-            scheme.matches(&boss(Innate::Unknown)),
+            with_unknown(matches(&any, &boss(AtkPercent)), true),
             Verdict::Undetermined(vec![OpenRule::Innate, OpenRule::UnknownConditions])
         );
     }

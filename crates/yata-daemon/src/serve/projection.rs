@@ -45,7 +45,7 @@ impl Projection {
 pub mod fixture {
     use std::collections::BTreeMap;
 
-    use yata_core::soul::{Innate, Soul, SoulAttribute, SoulSet, SoulSlot, SubAttribute};
+    use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
 
     use super::{ProfileEntry, Projection};
 
@@ -82,8 +82,8 @@ pub mod fixture {
         ("fixture-12", 48, Slot3, 3, DefFlat, 32.0, &[(Spd, 2.7), (Crit, 5.1), (HpPercent, 2.5)]),
     ];
 
-    /// The fixture souls. None says whether it carries an innate attribute: the fixture makes no
-    /// claim about which sets are boss souls.
+    /// The fixture souls, all ordinary. The fixture is invented and makes no claim about which sets
+    /// are boss sets; a boss soul would need a sourced one (ADR-0029, rule 5).
     pub fn souls() -> BTreeMap<String, Soul> {
         SOULS
             .iter()
@@ -103,7 +103,7 @@ pub mod fixture {
                             enhancement_count: None,
                         })
                         .collect(),
-                    innate: Innate::Unknown,
+                    kind: SoulKind::Ordinary,
                 };
                 (id.to_owned(), soul)
             })

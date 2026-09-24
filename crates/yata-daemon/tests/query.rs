@@ -12,10 +12,10 @@ use yata_protocol::core::evaluate_query_result::Outcome;
 use yata_protocol::core::expr::Kind;
 use yata_protocol::core::predicate::Test;
 use yata_protocol::core::{
-    Collection, Direction, EvaluateQuery, EvaluateQueryResult, Expr, ExprList, Field, FieldName,
-    InTest, Innate, IntRange, NumberRange, PageRequest, ParamSetRef, Predicate, ProtocolVersion,
-    Query, QueryPage, SchemeRef, SortKey, Soul, SoulAttribute, SoulSelection as WireSelection,
-    SoulSlot, SubAttribute, VERSION, innate,
+    BossSoul, Collection, Direction, EvaluateQuery, EvaluateQueryResult, Expr, ExprList, Field,
+    FieldName, InTest, IntRange, NumberRange, OrdinarySoul, PageRequest, ParamSetRef, Predicate,
+    ProtocolVersion, Query, QueryPage, SchemeRef, SortKey, Soul, SoulAttribute,
+    SoulSelection as WireSelection, SoulSlot, SubAttribute, VERSION, soul::Kind as SoulKind,
 };
 use yata_protocol::frame::{FrameError, decode_all, encode};
 
@@ -33,9 +33,7 @@ fn soul(id: &str, star: u32, spd: f64) -> Soul {
             value: spd,
             enhancement_count: None,
         }],
-        innate: Some(Innate {
-            state: Some(innate::State::Absent(true)),
-        }),
+        kind: Some(SoulKind::Ordinary(OrdinarySoul {})),
     }
 }
 
@@ -396,6 +394,22 @@ fn request_level_refusals_carry_their_codes() {
         cursor: vec![0xff, 0x01],
     });
     assert_eq!(code(&request(1, foreign)), "query.malformed_cursor");
+}
+
+#[test]
+fn a_soul_must_state_its_kind() {
+    // ADR-0029: there is no unknown kind, and a boss soul's innate attribute is one of six.
+    let with = |kind| {
+        let mut r = request(1, query(None));
+        r.inventory[0].kind = kind;
+        code(&r)
+    };
+    assert_eq!(with(None), "query.malformed");
+    let boss = |a: SoulAttribute| Some(SoulKind::Boss(BossSoul { innate: a as i32 }));
+    assert_eq!(with(boss(SoulAttribute::Spd)), "query.malformed");
+    let mut r = request(1, query(None));
+    r.inventory[0].kind = boss(SoulAttribute::Crit);
+    assert_eq!(page(&r).rows.len(), 5);
 }
 
 #[test]

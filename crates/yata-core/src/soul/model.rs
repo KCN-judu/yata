@@ -1,7 +1,7 @@
-use super::{SoulAttribute, SoulSet, SoulSlot};
+use super::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot};
 
 /// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus its set, the
-/// main attribute's value, and its innate attribute.
+/// main attribute's value, and whether it is a boss soul.
 ///
 /// This is the shape decoded input takes before any rule is applied, so nothing here is
 /// guaranteed legal: [`crate::mechanics::assess`] decides that. Values are stored values in
@@ -17,25 +17,20 @@ pub struct Soul {
     pub main: SoulAttribute,
     pub main_value: f64,
     pub subs: Vec<SubAttribute>,
-    /// 固有属性: held beside `subs`, never among them.
-    pub innate: Innate,
+    /// Ordinary, or a boss soul with its 固有属性, held beside `subs`, never among them.
+    pub kind: SoulKind,
 }
 
-/// A soul's 固有属性, as far as the input says.
+/// Whether a soul is a boss soul (首领御魂), and if it is, its 固有属性 (ADR-0029).
 ///
-/// Every boss soul (首领御魂) carries exactly one, and no other soul does (the maintainer,
-/// 2026-09-25). It is not a sub-attribute: neither 副属性 nor 数量 sees it (`scheme-code.md`,
-/// "Evaluation").
+/// Every boss soul carries exactly one innate attribute, one of six, and no other soul carries any
+/// (the maintainer, 2026-09-25). It is not a sub-attribute: neither 副属性 nor 数量 sees it
+/// (`scheme-code.md`, "Evaluation"). There is no unknown kind: a reading that cannot tell which a
+/// soul is, is refused before it becomes a soul.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Innate {
-    /// The soul carries none: it is not a boss soul.
-    Absent,
-    /// The soul's innate attribute.
-    Present(SoulAttribute),
-    /// The input does not say whether the soul carries one, or which. How a reading carries it
-    /// is not established by a recording yet, so decode never infers `Absent` from a missing
-    /// field.
-    Unknown,
+pub enum SoulKind {
+    Ordinary,
+    Boss(InnateAttribute),
 }
 
 /// One sub-attribute (副属性): an element of `dom S` with its stored value `S(a)`.

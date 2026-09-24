@@ -25,7 +25,7 @@ use yata_core::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningScheme
 use yata_core::scheme::layout::{AccountSegment, serialize};
 use yata_core::scheme::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode};
 use yata_core::scheme::transport::encode_text;
-use yata_core::soul::{Innate, Soul, SoulAttribute, SoulSet, SoulSlot, SubAttribute};
+use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
 use yata_protocol::core as wire;
 
 /// The first forty suit codes of the scheme mapping, in soul-bit order: sets a scheme can name.
@@ -89,7 +89,7 @@ fn inventory(n: usize, seed: u64) -> BTreeMap<String, Soul> {
                 main,
                 main_value: 10.0 + r.below(500) as f64 / 10.0,
                 subs,
-                innate: Innate::Unknown,
+                kind: SoulKind::Ordinary,
             };
             (format!("soul-{i:06}"), soul)
         })
@@ -216,7 +216,7 @@ fn wire_soul(id: &str, s: &Soul) -> wire::Soul {
                 enhancement_count: None,
             })
             .collect(),
-        innate: None,
+        kind: Some(wire::soul::Kind::Ordinary(wire::OrdinarySoul {})),
     }
 }
 

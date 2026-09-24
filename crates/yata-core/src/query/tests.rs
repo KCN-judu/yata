@@ -10,7 +10,7 @@ use crate::scheme::evaluate::{OpenRule, Verdict};
 use crate::scheme::layout::{AccountSegment, Record, SchemeLayout, serialize};
 use crate::scheme::selection::{InnateAttribute, SetChoice, SoulSelection};
 use crate::scheme::transport::encode_text;
-use crate::soul::{Innate, Soul, SoulAttribute, SoulSet, SoulSlot, SubAttribute};
+use crate::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
 
 use SoulAttribute::*;
 
@@ -23,8 +23,7 @@ fn soul(set: u8, slot: SoulSlot, star: u8, level: u8, main: SoulAttribute) -> So
         main,
         main_value: 57.0,
         subs: Vec::new(),
-        // What a reading holds until recordings settle how it carries one.
-        innate: Innate::Unknown,
+        kind: SoulKind::Ordinary,
     }
 }
 
@@ -83,8 +82,17 @@ fn is(field: Field, b: bool) -> Expr {
 const YES: Verdict = Verdict::Matches;
 const NO: Verdict = Verdict::DoesNotMatch;
 
-/// A selection that `speed_two` passes, with a chosen innate attribute: open for every soul that
-/// no decided group rules out.
+/// `s` as a 土蜘蛛 (suit code 50, soul bit 33), a boss soul, with innate attribute 暴击.
+fn boss(s: Soul) -> Soul {
+    Soul {
+        set: SoulSet::from_suit_code(50),
+        kind: SoulKind::Boss(InnateAttribute::ALL[5]),
+        ..s
+    }
+}
+
+/// Every set, and 固有属性 攻击加成 chosen: open for a boss soul whose innate attribute is
+/// another, because the game's reading of that case is not observed (ADR-0029, rule 3).
 fn innate_open() -> Expr {
     let mut s = SoulSelection::new(SetChoice::AnySet);
     s.innate = BTreeSet::from([InnateAttribute::ALL[0]]);
@@ -214,7 +222,7 @@ fn nested_and_or_not_compose() {
 
 #[test]
 fn an_open_verdict_stays_open_through_not() {
-    let s = speed_two();
+    let s = boss(speed_two());
     let innate = [OpenRule::Innate];
     assert_eq!(verdict(innate_open(), &s), open(&innate));
     assert_eq!(
@@ -225,7 +233,7 @@ fn an_open_verdict_stays_open_through_not() {
 
 #[test]
 fn a_decided_operand_settles_an_open_one() {
-    let s = speed_two();
+    let s = boss(speed_two());
     let yes = || int(Field::Star, Some(6), None);
     let no = || int(Field::Star, None, Some(5));
     assert_eq!(verdict(Expr::And(vec![innate_open(), no()]), &s), NO);
@@ -242,7 +250,7 @@ fn a_decided_operand_settles_an_open_one() {
 
 #[test]
 fn an_open_result_names_every_open_rule_beneath_it() {
-    let s = speed_two();
+    let s = boss(speed_two());
     let code = unknown_condition_code();
     let scheme = Expr::MatchesScheme(SchemeRef { code, entry: None });
     let both = Expr::And(vec![innate_open(), scheme]);
@@ -324,14 +332,14 @@ fn code_of(selections: Vec<SoulSelection>) -> String {
     text_of(&encode_code(&code, account()).expect("valid"))
 }
 
-/// A discard scheme for 破势, slot 2, 6★, +15, main Spd, and filter bit 61, which the model does
-/// not map (the fixture of `scheme::evaluate`'s tests).
+/// A discard scheme for 破势 and 土蜘蛛, slot 2, 6★, +15, main Spd, and filter bit 61, which the
+/// model does not map (the fixture of `scheme::evaluate`'s tests).
 fn unknown_condition_code() -> String {
     let mut filter = vec![0u8; 8];
     for bit in [1usize, 11, 18, 54, 61] {
         filter[bit / 8] |= 1 << (bit % 8);
     }
-    let record = Record::new("x", vec![0, 0, 0x20], filter).expect("short");
+    let record = Record::new("x", vec![0, 0, 0x20, 0, 0x02], filter).expect("short");
     text_of(&SchemeLayout::discard(account(), vec![record]).expect("valid"))
 }
 
@@ -592,11 +600,15 @@ fn has_sub_is_not_a_sort_key() {
 
 // ---- order and pages ----
 
+/// Boss souls, so that a chosen innate attribute they lack is open (`rows_carry_their_verdict`).
 fn inventory() -> Vec<(String, Soul)> {
     let s = |id: &str, star, spd| {
         (
             id.to_owned(),
-            with_subs(soul(30, SoulSlot::Slot1, star, 15, AtkFlat), &[(Spd, spd)]),
+            boss(with_subs(
+                soul(30, SoulSlot::Slot1, star, 15, AtkFlat),
+                &[(Spd, spd)],
+            )),
         )
     };
     vec![

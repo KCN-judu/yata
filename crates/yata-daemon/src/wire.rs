@@ -10,7 +10,7 @@ use yata_core::scheme::code::{DiscardScheme, SchemeCode, StrengtheningPlan};
 use yata_core::scheme::selection::{
     LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
 };
-use yata_core::soul::{Innate, Soul};
+use yata_core::soul::{Soul, SoulKind};
 use yata_protocol::core as pb;
 
 use crate::qr::QrMatrix;
@@ -65,14 +65,13 @@ fn sub_count(c: SubCount) -> pb::SubCount {
     }
 }
 
-/// A soul of the projection, under its row identity. An unknown innate attribute is an absent
-/// message, as `core.proto` reads it.
+/// A soul of the projection, under its row identity, with its kind (ADR-0029).
 pub fn soul(id: &str, s: &Soul) -> pb::Soul {
-    use pb::innate::State;
-    let innate = match s.innate {
-        Innate::Unknown => None,
-        Innate::Absent => Some(State::Absent(true)),
-        Innate::Present(a) => Some(State::Present(attribute(a))),
+    let kind = match s.kind {
+        SoulKind::Ordinary => pb::soul::Kind::Ordinary(pb::OrdinarySoul {}),
+        SoulKind::Boss(a) => pb::soul::Kind::Boss(pb::BossSoul {
+            innate: attribute(a.attribute()),
+        }),
     };
     pb::Soul {
         soul_id: id.to_owned(),
@@ -91,7 +90,7 @@ pub fn soul(id: &str, s: &Soul) -> pb::Soul {
                 enhancement_count: sub.enhancement_count.map(u32::from),
             })
             .collect(),
-        innate: innate.map(|state| pb::Innate { state: Some(state) }),
+        kind: Some(kind),
     }
 }
 
@@ -185,11 +184,11 @@ pub fn scheme_source(m: pb::DecodeSchemeCode) -> Result<SchemeSource, Failure> {
 
 #[cfg(test)]
 mod tests {
-    use yata_core::soul::{SoulAttribute, SoulSet, SoulSlot};
+    use yata_core::soul::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot};
 
     use super::*;
 
-    fn a_soul(innate: Innate) -> Soul {
+    fn a_soul(kind: SoulKind) -> Soul {
         Soul {
             set: SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,
@@ -198,28 +197,34 @@ mod tests {
             main: SoulAttribute::Spd,
             main_value: 57.0,
             subs: vec![],
-            innate,
+            kind,
         }
     }
 
+    fn crit_boss() -> SoulKind {
+        SoulKind::Boss(InnateAttribute::new(SoulAttribute::Crit).expect("innate"))
+    }
+
     #[test]
-    fn an_unknown_innate_attribute_is_an_absent_message_not_absent() {
-        assert_eq!(soul("s", &a_soul(Innate::Unknown)).innate, None);
+    fn every_soul_states_its_kind() {
         assert_eq!(
-            soul("s", &a_soul(Innate::Absent)).innate,
-            Some(pb::Innate {
-                state: Some(pb::innate::State::Absent(true))
-            })
+            soul("s", &a_soul(SoulKind::Ordinary)).kind,
+            Some(pb::soul::Kind::Ordinary(pb::OrdinarySoul {}))
+        );
+        assert_eq!(
+            soul("s", &a_soul(crit_boss())).kind,
+            Some(pb::soul::Kind::Boss(pb::BossSoul {
+                innate: pb::SoulAttribute::Crit.into()
+            }))
         );
     }
 
     #[test]
     fn a_soul_reads_back_through_the_query_conversion() {
-        let wire = soul("s-1", &a_soul(Innate::Present(SoulAttribute::Crit)));
-        let back = crate::query::convert::inventory(vec![wire]).expect("valid");
-        assert_eq!(
-            back.get("s-1"),
-            Some(&a_soul(Innate::Present(SoulAttribute::Crit)))
-        );
+        for kind in [SoulKind::Ordinary, crit_boss()] {
+            let wire = soul("s-1", &a_soul(kind));
+            let back = crate::query::convert::inventory(vec![wire]).expect("valid");
+            assert_eq!(back.get("s-1"), Some(&a_soul(kind)));
+        }
     }
 }

@@ -56,7 +56,7 @@ void main() {
     final soul = first.rows.first.soul;
     expect(soul.soulId, 'fixture-01');
     expect(first.rows.first.openRules, isEmpty);
-    expect(soul.hasInnate(), isFalse);
+    expect(soul.whichKind(), pb.Soul_Kind.ordinary);
     expect(soul.slot, pb.SoulSlot.SOUL_SLOT_2);
     expect(soul.main, pb.SoulAttribute.SOUL_ATTRIBUTE_SPD);
     expect(soul.subs.first.hasEnhancementCount(), isFalse);

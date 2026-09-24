@@ -72,7 +72,7 @@ pub enum WireProblem {
     AnySetWithSets,
     /// An attribute both included and excluded.
     IncludedAndExcluded,
-    /// An innate choice outside the six innate attributes.
+    /// An innate choice, or a boss soul's innate attribute, outside the six innate attributes.
     NotInnate,
     /// A soul id that is empty or longer than [`MAX_SOUL_ID_BYTES`].
     SoulId,

@@ -256,14 +256,31 @@ const Soul$json = {
       '10': 'subs'
     },
     {
-      '1': 'innate',
-      '3': 9,
+      '1': 'ordinary',
+      '3': 10,
       '4': 1,
       '5': 11,
-      '6': '.yata.core.v1.Innate',
-      '10': 'innate'
+      '6': '.yata.core.v1.OrdinarySoul',
+      '9': 0,
+      '10': 'ordinary'
+    },
+    {
+      '1': 'boss',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.BossSoul',
+      '9': 0,
+      '10': 'boss'
     },
   ],
+  '8': [
+    {'1': 'kind'},
+  ],
+  '9': [
+    {'1': 9, '2': 10},
+  ],
+  '10': ['innate'],
 };
 
 /// Descriptor for `Soul`. Decode as a `google.protobuf.DescriptorProto`.
@@ -272,33 +289,39 @@ final $typed_data.Uint8List soulDescriptor = $convert.base64Decode(
     'RDb2RlEioKBHNsb3QYAyABKA4yFi55YXRhLmNvcmUudjEuU291bFNsb3RSBHNsb3QSEgoEc3Rh'
     'chgEIAEoDVIEc3RhchIUCgVsZXZlbBgFIAEoDVIFbGV2ZWwSLwoEbWFpbhgGIAEoDjIbLnlhdG'
     'EuY29yZS52MS5Tb3VsQXR0cmlidXRlUgRtYWluEh0KCm1haW5fdmFsdWUYByABKAFSCW1haW5W'
-    'YWx1ZRIuCgRzdWJzGAggAygLMhoueWF0YS5jb3JlLnYxLlN1YkF0dHJpYnV0ZVIEc3VicxIsCg'
-    'Zpbm5hdGUYCSABKAsyFC55YXRhLmNvcmUudjEuSW5uYXRlUgZpbm5hdGU=');
+    'YWx1ZRIuCgRzdWJzGAggAygLMhoueWF0YS5jb3JlLnYxLlN1YkF0dHJpYnV0ZVIEc3VicxI4Cg'
+    'hvcmRpbmFyeRgKIAEoCzIaLnlhdGEuY29yZS52MS5PcmRpbmFyeVNvdWxIAFIIb3JkaW5hcnkS'
+    'LAoEYm9zcxgLIAEoCzIWLnlhdGEuY29yZS52MS5Cb3NzU291bEgAUgRib3NzQgYKBGtpbmRKBA'
+    'gJEApSBmlubmF0ZQ==');
 
-@$core.Deprecated('Use innateDescriptor instead')
-const Innate$json = {
-  '1': 'Innate',
+@$core.Deprecated('Use ordinarySoulDescriptor instead')
+const OrdinarySoul$json = {
+  '1': 'OrdinarySoul',
+};
+
+/// Descriptor for `OrdinarySoul`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List ordinarySoulDescriptor =
+    $convert.base64Decode('CgxPcmRpbmFyeVNvdWw=');
+
+@$core.Deprecated('Use bossSoulDescriptor instead')
+const BossSoul$json = {
+  '1': 'BossSoul',
   '2': [
-    {'1': 'absent', '3': 1, '4': 1, '5': 8, '9': 0, '10': 'absent'},
     {
-      '1': 'present',
-      '3': 2,
+      '1': 'innate',
+      '3': 1,
       '4': 1,
       '5': 14,
       '6': '.yata.core.v1.SoulAttribute',
-      '9': 0,
-      '10': 'present'
+      '10': 'innate'
     },
-  ],
-  '8': [
-    {'1': 'state'},
   ],
 };
 
-/// Descriptor for `Innate`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List innateDescriptor = $convert.base64Decode(
-    'CgZJbm5hdGUSGAoGYWJzZW50GAEgASgISABSBmFic2VudBI3CgdwcmVzZW50GAIgASgOMhsueW'
-    'F0YS5jb3JlLnYxLlNvdWxBdHRyaWJ1dGVIAFIHcHJlc2VudEIHCgVzdGF0ZQ==');
+/// Descriptor for `BossSoul`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List bossSoulDescriptor = $convert.base64Decode(
+    'CghCb3NzU291bBIzCgZpbm5hdGUYASABKA4yGy55YXRhLmNvcmUudjEuU291bEF0dHJpYnV0ZV'
+    'IGaW5uYXRl');
 
 @$core.Deprecated('Use subAttributeDescriptor instead')
 const SubAttribute$json = {

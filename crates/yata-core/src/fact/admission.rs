@@ -16,14 +16,16 @@ use super::model::{Coverage, GameAccountId, GameSoulId};
 use crate::import::observation::{self, Evidence, SoulField, SoulObservation, SoulReading};
 
 /// The fields a record must carry, established, to be an inventory row: every field W-Soul reads,
-/// the set, and the slot. `innate`, `locked`, and `discarded` are carried as read.
-pub const ROW_FIELDS: [SoulField; 6] = [
+/// the set, the slot, and the innate attribute, which decides whether the soul is a boss soul
+/// (ADR-0029). `locked` and `discarded` are carried as read.
+pub const ROW_FIELDS: [SoulField; 7] = [
     SoulField::SuitCode,
     SoulField::Star,
     SoulField::Slot,
     SoulField::Level,
     SoulField::Main,
     SoulField::Subs,
+    SoulField::Innate,
 ];
 
 /// A reading the fact log admits: its coverage, account, and the identity of each record.

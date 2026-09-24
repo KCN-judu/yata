@@ -14,7 +14,7 @@ use yata_core::query::{
 use yata_core::scheme::selection::{
     InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
 };
-use yata_core::soul::{Innate, Soul, SoulAttribute, SoulSet, SoulSlot, SubAttribute};
+use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
 use yata_protocol::core as wire;
 
 use super::{MAX_INVENTORY_SOULS, RequestError, WireProblem};
@@ -82,17 +82,18 @@ fn soul(s: wire::Soul) -> Result<Soul, WireProblem> {
         main: attribute(s.main)?,
         main_value: s.main_value,
         subs,
-        innate: innate(s.innate)?,
+        kind: kind(s.kind)?,
     })
 }
 
-fn innate(i: Option<wire::Innate>) -> Result<Innate, WireProblem> {
-    use wire::innate::State;
-    // An absent message is a reading that does not say; it is never read as `Absent`.
-    match i.and_then(|i| i.state) {
-        None => Ok(Innate::Unknown),
-        Some(State::Absent(_)) => Ok(Innate::Absent),
-        Some(State::Present(a)) => attribute(a).map(Innate::Present),
+/// A soul's kind. There is no unknown kind (ADR-0029): a soul that states neither is refused.
+fn kind(k: Option<wire::soul::Kind>) -> Result<SoulKind, WireProblem> {
+    use wire::soul::Kind;
+    match k.ok_or(WireProblem::Missing("Soul.kind"))? {
+        Kind::Ordinary(wire::OrdinarySoul {}) => Ok(SoulKind::Ordinary),
+        Kind::Boss(b) => attribute(b.innate)
+            .and_then(|a| InnateAttribute::new(a).ok_or(WireProblem::NotInnate))
+            .map(SoulKind::Boss),
     }
 }
 

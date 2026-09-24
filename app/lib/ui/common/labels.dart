@@ -73,16 +73,13 @@ String schemeKindName(AppLocalizations l, pb.SchemeKind k) => switch (k) {
   _ => l.valueUnknown,
 };
 
-/// A soul's 固有属性: its attribute, none, or unknown when the reading does not say. Unknown is
-/// never shown as none (`core.proto`, `Soul.innate`).
-String innateText(AppLocalizations l, pb.Soul s) {
-  if (!s.hasInnate()) return l.valueUnknown;
-  return switch (s.innate.whichState()) {
-    pb.Innate_State.present => attributeName(l, s.innate.present),
-    pb.Innate_State.absent => l.labelNone,
-    pb.Innate_State.notSet => l.valueUnknown,
-  };
-}
+/// A soul's 固有属性: a boss soul's attribute, or none for an ordinary soul (ADR-0029). A soul
+/// without a kind is a gap in the wire, never shown as none (`core.proto`, `Soul.kind`).
+String innateText(AppLocalizations l, pb.Soul s) => switch (s.whichKind()) {
+  pb.Soul_Kind.boss => attributeName(l, s.boss.innate),
+  pb.Soul_Kind.ordinary => l.labelNone,
+  pb.Soul_Kind.notSet => l.valueUnknown,
+};
 
 /// The accessible name of a soul, reading its layers in order (PRP-0002, "The soul tile").
 String soulAccessibleName(AppLocalizations l, pb.Soul s) =>

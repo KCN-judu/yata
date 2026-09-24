@@ -172,6 +172,8 @@ class Error extends $pb.GeneratedMessage {
   void clearDetails() => $_clearField(3);
 }
 
+enum Soul_Kind { ordinary, boss, notSet }
+
 /// A soul in domain terms, not the game's record: the set by suit code, values in display units.
 class Soul extends $pb.GeneratedMessage {
   factory Soul({
@@ -183,7 +185,8 @@ class Soul extends $pb.GeneratedMessage {
     SoulAttribute? main,
     $core.double? mainValue,
     $core.Iterable<SubAttribute>? subs,
-    Innate? innate,
+    OrdinarySoul? ordinary,
+    BossSoul? boss,
   }) {
     final result = Soul._();
     if (soulId != null) result.soulId = soulId;
@@ -194,7 +197,8 @@ class Soul extends $pb.GeneratedMessage {
     if (main != null) result.main = main;
     if (mainValue != null) result.mainValue = mainValue;
     if (subs != null) result.subs.addAll(subs);
-    if (innate != null) result.innate = innate;
+    if (ordinary != null) result.ordinary = ordinary;
+    if (boss != null) result.boss = boss;
     return result;
   }
 
@@ -207,10 +211,16 @@ class Soul extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       Soul()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, Soul_Kind> _Soul_KindByTag = {
+    10: Soul_Kind.ordinary,
+    11: Soul_Kind.boss,
+    0: Soul_Kind.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Soul',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: Soul.$_createMessage)
+    ..oo(0, [10, 11])
     ..aOS(1, _omitFieldNames ? '' : 'soulId')
     ..aI(2, _omitFieldNames ? '' : 'suitCode', fieldType: $pb.PbFieldType.OU3)
     ..aE<SoulSlot>(3, _omitFieldNames ? '' : 'slot',
@@ -222,8 +232,10 @@ class Soul extends $pb.GeneratedMessage {
     ..aD(7, _omitFieldNames ? '' : 'mainValue')
     ..pPM<SubAttribute>(8, _omitFieldNames ? '' : 'subs',
         subBuilder: SubAttribute.$_createMessage)
-    ..aOM<Innate>(9, _omitFieldNames ? '' : 'innate',
-        subBuilder: Innate.$_createMessage)
+    ..aOM<OrdinarySoul>(10, _omitFieldNames ? '' : 'ordinary',
+        subBuilder: OrdinarySoul.$_createMessage)
+    ..aOM<BossSoul>(11, _omitFieldNames ? '' : 'boss',
+        subBuilder: BossSoul.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -245,6 +257,13 @@ class Soul extends $pb.GeneratedMessage {
   static Soul getDefault() => _defaultInstance ??=
       $pb.GeneratedMessage.$_defaultFor<Soul>(Soul.$_createMessage);
   static Soul? _defaultInstance;
+
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  Soul_Kind whichKind() => _Soul_KindByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  void clearKind() => $_clearField($_whichOneof(0));
 
   /// The game's soul id: non-empty, at most 64 bytes, unique within an inventory.
   @$pb.TagNumber(1)
@@ -314,102 +333,127 @@ class Soul extends $pb.GeneratedMessage {
   @$pb.TagNumber(8)
   $pb.PbList<SubAttribute> get subs => $_getList(7);
 
-  /// Absent: the input does not say whether the soul carries one, or which.
-  @$pb.TagNumber(9)
-  Innate get innate => $_getN(8);
-  @$pb.TagNumber(9)
-  set innate(Innate value) => $_setField(9, value);
-  @$pb.TagNumber(9)
-  $core.bool hasInnate() => $_has(8);
-  @$pb.TagNumber(9)
-  void clearInnate() => $_clearField(9);
-  @$pb.TagNumber(9)
-  Innate ensureInnate() => $_ensure(8);
+  @$pb.TagNumber(10)
+  OrdinarySoul get ordinary => $_getN(8);
+  @$pb.TagNumber(10)
+  set ordinary(OrdinarySoul value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasOrdinary() => $_has(8);
+  @$pb.TagNumber(10)
+  void clearOrdinary() => $_clearField(10);
+  @$pb.TagNumber(10)
+  OrdinarySoul ensureOrdinary() => $_ensure(8);
+
+  @$pb.TagNumber(11)
+  BossSoul get boss => $_getN(9);
+  @$pb.TagNumber(11)
+  set boss(BossSoul value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasBoss() => $_has(9);
+  @$pb.TagNumber(11)
+  void clearBoss() => $_clearField(11);
+  @$pb.TagNumber(11)
+  BossSoul ensureBoss() => $_ensure(9);
 }
 
-enum Innate_State { absent, present, notSet }
+/// A soul that is not a boss soul: it carries no innate attribute. Empty on purpose, so that
+/// choosing it is the whole message.
+class OrdinarySoul extends $pb.GeneratedMessage {
+  factory OrdinarySoul() => OrdinarySoul._();
 
-/// A soul's 固有属性 (glossary.md, InnateAttribute).
-class Innate extends $pb.GeneratedMessage {
-  factory Innate({
-    $core.bool? absent,
-    SoulAttribute? present,
-  }) {
-    final result = Innate._();
-    if (absent != null) result.absent = absent;
-    if (present != null) result.present = present;
-    return result;
-  }
+  OrdinarySoul._();
 
-  Innate._();
-
-  factory Innate.fromBuffer($core.List<$core.int> data,
+  factory OrdinarySoul.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      Innate()..mergeFromBuffer(data, registry);
-  factory Innate.fromJson($core.String json,
+      OrdinarySoul()..mergeFromBuffer(data, registry);
+  factory OrdinarySoul.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      Innate()..mergeFromJson(json, registry);
+      OrdinarySoul()..mergeFromJson(json, registry);
 
-  static const $core.Map<$core.int, Innate_State> _Innate_StateByTag = {
-    1: Innate_State.absent,
-    2: Innate_State.present,
-    0: Innate_State.notSet
-  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Innate',
+      _omitMessageNames ? '' : 'OrdinarySoul',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: Innate.$_createMessage)
-    ..oo(0, [1, 2])
-    ..aOB(1, _omitFieldNames ? '' : 'absent')
-    ..aE<SoulAttribute>(2, _omitFieldNames ? '' : 'present',
-        enumValues: SoulAttribute.values)
+      createEmptyInstance: OrdinarySoul.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Innate clone() => deepCopy();
+  OrdinarySoul clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Innate copyWith(void Function(Innate) updates) =>
-      super.copyWith((message) => updates(message as Innate)) as Innate;
+  OrdinarySoul copyWith(void Function(OrdinarySoul) updates) =>
+      super.copyWith((message) => updates(message as OrdinarySoul))
+          as OrdinarySoul;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
-  @$core.Deprecated('Use Innate() / Innate.new instead')
-  static Innate create() => Innate._();
-  static $pb.GeneratedMessage $_createMessage() => Innate._();
+  @$core.Deprecated('Use OrdinarySoul() / OrdinarySoul.new instead')
+  static OrdinarySoul create() => OrdinarySoul._();
+  static $pb.GeneratedMessage $_createMessage() => OrdinarySoul._();
   @$core.override
-  Innate createEmptyInstance() => Innate._();
+  OrdinarySoul createEmptyInstance() => OrdinarySoul._();
   @$core.pragma('dart2js:noInline')
-  static Innate getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<Innate>(Innate.$_createMessage);
-  static Innate? _defaultInstance;
+  static OrdinarySoul getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<OrdinarySoul>(
+          OrdinarySoul.$_createMessage);
+  static OrdinarySoul? _defaultInstance;
+}
+
+/// A boss soul (首领御魂) and its 固有属性, one of the six innate attributes.
+class BossSoul extends $pb.GeneratedMessage {
+  factory BossSoul({
+    SoulAttribute? innate,
+  }) {
+    final result = BossSoul._();
+    if (innate != null) result.innate = innate;
+    return result;
+  }
+
+  BossSoul._();
+
+  factory BossSoul.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      BossSoul()..mergeFromBuffer(data, registry);
+  factory BossSoul.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      BossSoul()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'BossSoul',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: BossSoul.$_createMessage)
+    ..aE<SoulAttribute>(1, _omitFieldNames ? '' : 'innate',
+        enumValues: SoulAttribute.values)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BossSoul clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  BossSoul copyWith(void Function(BossSoul) updates) =>
+      super.copyWith((message) => updates(message as BossSoul)) as BossSoul;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use BossSoul() / BossSoul.new instead')
+  static BossSoul create() => BossSoul._();
+  static $pb.GeneratedMessage $_createMessage() => BossSoul._();
+  @$core.override
+  BossSoul createEmptyInstance() => BossSoul._();
+  @$core.pragma('dart2js:noInline')
+  static BossSoul getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<BossSoul>(BossSoul.$_createMessage);
+  static BossSoul? _defaultInstance;
 
   @$pb.TagNumber(1)
-  @$pb.TagNumber(2)
-  Innate_State whichState() => _Innate_StateByTag[$_whichOneof(0)]!;
+  SoulAttribute get innate => $_getN(0);
   @$pb.TagNumber(1)
-  @$pb.TagNumber(2)
-  void clearState() => $_clearField($_whichOneof(0));
-
-  /// The soul carries none.
+  set innate(SoulAttribute value) => $_setField(1, value);
   @$pb.TagNumber(1)
-  $core.bool get absent => $_getBF(0);
+  $core.bool hasInnate() => $_has(0);
   @$pb.TagNumber(1)
-  set absent($core.bool value) => $_setBool(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasAbsent() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearAbsent() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  SoulAttribute get present => $_getN(1);
-  @$pb.TagNumber(2)
-  set present(SoulAttribute value) => $_setField(2, value);
-  @$pb.TagNumber(2)
-  $core.bool hasPresent() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearPresent() => $_clearField(2);
+  void clearInnate() => $_clearField(1);
 }
 
 class SubAttribute extends $pb.GeneratedMessage {

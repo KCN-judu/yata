@@ -123,9 +123,10 @@ pub struct SoulObservation {
     pub level: Option<u32>,
     pub main: Option<AttributeReading>,
     pub subs: Vec<SubAttributeReading>,
-    /// `None` both when not mapped and when mapped and absent. Neither says the soul has no innate
-    /// attribute: until a recording establishes how a reading carries it, decode maps `None` to
-    /// `Innate::Unknown`, never to `Innate::Absent` (`scheme-code.md`).
+    /// `None` both when not mapped and when mapped and absent; [`SoulReading::evidence_of`] tells
+    /// the two apart. Only a mapped field decides a soul's kind: mapped and `None` is an ordinary
+    /// soul, mapped and present a boss soul. A record whose field is not mapped is not a row
+    /// (ADR-0029).
     pub innate: Option<AttributeReading>,
     pub locked: Option<bool>,
     pub discarded: Option<bool>,

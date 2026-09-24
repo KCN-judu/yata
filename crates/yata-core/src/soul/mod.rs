@@ -11,6 +11,6 @@ mod slot;
 
 pub use attribute::{AttributeCategory, RollClass, SoulAttribute};
 pub use innate::InnateAttribute;
-pub use model::{Innate, Soul, SubAttribute};
+pub use model::{Soul, SoulKind, SubAttribute};
 pub use set::SoulSet;
 pub use slot::SoulSlot;

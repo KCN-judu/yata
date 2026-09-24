@@ -67,17 +67,24 @@ message Soul {
   double main_value = 7;
   // At most 4.
   repeated SubAttribute subs = 8;
-  // Absent: the input does not say whether the soul carries one, or which.
-  Innate innate = 9;
+  // Retired: `Innate innate`, whose unknown state and `bool absent` marker ADR-0029 removed.
+  reserved 9;
+  reserved "innate";
+  // Whether the soul is a boss soul (ADR-0029). Exactly one is set; a soul with neither is
+  // `query.malformed`.
+  oneof kind {
+    OrdinarySoul ordinary = 10;
+    BossSoul boss = 11;
+  }
 }
 
-// A soul's 固有属性 (glossary.md, InnateAttribute).
-message Innate {
-  oneof state {
-    // The soul carries none.
-    bool absent = 1;
-    SoulAttribute present = 2;
-  }
+// A soul that is not a boss soul: it carries no innate attribute. Empty on purpose, so that
+// choosing it is the whole message.
+message OrdinarySoul {}
+
+// A boss soul (首领御魂) and its 固有属性, one of the six innate attributes.
+message BossSoul {
+  SoulAttribute innate = 1;
 }
 
 message SubAttribute {
