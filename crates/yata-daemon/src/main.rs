@@ -16,11 +16,15 @@ use yata_daemon::qr;
 use yata_daemon::scheme::{
     format_diff, format_dump, format_plans, parse_plan_file, read_code, read_payload,
 };
+use yata_daemon::serve::projection::{Projection, fixture};
+use yata_daemon::serve::session::Session;
 use yata_daemon::store::{OpenError, Store, format_commit, read_commits};
 
 const USAGE: &str = "usage: yata-daemon <command> ...
 
 commands:
+  serve [--fixture]                       run the core protocol on stdin and stdout; --fixture serves
+                                          the development fixture instead of an empty projection
   check <store.sqlite3>                   run SQLite's full integrity check on a store
   log <store.sqlite3>                     print every commit of a store's fact log, readably
   query                                   answer EvaluateQuery frames on stdin, one result frame
@@ -51,6 +55,8 @@ fn main() -> ExitCode {
     let words: Vec<&str> = args.iter().map(|a| a.to_str().unwrap_or("")).collect();
     let path = |i: usize| Path::new(&args[i]);
     match words.as_slice() {
+        ["serve"] => serve(Projection::empty()),
+        ["serve", "--fixture"] => serve(fixture::projection()),
         ["check", _] => check(path(1)),
         ["log", _] => dump_log(path(1)),
         ["query"] => serve_queries(),
@@ -91,6 +97,20 @@ fn main() -> ExitCode {
                 USAGE.replace("{PROBE}", yata_daemon::probe::cli::USAGE)
             );
             ExitCode::from(2)
+        }
+    }
+}
+
+/// The protocol on stdio. stdout carries frames and nothing else; every diagnostic goes to stderr
+/// (ADR-0004, rule 4).
+fn serve(projection: Projection) -> ExitCode {
+    let stdin = std::io::stdin().lock();
+    let stdout = std::io::BufWriter::new(std::io::stdout().lock());
+    match yata_daemon::serve::serve(stdin, stdout, Session::new(projection)) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("session.failed: {e:?}");
+            ExitCode::FAILURE
         }
     }
 }

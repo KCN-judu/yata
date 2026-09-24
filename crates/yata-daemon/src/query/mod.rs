@@ -6,16 +6,18 @@
 //! on its own, from its bytes alone. Nothing is kept between requests, so a refused or even a
 //! panicking request leaves nothing behind for the next one.
 
-mod convert;
+pub(crate) mod convert;
 mod cursor;
 
+use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use prost::Message;
-use yata_core::query::{Page, PageRequest, QueryError, compile};
+use yata_core::query::{CompiledQuery, Page, PageRequest, QueryError, compile};
 use yata_core::scheme::evaluate::{OpenRule, Verdict};
+use yata_core::soul::Soul;
 use yata_protocol::core as wire;
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
 
@@ -163,6 +165,20 @@ fn evaluate(request: wire::EvaluateQuery) -> Result<wire::QueryPage, RequestErro
         .ok_or(RequestError::Wire(WireProblem::Missing(
             "EvaluateQuery.query",
         )))?;
+    let prepared = prepare(query)?;
+    let souls = convert::inventory(request.inventory)?;
+    run(&prepared, &souls)
+}
+
+/// A query checked and compiled, with its page request: everything but the souls.
+pub struct Prepared {
+    compiled: CompiledQuery,
+    request: PageRequest<String>,
+}
+
+/// Check and compile a wire query. The headless endpoint and the session both start here, so a
+/// query means the same whichever way it arrives.
+pub fn prepare(query: wire::Query) -> Result<Prepared, RequestError> {
     let page = query.page.clone().unwrap_or_default();
     let budget = page.row_budget.unwrap_or(DEFAULT_ROW_BUDGET);
     let row_budget = NonZeroUsize::new(budget as usize)
@@ -175,9 +191,21 @@ fn evaluate(request: wire::EvaluateQuery) -> Result<wire::QueryPage, RequestErro
         }
     };
     let compiled = compile(convert::query(query)?).map_err(RequestError::Query)?;
-    let souls = convert::inventory(request.inventory)?;
-    let page = compiled
-        .page(&souls, &PageRequest { row_budget, cursor })
+    Ok(Prepared {
+        compiled,
+        request: PageRequest { row_budget, cursor },
+    })
+}
+
+/// The page a prepared query selects from `souls`, with the core's count of every row it keeps.
+/// The rows carry ids and verdicts; a caller that holds the souls adds their values.
+pub fn run(
+    prepared: &Prepared,
+    souls: &BTreeMap<String, Soul>,
+) -> Result<wire::QueryPage, RequestError> {
+    let page = prepared
+        .compiled
+        .page(souls, &prepared.request)
         .map_err(RequestError::Query)?;
     Ok(to_wire(page))
 }
@@ -191,6 +219,7 @@ fn to_wire(page: Page<String>) -> wire::QueryPage {
         .rows
         .into_iter()
         .map(|row| wire::QueryRow {
+            soul: None,
             soul_id: row.id,
             open_rules: match &row.verdict {
                 Verdict::Undetermined(rules) => rules.iter().map(rule).collect(),
@@ -202,6 +231,8 @@ fn to_wire(page: Page<String>) -> wire::QueryPage {
         rows,
         has_more: page.next.is_some(),
         cursor: page.next.as_ref().map(cursor::encode).unwrap_or_default(),
+        revision: 0,
+        total: page.total as u64,
     }
 }
 

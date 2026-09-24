@@ -9,11 +9,15 @@
 //! - [`qr`]: QR matrices for scheme texts, and scheme texts from QR images (ADR-0009).
 //! - [`query`]: the headless query endpoint, over an inventory each request supplies (ADR-0026).
 //! - [`scheme`]: the scheme-code research commands' file reading and output.
+//! - [`serve`]: the core protocol session the application spawns (ADR-0004).
 //! - [`store`]: the SQLite store behind `yata-store`'s instructions (ADR-0019), and the fact log
 //!   over it (ADR-0002).
+//! - [`wire`]: the one conversion between domain values and core-protocol messages.
 
 pub mod probe;
 pub mod qr;
 pub mod query;
 pub mod scheme;
+pub mod serve;
 pub mod store;
+pub mod wire;

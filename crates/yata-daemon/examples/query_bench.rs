@@ -284,6 +284,7 @@ fn main() {
                 sort: Vec::new(),
                 params: None,
                 page: None,
+                ..wire::Query::default()
             }),
         }
         .encode_to_vec();

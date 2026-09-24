@@ -77,6 +77,7 @@ fn query(filter: Option<Expr>) -> Query {
         sort: Vec::new(),
         params: None,
         page: None,
+        ..Query::default()
     }
 }
 
