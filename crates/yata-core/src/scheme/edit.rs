@@ -7,19 +7,14 @@
 //! edit changes that one bit and nothing else, with one documented exception: clearing a soul bit
 //! trims trailing zero bytes from the soul mask, as the game writes masks.
 //!
-//! Which soul or attribute a bit means is the mapping of the research record, applied by the
-//! codec above this module; here a bit is a position.
+//! Which soul or attribute a bit means is [`super::mapping`]'s, applied by [`super::selection`];
+//! here a bit is a position. This is the research tool's level; the application edits selections.
 
 use super::layout::{LayoutError, MAX_FIELD_LEN, Record};
+use super::mapping;
 
-/// Soul bits in use: one per soul set, 0 to 69.
-pub const SOUL_BIT_COUNT: u16 = 70;
-
-/// The solved filter bits, every one from 0 to 60, each confirmed by a controlled export:
-/// slot 0–5, star 6–11, main attribute 12–22; sub-attribute include and exclude 23–44, two bits
-/// per attribute in the main-attribute order (`AtkFlat` 23–24 … `CritDmg` 43–44); sub-attribute
-/// count 45–48; level 49–54; innate attribute 55–60. Bits 61 and above are open.
-const SOLVED_FILTER_BITS: [(u16, u16); 1] = [(0, 60)];
+/// Soul bits in use: one per mapped soul set ([`super::mapping`]).
+pub const SOUL_BIT_COUNT: u16 = mapping::SOUL_BIT_COUNT;
 
 /// The longest plan name the game imports, in characters. Names of 11 characters or more were
 /// refused on import, and the game's own exports never exceed 10 (2026-09-24).
@@ -43,16 +38,13 @@ impl SoulBit {
     }
 }
 
-/// A filter bit this codec may write.
+/// A filter bit this codec may write: one of a solved group of [`super::mapping`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FilterBit(u16);
 
 impl FilterBit {
     pub fn new(bit: u16) -> Option<FilterBit> {
-        SOLVED_FILTER_BITS
-            .iter()
-            .any(|&(lo, hi)| (lo..=hi).contains(&bit))
-            .then_some(FilterBit(bit))
+        mapping::is_solved_filter_bit(bit).then_some(FilterBit(bit))
     }
 
     pub fn index(self) -> u16 {
@@ -107,6 +99,12 @@ fn set_bits(bytes: &[u8]) -> Vec<u16> {
         .filter(|&b| get(bytes, b))
         .filter_map(|b| u16::try_from(b).ok())
         .collect()
+}
+
+/// Whether the game imports a plan of this name: at most [`MAX_NAME_CHARS`] characters and
+/// [`MAX_NAME_BYTES`] bytes.
+pub(crate) fn importable_name(name: &str) -> bool {
+    name.chars().count() <= MAX_NAME_CHARS && name.len() <= MAX_NAME_BYTES
 }
 
 impl Record {
@@ -164,10 +162,9 @@ impl Record {
         souls: Option<&[SoulBit]>,
         filter: &[FilterBit],
     ) -> Result<Record, EditError> {
-        let chars = name.chars().count();
-        if chars > MAX_NAME_CHARS || name.len() > MAX_NAME_BYTES {
+        if !importable_name(name) {
             return Err(EditError::NameTooLong {
-                chars,
+                chars: name.chars().count(),
                 bytes: name.len(),
             });
         }

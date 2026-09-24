@@ -1,6 +1,7 @@
 //! Scheme codes from the game, end to end: for each code in the local corpus, the payload
 //! survives decode → encode → decode byte for byte, parses into its layout and is written back
-//! byte for byte, and survives the whole QR loop — text → QR matrix → PNG → text → payload.
+//! byte for byte, reads as a scheme code of selections that is written back byte for byte, and
+//! survives the whole QR loop — text → QR matrix → PNG → text → payload.
 //!
 //! The corpus is game-derived and stays out of the public repository (ADR-0016). It is read from
 //! the folder named by `YATA_SCHEME_CORPUS`, or `research/fixtures/scheme-codes/` in the working
@@ -9,6 +10,7 @@
 
 use std::path::PathBuf;
 
+use yata_core::scheme::code::{decode_code, encode_code};
 use yata_core::scheme::layout::{parse, serialize};
 use yata_core::scheme::transport::{decode_text, encode_text};
 use yata_daemon::qr;
@@ -44,6 +46,14 @@ fn every_corpus_code_round_trips_through_text_and_qr() {
             serialize(&layout).as_ref(),
             Ok(&payload),
             "{}: layout not written back byte for byte",
+            path.display()
+        );
+        let code = decode_code(&layout).expect("a scheme code of selections");
+        let written = encode_code(&code, layout.header.account).expect("encodable");
+        assert_eq!(
+            serialize(&written).as_ref(),
+            Ok(&payload),
+            "{}: selections not written back byte for byte",
             path.display()
         );
         let ours = encode_text(&payload).expect("encodable payload");
