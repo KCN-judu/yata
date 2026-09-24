@@ -70,6 +70,7 @@ mod tests {
 
     fn spd_soul(level: u8, value: f64) -> Soul {
         Soul {
+            set: crate::soul::SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,
             star: 6,
             level,

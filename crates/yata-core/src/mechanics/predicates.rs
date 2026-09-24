@@ -83,6 +83,7 @@ mod tests {
 
     fn soul(slot: SoulSlot, main: SoulAttribute, subs: &[(SoulAttribute, f64)]) -> Soul {
         Soul {
+            set: crate::soul::SoulSet::from_suit_code(30),
             slot,
             star: 6,
             level: 15,

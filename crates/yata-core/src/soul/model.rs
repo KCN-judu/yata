@@ -1,13 +1,16 @@
-use super::{SoulAttribute, SoulSlot};
+use super::{SoulAttribute, SoulSet, SoulSlot};
 
-/// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus the main
-/// attribute's value.
+/// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus its set and
+/// the main attribute's value.
 ///
 /// This is the shape decoded input takes before any rule is applied, so nothing here is
 /// guaranteed legal: [`crate::mechanics::assess`] decides that. Values are stored values in
 /// display units, never rounded display values.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Soul {
+    /// The set the soul belongs to. The roll rules do not depend on it; a scheme's 类型 group
+    /// does (`scheme-code.md`, "Evaluation").
+    pub set: SoulSet,
     pub slot: SoulSlot,
     pub star: u8,
     pub level: u8,

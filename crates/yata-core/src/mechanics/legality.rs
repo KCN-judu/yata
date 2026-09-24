@@ -202,6 +202,7 @@ mod tests {
     /// A 6★ +15 Slot 2 speed soul with four plausible legs.
     fn soul() -> Soul {
         Soul {
+            set: crate::soul::SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,
             star: 6,
             level: 15,
