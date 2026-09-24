@@ -12,9 +12,9 @@ memory could harm the machine it runs on or hide what it does. The decision to
 hold the reader to this baseline and to publish its source is
 [ADR-0007](../decisions/0007-open-source-read-only-reader.md).
 
-Everything here is _designed_. Nothing is _implemented_. Each requirement names
-the check that will enforce it; a requirement without a check is a defect in
-this page.
+Each requirement names the check that enforces it; a requirement without a check
+is a defect in this page. Which checks exist is in the status pages of this
+repository and of the reader's.
 
 ## Privilege
 
