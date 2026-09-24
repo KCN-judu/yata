@@ -83,6 +83,12 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/leanprover/elan/v4.2.4/elan-init.sh | sh -s -- -y --default-toolchain none
           echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+      # The version the committed paper bodies were generated with; another version may render
+      # them differently and fail `papers-current`.
+      - name: Install Pandoc
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/pandoc.deb" https://github.com/jgm/pandoc/releases/download/3.11/pandoc-3.11-1-amd64.deb
+          sudo dpkg -i "$RUNNER_TEMP/pandoc.deb"
       - name: Fetch the pinned Mathlib build
         working-directory: formal/lean
         run: lake exe cache get

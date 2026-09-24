@@ -344,7 +344,10 @@ def quality_calibration() -> Result:
 
 def papers_current() -> Result:
     """Every paper's generated Typst body matches its Markdown source (ADR-0023)."""
-    return _run([sys.executable, "scripts/build_papers.py", "--check"])
+    r = _run([sys.executable, "scripts/build_papers.py", "--check"])
+    if "pandoc not found" in r.output:
+        return Result(True, r.output, skipped=True)
+    return r
 
 
 def crate_graph() -> Result:
