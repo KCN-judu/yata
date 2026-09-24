@@ -10,7 +10,7 @@
 //! A strengthening set holds its plans back to back, with no count and no separator; a discard
 //! scheme holds one record. Parsing keeps every byte: the account segment is opaque, and a
 //! record's three fields are kept as the bytes read, so [`serialize`] of a parsed payload is the
-//! payload again. The bits inside a mask are not interpreted here.
+//! payload again. What the bits inside a mask mean is [`super::edit`]'s, and only for solved bits.
 
 use std::fmt;
 
