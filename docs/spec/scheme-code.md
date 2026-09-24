@@ -184,7 +184,7 @@ rule would say. The per-group rules:
 | `sub_attributes`, `Include`                   | it has every included attribute                                | ✓    |
 | `sub_attributes`, `Exclude`                   | it has none of the excluded attributes                         | ◎    |
 | `sub_counts`                                  | its number of sub-attributes, all of them, is chosen           | ✓    |
-| `innate`, something chosen                    | ? — a `Soul` does not carry its innate attribute yet           | ?    |
+| `innate`, something chosen                    | it has no innate attribute, or its innate attribute is chosen  | ◎    |
 
 `SubCount::of` places a soul's number of sub-attributes by the editor's labels:
 0 or 1 is 不足2条, then 2条, 3条, 4条; more than four is in no choice.
@@ -209,10 +209,35 @@ The empty-group rule is observed for 等级, 数量 and a disabled 固有属性,
 the 数量 choices, 2条 and 4条 were exercised; the other two are read from their
 labels.
 
-**`innate` waits on the soul model.** The reader records a soul's innate
-attribute where present (`probe-protocol.md`), but `Soul` does not hold it until
-its meaning for non-boss souls is established; a chosen innate attribute gives
-`Undetermined(Innate)`. An empty one is no constraint, like any empty group.
+**`innate` is decided where the soul's own set is chosen.** The maintainer
+applied 固有属性 in the game's soul panel on 2026-09-25, with a boss soul and
+ordinary souls chosen together in 类型 (the editor enables 固有属性 only once a
+boss soul is chosen, as it enables 主属性 only once a slot is):
+
+- a boss soul is picked when its innate attribute is chosen, and not when
+  another one is;
+- every ordinary soul is picked: only boss souls carry an innate attribute;
+- 副属性 X ○ does not pick a boss soul whose X is only its innate attribute, and
+  picks one that has X as both. The innate attribute is not a sub-attribute, so
+  `Soul` holds it apart from `subs`, as `innate`.
+
+These were observed one innate attribute at a time. That several chosen together
+pick a boss soul whose attribute is any of them is **extrapolated** (membership,
+like 位置 and 主属性; a boss soul has one): hence ◎. Also extrapolated from
+○: 副属性 X ✕ does not see the innate attribute either.
+
+`Soul::innate` is `Absent`, `Present(attribute)`, or `Unknown`. Two cases stay
+`Undetermined(Innate)`:
+
+- the soul's innate attribute is `Unknown`. No reader recording yet shows how a
+  reading carries it, so decode maps a missing field to `Unknown`, never to
+  `Absent`, until one does (`probe-protocol.md`);
+- a boss soul whose own set is not chosen (`AnySet`) and whose innate attribute
+  is not chosen. The editor cannot write a chosen innate attribute there, so the
+  game's reading of one is not observed; a chosen attribute picks the soul
+  either way.
+
+An empty 固有属性 is no constraint, like any empty group.
 
 **A scheme with unknown conditions is never exact.** When
 `has_unknown_conditions` is true, a plan's or discard scheme's verdict is never
@@ -354,8 +379,14 @@ user could not import.
 ## Open questions
 
 - whether the game's import accepts Base64 text as well as a QR code
-- a chosen innate attribute (above); whether an empty 位置, 星级 or 主属性 is no
-  constraint, as extrapolated, rather than observed
+- several innate attributes chosen together, and 副属性 ✕ against an innate
+  attribute (above); whether an empty 位置, 星级 or 主属性 is no constraint, as
+  extrapolated, rather than observed
+- whether 数量 counts a boss soul's innate attribute: the model counts
+  sub-attributes only, as 副属性 ○ is observed to, but the 2026-09-24 count
+  experiments did not single out boss souls
+- how a reading carries a boss soul's innate attribute, and whether every boss
+  soul carries one
 - the suit code of each soul, to be re-established by a reader recording
 
 ## Related
