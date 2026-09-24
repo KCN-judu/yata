@@ -81,6 +81,9 @@ pub struct Page<Id> {
     pub rows: Vec<Row<Id>>,
     /// Where the next page starts; absent when this page is the last.
     pub next: Option<Cursor<Id>>,
+    /// Every row the filter keeps, exact or open, across all pages: the same on every page of a
+    /// scan, whatever its cursor.
+    pub total: usize,
 }
 
 impl SortField {
@@ -175,10 +178,12 @@ impl CompiledQuery {
                 Outcome::No => None,
                 o => Some((self.keys(soul), id, o)),
             })
-            .filter(|(keys, id, _)| {
-                after.is_none_or(|c| self.compare((keys, *id), (&c.keys, &c.id)).is_gt())
-            })
             .collect();
+        // Counted before the cursor narrows the rows, so every page of a scan reports the same.
+        let total = kept.len();
+        kept.retain(|(keys, id, _)| {
+            after.is_none_or(|c| self.compare((keys, *id), (&c.keys, &c.id)).is_gt())
+        });
         let budget = request.row_budget.get();
         let by_order =
             |a: &Candidate<'_, Id>, b: &Candidate<'_, Id>| self.compare((&a.0, a.1), (&b.0, b.1));
@@ -200,7 +205,7 @@ impl CompiledQuery {
                 verdict: o.verdict(),
             })
             .collect();
-        Ok(Page { rows, next })
+        Ok(Page { rows, next, total })
     }
 
     /// Whether a cursor is a point in this query's order: one value per key, each of its kind.

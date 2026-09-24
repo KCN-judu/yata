@@ -672,13 +672,16 @@ fn pages_continue_from_their_cursor_without_gaps_or_repeats() {
     })
     .expect("ok");
     let souls = inventory();
-    let whole = ids(&run(&q, &souls, 100, None)).join("");
+    let first = run(&q, &souls, 100, None);
+    let whole = ids(&first).join("");
     for budget in 1..=6 {
         let mut seen = String::new();
         let mut cursor = None;
         loop {
             let page = run(&q, &souls, budget, cursor);
             assert!(page.rows.len() <= budget);
+            // Every page of the scan counts the whole selection, not the rows after its cursor.
+            assert_eq!(page.total, first.rows.len(), "budget {budget}");
             seen += &ids(&page).join("");
             match page.next {
                 Some(c) => cursor = Some(c),

@@ -196,6 +196,10 @@ sort-key tuple of the last row returned.
 
 The default order, when `sort` is absent, is row identity alone.
 
+**A page states its total:** every row the filter keeps, exact or open, across
+all pages. It is counted before the cursor narrows the rows, so every page of a
+scan reports the same total.
+
 ## Group and aggregate
 
 **Grouping is an aggregate, not a paging mode.** A grouped view is two calls: an
