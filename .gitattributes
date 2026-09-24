@@ -4,3 +4,6 @@
 
 # Generated papers are binary: never normalize their line endings or diff them as text.
 *.pdf binary
+
+# Recordings are frame streams, compared byte for byte
+*.frames binary
