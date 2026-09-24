@@ -130,7 +130,10 @@ rewrite.
 Design questions under active consideration. Close with `accepted` (→ ADR) or
 `rejected`.
 
-- None open. PRP-0001 and PRP-0002 are kept in local research (ADR-0016).
+- [proposals/0003-set-and-shikigami-affinity.md](proposals/0003-set-and-shikigami-affinity.md)
+  — set affinity and Shikigami affinity as two kinds of pass-2 fit; **draft**,
+  direction only
+- PRP-0001 and PRP-0002 are kept in local research (ADR-0016).
 
 ## Issues — `issues/`
 
