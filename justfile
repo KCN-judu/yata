@@ -28,6 +28,10 @@ papers:
 run +names:
     {{python}} scripts/preflight.py {{names}}
 
+# REWRITES FILES: the committed Dart bindings of the core protocol schema
+proto:
+    {{python}} scripts/gen_dart_protocol.py
+
 # the engineering records alone
 docs:
     {{python}} scripts/validate_docs.py
