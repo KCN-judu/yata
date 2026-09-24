@@ -21,9 +21,6 @@ pub const SOUL_BIT_COUNT: u16 = 70;
 /// count 45–48; level 49–54; innate attribute 55–60. Bits 61 and above are open.
 const SOLVED_FILTER_BITS: [(u16, u16); 1] = [(0, 60)];
 
-/// The filter length every observed plan has; a filter built from scratch has it.
-pub const FILTER_LEN: usize = 7;
-
 /// The longest plan name the game imports, in characters. Names of 11 characters or more were
 /// refused on import, and the game's own exports never exceed 10 (2026-09-24).
 pub const MAX_NAME_CHARS: usize = 10;
@@ -158,8 +155,9 @@ impl Record {
         set(&mut self.filter, usize::from(bit.0), on)
     }
 
-    /// A record from nothing: `souls` of `None` is "all souls"; the filter is [`FILTER_LEN`]
-    /// bytes with only the given solved bits set, every open bit clear. The name must be one the
+    /// A record from nothing: `souls` of `None` is "all souls"; the filter has only the given
+    /// solved bits set, and, like the soul mask, is trimmed to its highest set bit, as the game
+    /// writes it. The name must be one the
     /// game imports.
     pub fn from_bits(
         name: &str,
@@ -182,7 +180,7 @@ impl Record {
                 set(&mut soul_mask, usize::from(s.0), true)?;
             }
         }
-        let mut filter_bytes = vec![0u8; FILTER_LEN];
+        let mut filter_bytes = Vec::new();
         for f in filter {
             set(&mut filter_bytes, usize::from(f.0), true)?;
         }
@@ -228,7 +226,7 @@ mod tests {
     }
 
     #[test]
-    fn a_record_from_scratch_trims_its_soul_mask_and_has_a_seven_byte_filter() {
+    fn a_record_from_scratch_trims_its_soul_mask_and_its_filter() {
         let r = Record::from_bits(
             "测试位39",
             Some(&[soul(39)]),
@@ -238,6 +236,17 @@ mod tests {
         assert_eq!(r.soul_mask(), &[0, 0, 0, 0, 0x80]);
         assert_eq!(r.filter(), &[0x01, 0x08, 0, 0, 0, 0, 0x02]);
         assert!(!r.is_all_souls());
+    }
+
+    #[test]
+    fn the_discard_schemes_the_game_exported_are_rebuilt() {
+        // A discard code exported by the game on 2026-09-24, two schemes, filters trimmed.
+        let first = Record::from_bits("二号位双速招财", Some(&[soul(7)]), &[1, 18, 35].map(filt))
+            .expect("valid");
+        assert_eq!(first.filter(), &[0x02, 0x00, 0x04, 0x00, 0x08]);
+        let second = Record::from_bits("一号位针女", Some(&[soul(27)]), &[filt(0)]).expect("valid");
+        assert_eq!(second.filter(), &[0x01]);
+        assert_eq!(second.soul_mask(), &[0, 0, 0, 0x08]);
     }
 
     #[test]

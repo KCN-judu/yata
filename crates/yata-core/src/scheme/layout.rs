@@ -7,8 +7,9 @@
 //! record  = u8 len, name (UTF-8) | u8 len, soul mask | u8 len, filter
 //! ```
 //!
-//! A strengthening set holds its plans back to back, with no count and no separator; a discard
-//! scheme holds one record. Parsing keeps every byte: the account segment is opaque, and a
+//! Both kinds hold their records back to back, with no count and no separator: a strengthening
+//! set its plans, a discard code one or more discard schemes (the game exported a discard code
+//! with two on 2026-09-24). Parsing keeps every byte: the account segment is opaque, and a
 //! record's three fields are kept as the bytes read, so [`serialize`] of a parsed payload is the
 //! payload again. What the bits inside a mask mean is [`super::edit`]'s, and only for solved bits.
 
@@ -140,8 +141,8 @@ pub enum LayoutError {
     UnknownKind { byte: u8 },
     /// A record's field runs past the end of the payload.
     Truncated { offset: usize },
-    /// A discard code holds other than one record.
-    DiscardRecordCount { count: usize },
+    /// A discard code with no scheme in it.
+    EmptyDiscard,
     /// A discard scheme built with the "all souls" choice: that choice exists in the
     /// strengthening editor only (`scheme-code.md`, "SoulSelection"), so it is not encoded.
     DiscardAllSouls,
@@ -221,8 +222,8 @@ pub fn serialize(layout: &SchemeLayout) -> Result<RawSchemePayload, LayoutError>
 
 fn check_kind(layout: &SchemeLayout) -> Result<(), LayoutError> {
     match (layout.header.kind, layout.records.len()) {
-        (SchemeKind::Discard, 1) | (SchemeKind::Strengthening, _) => Ok(()),
-        (SchemeKind::Discard, count) => Err(LayoutError::DiscardRecordCount { count }),
+        (SchemeKind::Discard, 0) => Err(LayoutError::EmptyDiscard),
+        (SchemeKind::Discard, _) | (SchemeKind::Strengthening, _) => Ok(()),
     }
 }
 
@@ -238,18 +239,23 @@ impl SchemeLayout {
         }
     }
 
-    /// A new discard scheme for an account: one record, which must name its souls.
-    pub fn discard(account: AccountSegment, scheme: Record) -> Result<SchemeLayout, LayoutError> {
-        if scheme.soul_mask.is_empty() {
+    /// A new discard code for an account: one or more discard schemes, each naming its souls.
+    pub fn discard(
+        account: AccountSegment,
+        schemes: Vec<Record>,
+    ) -> Result<SchemeLayout, LayoutError> {
+        if schemes.iter().any(|s| s.soul_mask.is_empty()) {
             return Err(LayoutError::DiscardAllSouls);
         }
-        Ok(SchemeLayout {
+        let layout = SchemeLayout {
             header: SchemeHeader {
                 account,
                 kind: SchemeKind::Discard,
             },
-            records: vec![scheme],
-        })
+            records: schemes,
+        };
+        check_kind(&layout)?;
+        Ok(layout)
     }
 
     /// The same layout with another header's account (`scheme-code.md`, "The header and the
@@ -371,22 +377,20 @@ mod tests {
     }
 
     #[test]
-    fn a_discard_code_holds_exactly_one_record() {
+    fn a_discard_code_holds_one_or_more_schemes() {
         let mut layout = synthetic_set();
         layout.header.kind = SchemeKind::Discard;
-        assert_eq!(
-            serialize(&layout),
-            Err(LayoutError::DiscardRecordCount { count: 2 })
-        );
-        layout.records.pop();
-        assert!(serialize(&layout).is_ok());
+        let two = serialize(&layout).expect("two schemes are writable");
+        assert_eq!(parse(&two).map(|l| l.records.len()), Ok(2));
+        layout.records.clear();
+        assert_eq!(serialize(&layout), Err(LayoutError::EmptyDiscard));
     }
 
     #[test]
-    fn a_new_discard_scheme_is_one_record_with_kind_zero() {
+    fn a_new_discard_code_has_kind_zero() {
         let account = AccountSegment::from_bytes(ACCOUNT);
         let scheme = record("弃置", &[0x01], &[0x3f, 0x08, 0, 0, 0, 0, 0x02]);
-        let layout = SchemeLayout::discard(account, scheme).expect("names its souls");
+        let layout = SchemeLayout::discard(account, vec![scheme]).expect("names its souls");
         let bytes = serialize(&layout).expect("writable").into_bytes();
         assert_eq!(bytes[16], 0);
         assert_eq!(parse(&payload(bytes)), Ok(layout));
@@ -396,7 +400,7 @@ mod tests {
     fn a_new_discard_scheme_cannot_choose_all_souls() {
         let account = AccountSegment::from_bytes(ACCOUNT);
         assert_eq!(
-            SchemeLayout::discard(account, record("x", &[], &[0x01])),
+            SchemeLayout::discard(account, vec![record("x", &[], &[0x01])]),
             Err(LayoutError::DiscardAllSouls)
         );
     }
