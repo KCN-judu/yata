@@ -103,10 +103,12 @@ carries. The scheme bit and the UI order are both mappings from it, recorded in
 `research/scheme-code-protocol.md`; the codec converts suit code to scheme bit,
 and the UI presents sets in ascending suit code.
 
-**Fields the model does not have yet.** Sub-attribute count, "legs", rescue
-count, and innate attribute exist in the game's editor, but their bits are not
-solved. They are not in the model and live in `preserved` until they are. A
-field enters `SoulSelection` only when every value it can take has a ✓ or ◎ bit.
+**Fields the model does not have yet.** Sub-attribute count, "legs", and innate
+attribute exist in the game's editor, but their bits are not solved. A "rescue
+count" (救几次) seen in some plan names is not an editor option: the maintainer
+confirmed on 2026-09-24 that it is only part of the name. They are not in the
+model and live in `preserved` until they are. A field enters `SoulSelection`
+only when every value it can take has a ✓ or ◎ bit.
 
 ### Preserved
 
