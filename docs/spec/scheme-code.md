@@ -65,11 +65,9 @@ dependencies:
 The panel sits beside the soul grid, in a right-hand pane with the
 tabs 筛选 and 方案, and has「存为方案」 and 「重置」 at its foot.
 
-Groups 6 and 8 are in the game's panel but not yet in `SoulSelection`, because
-their scheme-code bits are not solved (below). Filtering by them inside this
-application does not need those bits: the reader reads each soul's innate
-attribute and sub-attribute count directly. Only exporting a selection that uses
-them waits on the wire format.
+Every group's scheme-code bits are solved (2026-09-24), so every group is in
+`SoulSelection`. The game's import preview labels group 6 **固定属性**; the
+editor's label is 固有属性.
 
 ### SoulSelection
 
@@ -84,11 +82,15 @@ SoulSelection {
   main_attributes  : { SoulAttribute }
   sub_attributes   : SoulAttribute → SubAttributeMode    // absent key = Ignore
   levels           : { LevelBand }
+  innate           : { InnateAttribute }                  // 固有属性; boss souls only
+  sub_counts       : { SubCount }                         // 数量; also called "legs"
 }
 
 SetChoice        = AnySet | Sets({ SoulSet })
 SubAttributeMode = Ignore | Include | Exclude
 LevelBand        = L0to2 | L3to5 | L6to8 | L9to11 | L12to14 | L15
+InnateAttribute  = AtkPercent | DefPercent | HpPercent | EffectHit | EffectRes | Crit
+SubCount         = FewerThanTwo | Two | Three | Four
 ```
 
 **`AnySet` and `Sets(every set)` are different values.** The game's
@@ -103,12 +105,10 @@ carries. The scheme bit and the UI order are both mappings from it, recorded in
 `research/scheme-code-protocol.md`; the codec converts suit code to scheme bit,
 and the UI presents sets in ascending suit code.
 
-**Fields the model does not have yet.** Sub-attribute count, "legs", and innate
-attribute exist in the game's editor, but their bits are not solved. A "rescue
-count" (救几次) seen in some plan names is not an editor option: the maintainer
-confirmed on 2026-09-24 that it is only part of the name. They are not in the
-model and live in `preserved` until they are. A field enters `SoulSelection`
-only when every value it can take has a ✓ or ◎ bit.
+**Every field of the editor is in the model.** A "rescue count" (救几次) seen in
+some plan names is not an editor option: the maintainer confirmed on 2026-09-24
+that it is only part of the name. A filter bit the editor never sets (61 and
+above) is preserved, never modelled.
 
 ### Preserved
 
@@ -248,23 +248,26 @@ which carries a `SchemeCode`. There is one registered codec.
 
 ### Encoder stages
 
-| Stage                       | Produces                                                              | Gated on                                            |
-| --------------------------- | --------------------------------------------------------------------- | --------------------------------------------------- |
-| 1. template edit            | a code derived from a decoded code, with only modelled fields changed | nothing: the framing is solved                      |
-| 2. single plan from scratch | a strengthening plan with no template                                 | nothing: the plan record is solved                  |
-| 3. whole set from scratch   | a complete strengthening scheme set                                   | nothing for strengthening sets; see the header rule |
+| Stage                       | Produces                                                              | Gated on                           |
+| --------------------------- | --------------------------------------------------------------------- | ---------------------------------- |
+| 1. template edit            | a code derived from a decoded code, with only modelled fields changed | nothing: the framing is solved     |
+| 2. single plan from scratch | a strengthening plan with no template                                 | nothing: the plan record is solved |
+| 3. whole set from scratch   | a complete strengthening scheme set, or a discard scheme              | nothing; see the header rule       |
 
-**The framing is solved for strengthening sets.** On 2026-09-24 a set built from
-nothing by this project, with 14 plans, was imported into the game, which listed
-every plan by name and showed the soul each one selected
-(`research/scheme-code-protocol.md`, "Confirmed by import"). A discard scheme's
-framing is the same record shape and is inferred from exported codes, not yet
-from an import.
+**The framing is solved for both kinds.** On 2026-09-24 a strengthening set
+built from nothing by this project, with 14 plans, was imported into the game,
+which listed every plan by name and showed the soul each one selected; two
+discard schemes built the same way were imported and the game's preview showed
+every group as encoded (`research/scheme-code-protocol.md`, "Confirmed by
+import" and "Discard schemes confirmed by import"). The filter layout is the
+same in both kinds, and every filter group of the game's editor is solved.
 
-A plan built from scratch writes only solved fields. Filter bits that are not
-solved (sub-attribute count, legs, innate attribute) are left clear, and a plan
-that needs one of them starts from a template that carries it, where the bit is
-preserved as read.
+A plan's name must have at most 10 characters and 26 bytes: longer names were
+refused on import.
+
+A plan built from scratch writes only solved fields; bits 61 and above, never
+seen set, are left clear, and bits already present in a template are preserved
+as read.
 
 ### The header and the user's account
 
