@@ -65,6 +65,17 @@ QUALITY_DOCS = (
 # ADR-0011: private keys and certificates are never tracked, whatever their name.
 SIGNING_MATERIAL = (".key", ".pem", ".p8", ".p12", ".pfx", ".snk", ".keystore", ".jks")
 
+# ADR-0012: every error code the daemon's session or the client raises has Chinese text in the app.
+ERROR_CODE_SOURCES = (
+    "crates/yata-daemon/src/serve/",
+    "crates/yata-daemon/src/wire.rs",
+    "crates/yata-daemon/src/query/",
+    "app/lib/daemon/",
+    "app/lib/state/",
+)
+ERROR_TEXT = "app/lib/ui/common/error_text.dart"
+ERROR_CODE = re.compile(r"""["'](session|query|command|job|decode|import|store|client)\.([a-z_]+)["']""")
+
 # ADR-0017: the SVG profile of committed icons.
 ICON_ROOT = "app/assets/icons/"
 ICON_PATH = re.compile(r"^app/assets/icons/(soul-set|shikigami)/(emblem|portrait)/\d+\.svg$")
@@ -438,8 +449,17 @@ def _app(cmd: list[str]) -> Result:
     return _run(cmd, ROOT / "app")
 
 
+def _dart_sources() -> list[str]:
+    """Hand-written Dart under app/, relative to it: generated code keeps its generator's layout."""
+    return [
+        f.removeprefix("app/")
+        for f in tracked_files()
+        if f.startswith("app/") and f.endswith(".dart") and not any(g in f for g in GENERATED)
+    ]
+
+
 def dart_format() -> Result:
-    return _app(["dart", "format", "--page-width", "100", "--output=none", "--set-exit-if-changed", "lib", "test"])
+    return _app(["dart", "format", "--page-width", "100", "--output=none", "--set-exit-if-changed", *_dart_sources()])
 
 
 def flutter_analyze() -> Result:
@@ -455,6 +475,40 @@ def dart_layers() -> Result:
     for f in tracked_files():
         if f.startswith("app/lib/ui/") and f.endswith(".dart") and re.search(r"import\s+'[^']*daemon/", _read(f)):
             bad.append(f"{f}: ui/ imports daemon/ (ADR-0012)")
+    return Result(not bad, "\n".join(bad))
+
+
+def dart_bindings() -> Result:
+    """The committed Dart bindings are what protoc generates from the schema (ADR-0004, rule 2)."""
+    if not _has_app():
+        return Result(True, "no app/ yet", skipped=True)
+    proc = subprocess.run(
+        [sys.executable, "scripts/gen_dart_protocol.py", "--check"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    out = (proc.stdout + proc.stderr).strip()
+    return Result(proc.returncode in (0, 3), out, skipped=proc.returncode == 3)
+
+
+def error_codes() -> Result:
+    """Every code a view can meet maps to Chinese text; `internal.*` is a bug and stays generic."""
+    if not _has_app():
+        return Result(True, "no app/ yet", skipped=True)
+    raised: dict[str, str] = {}
+    for f in tracked_files():
+        if f.startswith(ERROR_CODE_SOURCES) and f.endswith((".rs", ".dart")) and "/gen/" not in f:
+            for m in ERROR_CODE.finditer(_read(f)):
+                raised.setdefault(f"{m.group(1)}.{m.group(2)}", f)
+    mapped = {f"{m.group(1)}.{m.group(2)}" for m in ERROR_CODE.finditer(_read(ERROR_TEXT))}
+    bad = [
+        f"{code} (raised in {src}): no text in {ERROR_TEXT}"
+        for code, src in sorted(raised.items())
+        if code not in mapped
+    ]
     return Result(not bad, "\n".join(bad))
 
 
@@ -484,7 +538,7 @@ def fix_formatting() -> Result:
     if _has_rust() and shutil.which("cargo"):
         steps.append(_run(["cargo", "fmt", "--all"]))
     if _has_app() and shutil.which("dart"):
-        steps.append(_run(["dart", "format", "--page-width", "100", "lib", "test"], ROOT / "app"))
+        steps.append(_run(["dart", "format", "--page-width", "100", *_dart_sources()], ROOT / "app"))
     if shutil.which("npx"):
         md = markdown_files()
         steps.append(_run(["npx", "--yes", PRETTIER, "--write", *md]))
@@ -517,6 +571,14 @@ CHECKS = [
     Check("flutter-test", "Flutter tests pass", flutter_test, (), "cd app; flutter test"),
     Check("dart-layers", "app/lib/ui never imports app/lib/daemon", dart_layers, (), "go through state/ (ADR-0012)"),
     Check("icon-profile", "committed icons follow the SVG profile and layout", icon_profile, (), "ADR-0017"),
+    Check("error-codes", "every raised error code has text in the app", error_codes, (), "add it to error_text.dart"),
+    Check(
+        "dart-bindings",
+        "the committed Dart bindings match the schema",
+        dart_bindings,
+        (),
+        "python scripts/gen_dart_protocol.py",
+    ),
     Check("lean-build", "every Lean theorem of the quality standard checks", lean_build, (), "lake build"),
     Check(
         "quality-calibration",
@@ -545,6 +607,7 @@ STRUCTURE = [
     "sql-boundary",
     "dart-layers",
     "icon-profile",
+    "error-codes",
 ]
 DOCS = ["docs-format", "docs-lint"]
 PYTHON = ["python-lint", "python-types", "release-selftest"]
@@ -553,7 +616,7 @@ RUST_FULL = ["rust-format", "crate-graph", "rust-version", "rust-clippy", "rust-
 # What differs by target: cfg-gated code, paths, process spawning, the release build. Formatting,
 # the crate graph and the toolchain pin are the same on every platform and are proved on Linux.
 PLATFORM = ["rust-clippy", "rust-test", "release-package"]
-FLUTTER = ["dart-format", "flutter-analyze", "flutter-test"]
+FLUTTER = ["dart-bindings", "dart-format", "flutter-analyze", "flutter-test"]
 FORMAL = ["lean-build", "quality-calibration", "papers-current"]
 PROFILES = {
     "fast": STRUCTURE + DOCS + PYTHON + RUST_FAST + ["dart-format", "flutter-analyze"],
