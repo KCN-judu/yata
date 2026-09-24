@@ -70,6 +70,22 @@ every six-star soul has a quality score. -/
 theorem Arch.coverage (k : Slot) (m : Attr) (h : m ∈ legalMain k) : ∃ p : Arch, m ∈ p.accepts k := by
   cases k <;> cases m <;> simp [legalMain] at h <;> decide
 
+/-! ## The v1.1 milestones, in roll units
+
+The calibration program reads these four definitions and fails if its own values differ. -/
+
+/-- SR: five useful increments at mean value, `5μ`. -/
+def uSR : ℚ := 9 / 2
+/-- SSR: the most one useful line can hold, six increments at maximum. -/
+def uSSR : ℚ := 6
+/-- SP's quality floor: seven useful increments at mean value, `7μ`. -/
+def uSPFloor : ℚ := 63 / 10
+/-- UR: one roll unit below the attainable maximum. -/
+def uUR : ℚ := 8
+
+theorem milestones_ordered : uSR < uSSR ∧ uSSR < uSPFloor ∧ uSPFloor < uUR := by
+  norm_num [uSR, uSSR, uSPFloor, uUR]
+
 /-! ## Tiers on souls
 
 Each archetype has its own anchors and thresholds: the expected utility `E` is computed under
@@ -109,17 +125,41 @@ theorem UR_structure (p : Arch) (s : Soul) (hM : (A p).M = 9)
     (hT : (T p).tUR = (A p).g 8) (h : tierOf A T p s = .UR) : ∑ a ∈ p.attrs, s.hits a = 9 :=
   Archetype.nine_useful_of_gt_eight p.attrs s ((UR_iff_gt_eight A T p s hM hT).mp h)
 
-/-- **One perfect line and nothing useful beside it is never SP**, provided the SSR floor lies
+/-- **One perfect line and nothing useful beside it is never SP**, provided the SP floor lies
 above the score of six roll units. -/
 theorem single_line_not_SP (p : Arch) (s : Soul) (b : Attr)
-    (hb : ∀ a ∈ p.attrs, a ≠ b → s.features a = 0) (hfloor : (A p).g 6 < (T p).cSSR) :
+    (hb : ∀ a ∈ p.attrs, a ≠ b → s.features a = 0) (hfloor : (A p).g 6 < (T p).cSP) :
     tierOf A T p s ≠ .SP := by
   intro h
   unfold tierOf at h
-  have := ((T p).SP_floor _ _ h).1
+  have := ((T p).sp_needs_floor _ _ h).1
   unfold Profile.score at this
   have h6 := (A p).g_mono (Archetype.single_line_le_six p.attrs s b hb)
   linarith
+
+/-- **A perfect line is SSR quality.** A soul with six roll units on one useful line ranks at
+least SSR, when the SSR floor is the score of six roll units. -/
+theorem perfect_line_at_least_SSR (p : Arch) (s : Soul) {b : Attr} (hb : b ∈ p.attrs)
+    (h6 : 6 ≤ s.features b) (hSSR : (T p).cSSR = (A p).g 6) : 3 ≤ (tierOf A T p s).rank := by
+  unfold tierOf
+  apply (T p).ssr_floor_rank
+  rw [hSSR]
+  exact (A p).g_mono (le_trans h6 (Archetype.line_le_utility p.attrs s hb))
+
+/-- **One perfect line alone is exactly SSR:** at least SSR by the line, not SP by the floor, not
+UR by the maximum. -/
+theorem perfect_single_line_is_SSR (p : Arch) (s : Soul) {b : Attr} (hb : b ∈ p.attrs)
+    (h6 : 6 ≤ s.features b) (halone : ∀ a ∈ p.attrs, a ≠ b → s.features a = 0)
+    (hM : (A p).M = 9) (hSSR : (T p).cSSR = (A p).g 6) (hSP : (A p).g 6 < (T p).cSP)
+    (hUR : (T p).tUR = (A p).g 8) : tierOf A T p s = .SSR := by
+  have hge := perfect_line_at_least_SSR A T p s hb h6 hSSR
+  have hnsp := single_line_not_SP A T p s b halone hSP
+  have hnur : tierOf A T p s ≠ .UR := by
+    rw [ne_eq, UR_iff_gt_eight A T p s hM hUR]
+    have := Archetype.single_line_le_six p.attrs s b halone
+    linarith
+  revert hge hnsp hnur
+  cases tierOf A T p s <;> simp [Tier.rank]
 
 /-- The paper's theoretical output soul is UR under the output archetype. -/
 theorem paperSoul_UR (hM : (A .output).M = 9) (hT : (T .output).tUR = (A .output).g 8) :

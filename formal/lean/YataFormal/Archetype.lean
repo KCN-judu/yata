@@ -56,6 +56,12 @@ theorem nine_useful_of_gt_eight (s : Soul) (h : 8 < (archetype A).utility s.feat
   have : 8 < ∑ a ∈ A, s.hits a := by exact_mod_cast this
   omega
 
+/-- Any one useful line is at most the whole utility: the other lines add nothing negative. -/
+theorem line_le_utility (s : Soul) {b : Attr} (hb : b ∈ A) :
+    s.features b ≤ (archetype A).utility s.features := by
+  rw [utility_eq]
+  exact Finset.single_le_sum (fun a _ => s.features_nonneg a) hb
+
 /-- A soul whose useful value lies on one line reaches at most six roll units: one perfect line
 alone. This is what the SP quality floor must exceed. -/
 theorem single_line_le_six (s : Soul) (b : Attr)
@@ -72,6 +78,18 @@ theorem single_line_le_six (s : Soul) (b : Attr)
   · have : ∑ a ∈ A, s.features a = 0 :=
       Finset.sum_eq_zero (fun a ha => h a ha (fun e => hb (e ▸ ha)))
     rw [this]; norm_num
+
+/-- **Beyond six roll units, value lies outside any one line.** A soul above six on an
+archetype has, for every line, some other useful line with value. Six is the boundary between the
+best one line can do and quality that needs several lines. -/
+theorem beyond_six_needs_another_line (s : Soul) (h : 6 < (archetype A).utility s.features)
+    (b : Attr) : ∃ a ∈ A, a ≠ b ∧ 0 < s.features a := by
+  by_contra hne
+  push Not at hne
+  have hz : ∀ a ∈ A, a ≠ b → s.features a = 0 :=
+    fun a ha hab => le_antisymm (hne a ha hab) (s.features_nonneg a)
+  have := single_line_le_six A s b hz
+  linarith
 
 end Archetype
 
