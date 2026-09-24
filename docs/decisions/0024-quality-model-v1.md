@@ -95,3 +95,11 @@ output. The catalogue is authored and must be reviewed. Profiles with fewer
 useful attributes are not on the same scale in tail rates, which is why they
 belong to pass 2, where a score is comparable only within one need. SP is rarer
 than UR under the reference measure; the ladder orders quality, not rarity.
+
+## Amendment 2026-09-25
+
+The SSR edge is six roll units, not `7μ`, and SP keeps `7μ` as a quality floor
+of its own ([ADR-0025](0025-ssr-at-one-perfect-line.md)). Under this record a
+soul with one perfect useful line and nothing useful beside it was SR; it is now
+SSR, and still not SP. The model is `yata-quality-v1.1`. Everything else in this
+record stands.
