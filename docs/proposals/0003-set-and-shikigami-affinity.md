@@ -1,6 +1,6 @@
 ---
 id: PRP-0003
-status: draft
+status: accepted
 date: 2026-09-24
 area: scoring
 related-issues: []
@@ -92,4 +92,6 @@ None yet.
 
 ## Outcome
 
-Open. The maintainer will take up the design later.
+Accepted as the direction, 2026-09-25: PRP-0004 designed it, and ADR-0028
+records the design. Set affinity became a need profile whose subject is a set,
+and its result only adds keep suggestions.

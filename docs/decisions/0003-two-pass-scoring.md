@@ -5,7 +5,7 @@ date: 2026-09-23
 area: scoring
 supersedes: []
 superseded-by: []
-related: [ADR-0001, ADR-0002, ADR-0005]
+related: [ADR-0001, ADR-0002, ADR-0005, ADR-0028]
 ---
 
 # ADR-0003: Scoring is two passes — a target-independent quality score, then target-relative affinity and matching
@@ -143,3 +143,12 @@ is a presentation problem this record creates and does not solve.
 the matching algorithm, and the complexity bound are specification, not
 architecture: [scoring.md](../spec/scoring.md). ADR-0002's "derived results are
 not stored" is the persistence half of this decision.
+
+## Amendment, 2026-09-25
+
+Property 3 is read as ADR-0028 states it: pass 2 is pruned only by what the need
+makes decidable, a soul-level gate or a bound from the need itself, which is
+this record's "cannot reach the need's floors". Pass 1 is not a bound on pass 2,
+so pruning by `quality.total` is a user's policy that changes the result, not a
+correctness-preserving step. The floors a need puts on a Shikigami's stats are
+decided on a loadout, not on one soul.

@@ -135,6 +135,9 @@ rewrite.
 - [decisions/0027-quality-model-v2-catalogue.md](decisions/0027-quality-model-v2-catalogue.md)
   — Quality Model v2: output, hit, healing, and a speed archetype gated at four
   roll units; `resist` removed; archetypes of different sizes
+- [decisions/0028-pass-2-affinity-contract.md](decisions/0028-pass-2-affinity-contract.md)
+  — pass 2 evaluates one soul, one loadout, and one swap; hard requirements gate
+  and never score; set use only adds keep suggestions
 
 ## Proposals — `proposals/`
 
@@ -142,8 +145,12 @@ Design questions under active consideration. Close with `accepted` (→ ADR) or
 `rejected`.
 
 - [proposals/0003-set-and-shikigami-affinity.md](proposals/0003-set-and-shikigami-affinity.md)
-  — set affinity and Shikigami affinity as two kinds of pass-2 fit; **draft**,
-  direction only
+  — set affinity and Shikigami affinity as two kinds of pass-2 fit; **accepted**
+  as the direction → ADR-0028
+- [proposals/0004-pass-2-affinity-contract.md](proposals/0004-pass-2-affinity-contract.md)
+  — the pass-2 contract: need profiles, hard gates and soft preferences, set
+  plans, and evaluation per soul, per loadout, and per swap; **accepted** →
+  ADR-0028
 - PRP-0001 and PRP-0002 are kept in local research (ADR-0016).
 
 ## Issues — `issues/`
