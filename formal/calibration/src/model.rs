@@ -4,7 +4,8 @@
 //! Only which attribute each increment lands on is modelled here; how large an increment is, is
 //! `law`'s. A state is the hit count of each of the eleven attributes.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::sync::{Mutex, OnceLock};
 
 use num_bigint::BigInt;
 use num_rational::BigRational;
@@ -78,7 +79,7 @@ impl Measure {
             _ => q(9, 100),
         });
         Measure {
-            name: "36/36/28 per class (official notice; v1)",
+            name: "36/36/28 per class (official notice; the reference)",
             weight: w,
             initial: [q(1, 3), q(1, 3), q(1, 3)],
         }
@@ -152,13 +153,21 @@ pub fn roll(m: &Measure, d: &Dist) -> Dist {
     next
 }
 
-/// The hit counts of a soul at +15.
-pub fn final_hits(m: &Measure) -> Dist {
-    let mut d = initial(m);
-    for _ in 0..5 {
-        d = roll(m, &d);
-    }
-    d
+/// The hit counts of a soul at +15, computed once per measure: the propagation is the costliest
+/// exact step, and every table asks for it again.
+pub fn final_hits(m: &Measure) -> &'static Dist {
+    static CACHE: OnceLock<Mutex<HashMap<&'static str, &'static Dist>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    map.entry(m.name).or_insert_with(|| {
+        let mut d = initial(m);
+        for _ in 0..5 {
+            d = roll(m, &d);
+        }
+        Box::leak(Box::new(d))
+    })
 }
 
 /// The hit counts after `rolls` more rolls from one state.
@@ -180,6 +189,20 @@ pub fn useful_law(d: &Dist, useful: &[usize]) -> BTreeMap<Vec<u8>, Q> {
         *out.entry(v).or_insert_with(Q::zero) += p;
     }
     out
+}
+
+/// The useful law of a measure's +15 hit law, computed once per measure and attribute set.
+pub fn useful_law_of(m: &Measure, useful: &[usize]) -> &'static BTreeMap<Vec<u8>, Q> {
+    type Law = BTreeMap<Vec<u8>, Q>;
+    type Memo = HashMap<(&'static str, Vec<usize>), &'static Law>;
+    static CACHE: OnceLock<Mutex<Memo>> = OnceLock::new();
+    let d = final_hits(m);
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let mut map = cache
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    map.entry((m.name, useful.to_vec()))
+        .or_insert_with(|| Box::leak(Box::new(useful_law(d, useful))))
 }
 
 /// The law of `K`, the increments on useful attributes.

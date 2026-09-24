@@ -14,9 +14,9 @@ c_R / c_SR / c_SSR / above its t_UR, and the mean score.
 | C. mean ratio: min(100, 50·U/E) | speed only (1 attribute)        | 37.183% | 33.089% | 25.022% | 25.0223% | 33.19 |
 | C. mean ratio: min(100, 50·U/E) | crit pair (2 attributes)        | 44.801% | 43.026% | 23.312% | 23.2598% | 43.90 |
 | C. mean ratio: min(100, 50·U/E) | output archetype (4 attributes) | 51.295% | 36.025% | 20.394% | 9.4334%  | 48.95 |
-| H. anchored (v1)                | speed only (1 attribute)        | 37.183% | 9.821%  | 1.784%  | 0.0119%  | 22.54 |
-| H. anchored (v1)                | crit pair (2 attributes)        | 44.801% | 10.053% | 3.470%  | 0.1019%  | 33.12 |
-| H. anchored (v1)                | output archetype (4 attributes) | 51.295% | 14.883% | 3.324%  | 0.0748%  | 42.29 |
+| H. anchored (the standard)      | speed only (1 attribute)        | 37.183% | 9.821%  | 1.784%  | 0.0119%  | 22.54 |
+| H. anchored (the standard)      | crit pair (2 attributes)        | 44.801% | 10.053% | 3.470%  | 0.1019%  | 33.12 |
+| H. anchored (the standard)      | output archetype (4 attributes) | 51.295% | 14.883% | 3.324%  | 0.0748%  | 42.29 |
 | B. percentile (mid-rank)        | speed only (1 attribute)        | 37.183% | 35.246% | 23.497% | 7.8325%  | 50.00 |
 | B. percentile (mid-rank)        | crit pair (2 attributes)        | 50.000% | 35.246% | 23.497% | 7.8325%  | 50.00 |
 | B. percentile (mid-rank)        | output archetype (4 attributes) | 50.000% | 35.246% | 23.497% | 7.8325%  | 50.00 |

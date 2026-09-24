@@ -4,7 +4,7 @@
 
 use crate::law::f;
 use crate::model::{ATTRS, Measure};
-use crate::standard::{ARCHES, Arch, anchors, thresholds};
+use crate::standard::{ARCHES, Arch, anchors, speed_gate, thresholds, u_speed_ur};
 
 /// SplitMix64: small, fixed, and enough for this.
 pub struct Rng(u64);
@@ -92,11 +92,21 @@ pub struct F64Thresholds {
     pub c_ssr: f64,
     pub c_sp: f64,
     pub t_ur: f64,
+    /// `speed`'s gate and UR boundary in roll units, kept here so that the inner loop does no
+    /// rational arithmetic.
+    pub gate: f64,
+    pub u_speed_ur: f64,
 }
 
+/// The four-attribute ladder of an archetype in floating point; for `speed`, only its anchors
+/// are meaningful, and its tier is `speed_tier`'s rule.
 pub fn f64_thresholds(arch: Arch) -> F64Thresholds {
     let a = anchors(arch);
-    let t = thresholds(arch);
+    let t = thresholds(if arch == Arch::Speed {
+        Arch::Output
+    } else {
+        arch
+    });
     F64Thresholds {
         e: f(&a.e),
         m: f(&a.m),
@@ -105,11 +115,13 @@ pub fn f64_thresholds(arch: Arch) -> F64Thresholds {
         c_ssr: f(&t.c_ssr),
         c_sp: f(&t.c_sp),
         t_ur: f(&t.t_ur),
+        gate: f(&speed_gate()),
+        u_speed_ur: f(&u_speed_ur()),
     }
 }
 
 /// The thresholds of every archetype, in catalogue order.
-pub fn all_thresholds() -> [F64Thresholds; 3] {
+pub fn all_thresholds() -> [F64Thresholds; 4] {
     ARCHES.map(f64_thresholds)
 }
 
@@ -121,7 +133,7 @@ pub fn g(t: &F64Thresholds, u: f64) -> f64 {
     }
 }
 
-/// Tier index 0..=5 (N..UR).
+/// Tier index 0..=5 (N..UR) on the four-attribute ladder.
 pub fn tier(t: &F64Thresholds, score: f64, spec: bool) -> usize {
     if score > t.t_ur {
         5
@@ -138,28 +150,36 @@ pub fn tier(t: &F64Thresholds, score: f64, spec: bool) -> usize {
     }
 }
 
-pub fn arch_tier(ts: &[F64Thresholds; 3], e: &[f64; ATTRS], a: Arch) -> (usize, f64) {
+/// The tier index and score under an archetype, or `None` when the soul is not eligible for it.
+pub fn arch_tier(ts: &[F64Thresholds; 4], e: &[f64; ATTRS], a: Arch) -> Option<(usize, f64)> {
     let t = &ts[a.index()];
     let vals: Vec<f64> = a.attrs().iter().map(|&i| e[i]).collect();
     let u: f64 = vals.iter().sum();
     let s = g(t, u);
-    (tier(t, s, vals.iter().any(|&v| v > 5.0)), s)
+    if a == Arch::Speed {
+        let gate = t.gate;
+        if u < gate {
+            return None;
+        }
+        return Some((if u > t.u_speed_ur { 5 } else { 3 }, s));
+    }
+    Some((tier(t, s, vals.iter().any(|&v| v > 5.0)), s))
 }
 
-/// The quality tier of a soul whose main is accepted by `accepted`.
-pub fn quality_tier(ts: &[F64Thresholds; 3], e: &[f64; ATTRS], accepted: &[Arch]) -> (usize, f64) {
+/// Index of the "unrated" column: no candidate archetype.
+pub const UNRATED: usize = 6;
+
+/// The quality tier of a soul whose main is accepted by `accepted`: the best over the eligible
+/// ones, or `UNRATED` when none is eligible.
+pub fn quality_tier(ts: &[F64Thresholds; 4], e: &[f64; ATTRS], accepted: &[Arch]) -> (usize, f64) {
     accepted
         .iter()
-        .map(|&a| arch_tier(ts, e, a))
-        .fold((0, -1.0), |best, x| {
-            if x.0 > best.0 || (x.0 == best.0 && x.1 > best.1) {
+        .filter_map(|&a| arch_tier(ts, e, a))
+        .fold((UNRATED, -1.0), |best, x| {
+            if best.0 == UNRATED || x.0 > best.0 || (x.0 == best.0 && x.1 > best.1) {
                 x
             } else {
                 best
             }
         })
-}
-
-pub fn all_arches() -> Vec<Arch> {
-    ARCHES.to_vec()
 }

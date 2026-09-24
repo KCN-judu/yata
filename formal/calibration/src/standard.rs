@@ -1,26 +1,23 @@
-//! The Yata Quality Model v1, as numbers: the reference measure, per-archetype anchors and
+//! The Yata Quality Model v2, as numbers: the reference measure, per-archetype anchors and
 //! thresholds, and the scoring of one soul (`docs/spec/quality-model.md`). Exact rational
 //! arithmetic throughout.
-
-use std::sync::OnceLock;
 
 use num_bigint::BigInt;
 use num_traits::{One, Zero};
 
 use crate::model::{self, ATTRS, Dist, HI_TENTHS, Measure, Q, attr, q};
 
-pub const MODEL_ID: &str = "yata-quality-v1.1";
+pub const MODEL_ID: &str = "yata-quality-v2";
 
-/// The reference measure of v1: the official notice's class weights, shared equally within a
-/// class, and the initial count 2, 3, 4 with 1/3 each.
+/// The reference measure: the official notice's class weights, shared equally within a class,
+/// and the initial count 2, 3, 4 with 1/3 each.
 pub fn reference() -> Measure {
     Measure::official()
 }
 
 /// The +15 hit law under the reference measure, computed once.
 pub fn reference_final() -> &'static Dist {
-    static D: OnceLock<Dist> = OnceLock::new();
-    D.get_or_init(|| model::final_hits(&reference()))
+    model::final_hits(&reference())
 }
 
 /// μ: the mean of one increment in roll units. The midpoint of [4/5, 1]; see the spec.
@@ -28,9 +25,14 @@ pub fn mu() -> Q {
     q(9, 10)
 }
 
-/// The attainable maximum of a four-attribute archetype, in roll units.
-pub fn max_u() -> Q {
-    q(9, 1)
+/// The attainable maximum of an archetype, in roll units: nine for the four-attribute
+/// archetypes (four initial increments and five rolls, all useful), six for `speed` (one line
+/// holds one initial increment and five rolls).
+pub fn max_u(arch: Arch) -> Q {
+    match arch {
+        Arch::Speed => q(6, 1),
+        _ => q(9, 1),
+    }
 }
 
 /// E[K]: the expected increments on `useful` in a +15 soul under a measure's hit law.
@@ -57,12 +59,21 @@ impl Anchors {
     }
 }
 
-/// An archetype's anchors: E = μ · E[K] under the reference measure, M = 9.
+/// An archetype's anchors: `E = μ · E[K]` under the reference measure, unconditionally (the
+/// eligibility gate is not a condition on the measure), and the archetype's own maximum.
 pub fn anchors(arch: Arch) -> Anchors {
-    Anchors {
-        e: mu() * mean_useful(reference_final(), &arch.attrs()),
-        m: max_u(),
-    }
+    static ALL: std::sync::OnceLock<Vec<Anchors>> = std::sync::OnceLock::new();
+    ALL.get_or_init(|| {
+        ARCHES
+            .iter()
+            .map(|&a| Anchors {
+                e: mu()
+                    * model::mean_k(&model::k_law(model::useful_law_of(&reference(), a.attrs()))),
+                m: max_u(a),
+            })
+            .collect()
+    })[arch.index()]
+    .clone()
 }
 
 /// SR's utility milestone: five useful increments at mean value.
@@ -70,7 +81,7 @@ pub fn u_sr() -> Q {
     mu() * q(5, 1)
 }
 
-/// SSR's utility milestone (v1.1): six roll units, the most one useful line can hold.
+/// SSR's utility milestone (since v1.1): six roll units, the most one useful line can hold.
 pub fn u_ssr() -> Q {
     q(6, 1)
 }
@@ -85,14 +96,24 @@ pub fn u_sp_floor() -> Q {
     mu() * q(7, 1)
 }
 
-/// UR's boundary: within one roll unit of the attainable maximum.
+/// UR's boundary on the four-attribute ladder: within one roll unit of the maximum.
 pub fn u_ur() -> Q {
-    max_u() - Q::one()
+    q(9, 1) - Q::one()
 }
 
-/// The tier edges of one archetype. The utility milestones are the same for every archetype: R
-/// at the archetype's E, then SR, SSR, the SP floor, and UR. Their scores follow from the
-/// archetype's anchors.
+/// `speed`'s eligibility gate: at least four Speed roll units.
+pub fn speed_gate() -> Q {
+    q(4, 1)
+}
+
+/// `speed`'s UR boundary: within one roll unit of its own maximum, `M_speed − 1`.
+pub fn u_speed_ur() -> Q {
+    max_u(Arch::Speed) - Q::one()
+}
+
+/// The tier edges of a four-attribute archetype. The utility milestones are the same for every
+/// such archetype: R at the archetype's E, then SR, SSR, the SP floor, and UR. Their scores follow
+/// from the archetype's anchors. `speed` has no ladder of this kind; see `speed_tier`.
 pub struct Thresholds {
     pub u_sr: Q,
     pub u_ssr: Q,
@@ -105,13 +126,14 @@ pub struct Thresholds {
     pub t_ur: Q,
 }
 
-/// The v1.1 thresholds of an archetype.
+/// The thresholds of a four-attribute archetype.
 pub fn thresholds(arch: Arch) -> Thresholds {
     thresholds_with(arch, u_ssr())
 }
 
 /// The thresholds with another SSR milestone, for comparing calibrations.
 pub fn thresholds_with(arch: Arch, u_ssr: Q) -> Thresholds {
+    assert!(arch != Arch::Speed, "speed has no four-attribute ladder");
     let a = anchors(arch);
     let (u_sr, u_sp, u_ur) = (u_sr(), u_sp_floor(), u_ur());
     Thresholds {
@@ -150,6 +172,7 @@ impl Tier {
     }
 }
 
+/// The four-attribute ladder.
 pub fn tier(score: &Q, specialized: bool, t: &Thresholds) -> Tier {
     if score > &t.t_ur {
         Tier::Ur
@@ -166,21 +189,39 @@ pub fn tier(score: &Q, specialized: bool, t: &Thresholds) -> Tier {
     }
 }
 
+/// `speed`'s tier: an eligible soul is SSR, and UR above `M_speed − 1`. N, R and SR cannot occur,
+/// because the gate lies above them; SP cannot occur, because a Speed line above five roll units
+/// is already above the UR boundary.
+pub fn speed_tier(u: &Q) -> Tier {
+    assert!(u >= &speed_gate(), "speed is tiered only when eligible");
+    if u > &u_speed_ur() {
+        Tier::Ur
+    } else {
+        Tier::Ssr
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Arch {
     Output,
     Hit,
-    Resist,
+    Healing,
+    Speed,
 }
 
-pub const ARCHES: [Arch; 3] = [Arch::Output, Arch::Hit, Arch::Resist];
+/// The v2 catalogue, in catalogue order.
+pub const ARCHES: [Arch; 4] = [Arch::Output, Arch::Hit, Arch::Healing, Arch::Speed];
+
+/// The four-attribute archetypes, which share the N-to-UR ladder.
+pub const BROAD: [Arch; 3] = [Arch::Output, Arch::Hit, Arch::Healing];
 
 impl Arch {
     pub fn key(self) -> &'static str {
         match self {
             Arch::Output => "output",
             Arch::Hit => "hit",
-            Arch::Resist => "resist",
+            Arch::Healing => "healing",
+            Arch::Speed => "speed",
         }
     }
 
@@ -188,16 +229,18 @@ impl Arch {
         match self {
             Arch::Output => 0,
             Arch::Hit => 1,
-            Arch::Resist => 2,
+            Arch::Healing => 2,
+            Arch::Speed => 3,
         }
     }
 
-    pub fn attrs(self) -> [usize; 4] {
+    pub fn attrs(self) -> &'static [usize] {
         use attr::*;
         match self {
-            Arch::Output => [ATK_PCT, CRIT, CRIT_DMG, SPD],
-            Arch::Hit => [SPD, EFF_HIT, HP_PCT, DEF_PCT],
-            Arch::Resist => [SPD, EFF_RES, HP_PCT, DEF_PCT],
+            Arch::Output => &[ATK_PCT, CRIT, CRIT_DMG, SPD],
+            Arch::Hit => &[EFF_HIT, SPD, HP_PCT, DEF_PCT],
+            Arch::Healing => &[HP_PCT, CRIT, CRIT_DMG, SPD],
+            Arch::Speed => &[SPD],
         }
     }
 
@@ -208,18 +251,29 @@ impl Arch {
             1 | 3 | 5 => true,
             2 => match self {
                 Arch::Output => [SPD, ATK_PCT].contains(&main),
-                Arch::Hit | Arch::Resist => [SPD, HP_PCT, DEF_PCT].contains(&main),
+                Arch::Hit | Arch::Speed => [SPD, HP_PCT, DEF_PCT].contains(&main),
+                Arch::Healing => [SPD, HP_PCT].contains(&main),
             },
             4 => match self {
                 Arch::Output => main == ATK_PCT,
                 Arch::Hit => [EFF_HIT, HP_PCT, DEF_PCT].contains(&main),
-                Arch::Resist => [EFF_RES, HP_PCT, DEF_PCT].contains(&main),
+                Arch::Healing => main == HP_PCT,
+                Arch::Speed => [EFF_HIT, EFF_RES, HP_PCT, DEF_PCT].contains(&main),
             },
             6 => match self {
                 Arch::Output => [CRIT, CRIT_DMG, ATK_PCT].contains(&main),
-                Arch::Hit | Arch::Resist => [HP_PCT, DEF_PCT].contains(&main),
+                Arch::Hit | Arch::Speed => [HP_PCT, DEF_PCT].contains(&main),
+                Arch::Healing => [CRIT, CRIT_DMG, HP_PCT].contains(&main),
             },
             _ => false,
+        }
+    }
+
+    /// The soul-level eligibility predicate: `speed` needs `e_Spd ≥ 4`; the others always hold.
+    pub fn eligible(self, e: &[Q; ATTRS]) -> bool {
+        match self {
+            Arch::Speed => e[attr::SPD] >= speed_gate(),
+            _ => true,
         }
     }
 }
@@ -296,14 +350,22 @@ pub struct ArchScore {
     pub specialized: bool,
     pub tier: Tier,
     pub depth: Q,
-    pub breadth: Q,
+    /// Not applicable to a one-attribute archetype.
+    pub breadth: Option<Q>,
 }
 
+/// The result under an archetype, with the v2 thresholds.
 pub fn score_arch(s: &SoulInput, arch: Arch) -> ArchScore {
-    score_arch_with(s, arch, &thresholds(arch))
+    if arch == Arch::Speed {
+        score_arch_with(s, arch, None)
+    } else {
+        score_arch_with(s, arch, Some(&thresholds(arch)))
+    }
 }
 
-pub fn score_arch_with(s: &SoulInput, arch: Arch, t: &Thresholds) -> ArchScore {
+/// The result under an archetype. `t` is the four-attribute ladder; `speed` takes `None` and is
+/// tiered by `speed_tier`.
+pub fn score_arch_with(s: &SoulInput, arch: Arch, t: Option<&Thresholds>) -> ArchScore {
     let e = s.features();
     let a = anchors(arch);
     let vals: Vec<Q> = arch.attrs().iter().map(|&i| e[i].clone()).collect();
@@ -317,15 +379,22 @@ pub fn score_arch_with(s: &SoulInput, arch: Arch, t: &Thresholds) -> ArchScore {
         / q(6, 1)
         * q(100, 1);
     let sq: Q = vals.iter().map(|v| v * v).sum();
-    let breadth = if utility.is_zero() {
-        Q::zero()
+    let breadth = if vals.len() < 2 {
+        None
+    } else if utility.is_zero() {
+        Some(Q::zero())
     } else {
         let ed = &utility * &utility / sq;
-        (ed - Q::one()) / q(3, 1) * q(100, 1)
+        let lines = q(vals.len() as i64, 1);
+        Some((ed - Q::one()) / (lines - Q::one()) * q(100, 1))
+    };
+    let tier = match t {
+        Some(t) => tier(&score, specialized, t),
+        None => speed_tier(&utility),
     };
     ArchScore {
         arch,
-        tier: tier(&score, specialized, t),
+        tier,
         utility,
         score,
         specialized,
@@ -334,17 +403,30 @@ pub fn score_arch_with(s: &SoulInput, arch: Arch, t: &Thresholds) -> ArchScore {
     }
 }
 
-/// Quality: the best accepted archetype, tier first, then score; ties keep catalogue order.
+/// Is the archetype a candidate for this soul: it accepts the main attribute and its
+/// eligibility predicate holds.
+pub fn candidate(s: &SoulInput, arch: Arch) -> bool {
+    arch.accepts(s.slot, s.main) && arch.eligible(&s.features())
+}
+
+/// Quality: the results under the candidate archetypes, best first: tier, then score; ties keep
+/// catalogue order. Empty when no archetype is a candidate: the soul is unrated in pass 1.
 pub fn quality(s: &SoulInput) -> Vec<ArchScore> {
     quality_with(s, &u_ssr())
 }
 
-/// Quality with another SSR milestone, for comparing calibrations.
+/// Quality with another SSR milestone on the four-attribute ladder, for comparing calibrations.
 pub fn quality_with(s: &SoulInput, u_ssr: &Q) -> Vec<ArchScore> {
     let mut all: Vec<ArchScore> = ARCHES
         .iter()
-        .filter(|a| a.accepts(s.slot, s.main))
-        .map(|&a| score_arch_with(s, a, &thresholds_with(a, u_ssr.clone())))
+        .filter(|&&a| candidate(s, a))
+        .map(|&a| {
+            if a == Arch::Speed {
+                score_arch_with(s, a, None)
+            } else {
+                score_arch_with(s, a, Some(&thresholds_with(a, u_ssr.clone())))
+            }
+        })
         .collect();
     all.sort_by(|x, y| (y.tier, &y.score).cmp(&(x.tier, &x.score)));
     all

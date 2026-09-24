@@ -1,16 +1,19 @@
-//! Reproduces every number of the Yata Quality Model v1 (`docs/spec/quality-model.md`) and of its
-//! paper (`papers/quality-model-v1/paper.md`).
+//! Reproduces every number of the Yata Quality Model v2 (`docs/spec/quality-model.md`) and of its
+//! paper (`papers/quality-model-v2/paper.md`).
 //!
 //! `render` writes `out/` and rewrites every `<!-- generated:NAME -->` block in the documents
 //! named after it; `check` recomputes the same and fails if anything committed differs. Exact
 //! rational arithmetic wherever the model allows it; the rest is marked where it is printed.
 
+mod golden;
 mod law;
 mod mc;
 mod model;
 mod rates;
+mod simulate;
 mod standard;
 mod vectors;
+mod zh;
 
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -18,8 +21,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use law::{Law, f};
-use model::{Measure, Q, attr, q};
-use standard::{ARCHES, Arch, anchors, mu, thresholds};
+use model::{Measure, Q, q};
+use standard::{Arch, BROAD, anchors, mu, thresholds};
 
 fn pct(x: &Q) -> String {
     format!("{:.4}%", 100.0 * f(x))
@@ -43,15 +46,26 @@ fn constants() -> String {
         standard::MODEL_ID
     );
     // Check of the propagation: under Hu's 1/11 reading every attribute is alike, so four of them
-    // expect 8 · 4/11 = 32/11 increments exactly.
+    // expect 8 · 4/11 = 32/11 increments exactly, and one of them 8/11.
     let hu = model::final_hits(&Measure::hu_reading());
-    assert_eq!(standard::mean_useful(&hu, &Arch::Output.attrs()), q(32, 11));
+    assert_eq!(standard::mean_useful(hu, Arch::Output.attrs()), q(32, 11));
+    assert_eq!(standard::mean_useful(hu, Arch::Speed.attrs()), q(8, 11));
+    // output and healing differ by AtkPercent ↔ HpPercent, both 9%: the same scale exactly.
+    assert!(
+        anchors(Arch::Output).e == anchors(Arch::Healing).e,
+        "output and healing must share E: AtkPercent and HpPercent have the same weight"
+    );
     let t0 = thresholds(Arch::Output);
     assert!(
         t0.u_sr < t0.u_ssr && t0.u_ssr < t0.u_sp && t0.u_sp < t0.u_ur,
         "the milestones must be ordered: SR < SSR < SP floor < UR"
     );
     assert_eq!(t0.u_ssr, q(6, 1), "SSR begins at one perfect line");
+    assert!(
+        standard::speed_gate() < standard::u_speed_ur()
+            && standard::u_speed_ur() < standard::max_u(Arch::Speed),
+        "speed's gate, UR boundary and maximum must be ordered"
+    );
     s += "| Milestone | Roll units | Meaning |\n| --- | --- | --- |\n";
     let row = |s: &mut String, n: &str, x: &Q, m: &str| {
         let _ = writeln!(s, "| {n} | {} | {m} |", frac(x));
@@ -60,8 +74,8 @@ fn constants() -> String {
     row(
         &mut s,
         "M",
-        &standard::max_u(),
-        "attainable maximum, every archetype",
+        &standard::max_u(Arch::Output),
+        "attainable maximum of a four-attribute archetype",
     );
     row(
         &mut s,
@@ -82,12 +96,30 @@ fn constants() -> String {
         "SP's quality floor: seven useful increments at mean value, 7μ",
     );
     row(&mut s, "u_UR", &t0.u_ur, "UR: above M − 1");
-    s += "\n| Archetype | E[K] | E = μ · E[K] | c_R | c_SR | c_SSR = g(6) | c_SP | t_UR |\n";
-    s += "| --- | --- | --- | --- | --- | --- | --- | --- |\n";
-    for a in ARCHES {
+    row(
+        &mut s,
+        "M_speed",
+        &standard::max_u(Arch::Speed),
+        "attainable maximum of speed: one line, six increments at maximum",
+    );
+    row(
+        &mut s,
+        "u_gate",
+        &standard::speed_gate(),
+        "speed is a candidate only when e_Spd ≥ 4",
+    );
+    row(
+        &mut s,
+        "u_UR,speed",
+        &standard::u_speed_ur(),
+        "speed's UR: above M_speed − 1",
+    );
+    s += "\n| Archetype | E[K] | E = μ · E[K] | M | c_R | c_SR | c_SSR = g(6) | c_SP | t_UR |\n";
+    s += "| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n";
+    for a in BROAD {
         let an = anchors(a);
         let t = thresholds(a);
-        let k = standard::mean_useful(standard::reference_final(), &a.attrs());
+        let k = standard::mean_useful(standard::reference_final(), a.attrs());
         assert!(
             an.g(&q(6, 1)) < t.c_sp,
             "one line alone must stay below the SP floor"
@@ -95,10 +127,11 @@ fn constants() -> String {
         assert_eq!(t.c_ssr, an.g(&q(6, 1)));
         let _ = writeln!(
             s,
-            "| {} | {} | {} | {} | {} | {} | {} | {} |",
+            "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
             a.key(),
             dp(&k, 9),
             dp(&an.e, 9),
+            frac(&an.m),
             frac(&t.c_r),
             dp(&t.c_sr, 6),
             dp(&t.c_ssr, 6),
@@ -106,57 +139,89 @@ fn constants() -> String {
             dp(&t.t_ur, 6),
         );
     }
+    let sp = anchors(Arch::Speed);
+    let k = standard::mean_useful(standard::reference_final(), Arch::Speed.attrs());
+    s += "\n| Archetype | E[K] | E = μ · E[K] | M | score at the gate, g(4) | t_UR = g(5) |\n";
+    s += "| --- | --- | --- | --- | --- | --- |\n";
+    let _ = writeln!(
+        s,
+        "| speed | {} | {} | {} | {} | {} |",
+        dp(&k, 9),
+        dp(&sp.e, 9),
+        frac(&sp.m),
+        dp(&sp.g(&standard::speed_gate()), 6),
+        dp(&sp.g(&standard::u_speed_ur()), 6),
+    );
     s
 }
 
-/// Every v1 constant as an exact fraction, for the implementation.
+/// Every v2 constant as an exact fraction, for the implementation.
 fn constants_json() -> String {
     let mut s = format!(
-        "{{\n  \"model\": \"{}\",\n  \"mu\": \"{}\",\n  \"M\": \"{}\",\n  \"u_SR\": \"{}\",\n  \"u_SSR\": \"{}\",\n  \"u_SP_floor\": \"{}\",\n  \"u_UR\": \"{}\",\n  \"archetypes\": {{\n",
+        "{{\n  \"model\": \"{}\",\n  \"mu\": \"{}\",\n  \"u_SR\": \"{}\",\n  \"u_SSR\": \"{}\",\n  \"u_SP_floor\": \"{}\",\n  \"u_UR\": \"{}\",\n  \"speed_gate\": \"{}\",\n  \"u_UR_speed\": \"{}\",\n  \"archetypes\": {{\n",
         standard::MODEL_ID,
         frac(&mu()),
-        frac(&standard::max_u()),
         frac(&standard::u_sr()),
         frac(&standard::u_ssr()),
         frac(&standard::u_sp_floor()),
-        frac(&standard::u_ur())
+        frac(&standard::u_ur()),
+        frac(&standard::speed_gate()),
+        frac(&standard::u_speed_ur()),
     );
-    for (i, a) in ARCHES.iter().enumerate() {
-        let an = anchors(*a);
-        let t = thresholds(*a);
+    for a in BROAD {
+        let an = anchors(a);
+        let t = thresholds(a);
         let _ = writeln!(
             s,
-            "    \"{}\": {{\"E\": \"{}\", \"c_R\": \"{}\", \"c_SR\": \"{}\", \"c_SSR\": \"{}\", \"c_SP\": \"{}\", \"t_UR\": \"{}\"}}{}",
+            "    \"{}\": {{\"E\": \"{}\", \"M\": \"{}\", \"c_R\": \"{}\", \"c_SR\": \"{}\", \"c_SSR\": \"{}\", \"c_SP\": \"{}\", \"t_UR\": \"{}\"}},",
             a.key(),
             frac(&an.e),
+            frac(&an.m),
             frac(&t.c_r),
             frac(&t.c_sr),
             frac(&t.c_ssr),
             frac(&t.c_sp),
             frac(&t.t_ur),
-            if i + 1 < ARCHES.len() { "," } else { "" }
         );
     }
+    let sp = anchors(Arch::Speed);
+    let _ = writeln!(
+        s,
+        "    \"speed\": {{\"E\": \"{}\", \"M\": \"{}\", \"c_gate\": \"{}\", \"t_UR\": \"{}\"}}",
+        frac(&sp.e),
+        frac(&sp.m),
+        frac(&sp.g(&standard::speed_gate())),
+        frac(&sp.g(&standard::u_speed_ur())),
+    );
     s += "  }\n}\n";
     s
 }
 
 fn k_law() -> String {
     let d = standard::reference_final();
-    let laws: Vec<_> = [Arch::Output, Arch::Hit]
+    let laws: Vec<_> = [Arch::Output, Arch::Hit, Arch::Speed]
         .iter()
-        .map(|a| model::k_law(&model::useful_law(d, &a.attrs())))
+        .map(|a| model::k_law(&model::useful_law(d, a.attrs())))
         .collect();
-    let mut s = String::from("| K | P(K), output | P(K), hit and resist |\n| --- | --- | --- |\n");
+    let mut s = String::from(
+        "| K | P(K), output and healing | P(K), hit | P(K), speed |\n| --- | --- | --- | --- |\n",
+    );
     for k in 0..=9u32 {
         let cell = |l: &BTreeMap<u32, Q>| l.get(&k).map_or("0".to_owned(), pct);
-        let _ = writeln!(s, "| {k} | {} | {} |", cell(&laws[0]), cell(&laws[1]));
+        let _ = writeln!(
+            s,
+            "| {k} | {} | {} | {} |",
+            cell(&laws[0]),
+            cell(&laws[1]),
+            cell(&laws[2])
+        );
     }
     let _ = writeln!(
         s,
-        "| E[K] | {} | {} |",
+        "| E[K] | {} | {} | {} |",
         dp(&model::mean_k(&laws[0]), 9),
-        dp(&model::mean_k(&laws[1]), 9)
+        dp(&model::mean_k(&laws[1]), 9),
+        dp(&model::mean_k(&laws[2]), 9)
     );
     s
 }
@@ -167,15 +232,19 @@ fn tier_rates() -> String {
         "| Increment law | Archetype | N | R | SR | SSR | SP | UR |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n",
     );
     for l in [Law::Uniform, Law::Steps(7), Law::Steps(2)] {
-        let hit = rates::tier_rates(&m, l, Arch::Hit);
-        let resist = rates::tier_rates(&m, l, Arch::Resist);
+        let output = rates::tier_rates(&m, l, Arch::Output);
+        let healing = rates::tier_rates(&m, l, Arch::Healing);
         assert!(
-            hit.n == resist.n && hit.sp == resist.sp && hit.ur == resist.ur && hit.e == resist.e,
-            "hit and resist must agree: EffectHit and EffectRes share a class"
+            output.n == healing.n
+                && output.sr == healing.sr
+                && output.sp == healing.sp
+                && output.ur == healing.ur
+                && output.e == healing.e,
+            "output and healing must agree: AtkPercent and HpPercent share a weight"
         );
         for (name, r) in [
-            ("output", rates::tier_rates(&m, l, Arch::Output)),
-            ("hit, resist", hit),
+            ("output, healing", output),
+            ("hit", rates::tier_rates(&m, l, Arch::Hit)),
         ] {
             let _ = writeln!(
                 s,
@@ -201,9 +270,10 @@ fn measure_sensitivity() -> String {
         [q(1, 2), q(1, 3), q(1, 6)],
         "official weights; initial count 1/2, 1/3, 1/6",
     );
-    for m in [Measure::official(), Measure::hu_reading(), skewed] {
-        for a in ARCHES {
-            let r = rates::tier_rates(&m, Law::Uniform, a);
+    let measures = [Measure::official(), Measure::hu_reading(), skewed];
+    for m in &measures {
+        for a in BROAD {
+            let r = rates::tier_rates(m, Law::Uniform, a);
             let _ = writeln!(
                 s,
                 "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
@@ -219,33 +289,120 @@ fn measure_sensitivity() -> String {
             );
         }
     }
+    s += "\n| Measure | E, speed | P(eligible) | SSR | UR |\n| --- | --- | --- | --- | --- |\n";
+    for m in &measures {
+        let r = rates::speed_rates(m, Law::Uniform);
+        let _ = writeln!(
+            s,
+            "| {} | {} | {} | {} | {} |",
+            m.name,
+            dp(&r.e, 4),
+            pct(&r.eligible),
+            pct(&r.ssr),
+            pct(&r.ur)
+        );
+    }
+    s
+}
+
+/// `speed`: how often a +15 soul is eligible, its tiers, and what the eligible souls look like.
+fn speed_rates() -> String {
+    let m = standard::reference();
+    let a = anchors(Arch::Speed);
+    let mut s = String::from(
+        "Of all +15 souls, under the reference measure; speed has no N, R, SR or SP.\n\n| Increment law | P(eligible) | SSR | UR | eligible: 1 in |\n| --- | --- | --- | --- | --- |\n",
+    );
+    let all: Vec<_> = [Law::Uniform, Law::Steps(7), Law::Steps(2)]
+        .iter()
+        .map(|&l| (l, rates::speed_rates(&m, l)))
+        .collect();
+    for (l, r) in &all {
+        let _ = writeln!(
+            s,
+            "| {} | {} | {} | {} | {:.0} |",
+            l.name(),
+            pct(&r.eligible),
+            pct(&r.ssr),
+            pct(&r.ur),
+            1.0 / f(&r.eligible)
+        );
+    }
+    s += "\nOf eligible souls: where e_Spd lies, the speed score and tier there, and how many increments the Speed line has.\n\n| Increment law | [4, 4.5) | [4.5, 5] | (5, 5.5] | (5.5, 6] | 4 increments | 5 increments | 6 increments |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n";
+    for (l, r) in &all {
+        let _ = write!(s, "| {} |", l.name());
+        for b in r.bins.iter().chain(&r.by_hits) {
+            let _ = write!(s, " {} |", pct(b));
+        }
+        s += "\n";
+    }
+    let edge = |x: Q| dp(&a.g(&x), 2);
+    let _ = writeln!(
+        s,
+        "| speed score | {} to {} | {} to {} | {} to {} | {} to {} | | | |",
+        edge(q(4, 1)),
+        edge(q(9, 2)),
+        edge(q(9, 2)),
+        edge(q(5, 1)),
+        edge(q(5, 1)),
+        edge(q(11, 2)),
+        edge(q(11, 2)),
+        edge(q(6, 1)),
+    );
+    s += "| tier | SSR | SSR | UR | UR | | | |\n";
+    // The gate is not a condition on the reference: compare the two references at the gate.
+    let r = &all[0].1;
+    let b = standard::Anchors {
+        e: r.e_given_eligible.clone(),
+        m: a.m.clone(),
+    };
+    s += "\nThe reference of speed's normalization, uniform increments: A, the standard, is unconditional; B would condition it on the gate.\n\n| Reference | E | score at e_Spd = 4 | 4.5 | 5 | 6 | eligible souls scored below 50 |\n| --- | --- | --- | --- | --- | --- | --- |\n";
+    for (name, an, below) in [
+        (
+            "A. unconditional (the standard)",
+            &a,
+            pct(&Q::from_integer(0.into())),
+        ),
+        ("B. conditioned on e_Spd ≥ 4", &b, pct(&r.below_given)),
+    ] {
+        let _ = writeln!(
+            s,
+            "| {name} | {} | {} | {} | {} | {} | {below} |",
+            dp(&an.e, 4),
+            dp(&an.g(&q(4, 1)), 2),
+            dp(&an.g(&q(9, 2)), 2),
+            dp(&an.g(&q(5, 1)), 2),
+            dp(&an.g(&q(6, 1)), 2),
+        );
+    }
     s
 }
 
 fn mu_sensitivity(vs: &[standard::SoulInput]) -> String {
-    let picks = ["V03", "V05", "V11", "V12"];
-    let mut s = String::from("| μ | E, output | E, hit and resist |");
+    let picks = ["V03", "V05", "V11", "V22"];
+    let mut s = String::from("| μ | E, output and healing | E, hit | E, speed |");
     for p in picks {
         let _ = write!(s, " score {p} |");
     }
-    s += "\n| --- | --- | --- | --- | --- | --- | --- |\n";
-    let d = standard::reference_final();
+    s += "\n| --- | --- | --- | --- | --- | --- | --- | --- |\n";
+    let reference = standard::reference();
+    let k = |a: Arch| model::mean_k(&model::k_law(model::useful_law_of(&reference, a.attrs())));
     for (m, label) in [
         (q(8, 10), "0.8 (all rolls minimal)"),
-        (q(9, 10), "0.9 (v1: midpoint)"),
+        (q(9, 10), "0.9 (the standard: midpoint)"),
         (q(2720, 3000), "0.9067 (官网 2.72/3.0)"),
         (q(365, 400), "0.9125 (官网 3.65/4.0)"),
         (q(1, 1), "1.0 (all rolls maximal)"),
     ] {
         let anchors_at = |a: Arch| standard::Anchors {
-            e: &m * standard::mean_useful(d, &a.attrs()),
-            m: standard::max_u(),
+            e: &m * k(a),
+            m: standard::max_u(a),
         };
         let _ = write!(
             s,
-            "| {label} | {} | {} |",
+            "| {label} | {} | {} | {} |",
             dp(&anchors_at(Arch::Output).e, 4),
-            dp(&anchors_at(Arch::Hit).e, 4)
+            dp(&anchors_at(Arch::Hit).e, 4),
+            dp(&anchors_at(Arch::Speed).e, 4)
         );
         for p in picks {
             let v = vs.iter().find(|v| v.id == p).expect("vector");
@@ -259,7 +416,7 @@ fn mu_sensitivity(vs: &[standard::SoulInput]) -> String {
 
 /// The percentile of a utility under the output archetype and a law: P(U < u) + ½ P(U = u), exact.
 fn percentile(law: Law, u: &Q) -> Q {
-    let ul = model::useful_law(standard::reference_final(), &Arch::Output.attrs());
+    let ul = model::useful_law(standard::reference_final(), Arch::Output.attrs());
     let mut below = Q::from_integer(0.into());
     let mut at = Q::from_integer(0.into());
     for (v, p) in &ul {
@@ -282,7 +439,7 @@ fn percentile(law: Law, u: &Q) -> Q {
 /// P(U ≥ u) for the output archetype under the reference measure and uniform increments, exact:
 /// how likely a +15 soul is to be at least this good.
 fn equal_or_better(u: &Q) -> String {
-    let ul = model::useful_law(standard::reference_final(), &Arch::Output.attrs());
+    let ul = model::useful_law(standard::reference_final(), Arch::Output.attrs());
     let p: Q = ul
         .iter()
         .map(|(v, p)| {
@@ -314,162 +471,10 @@ fn law_robustness(vs: &[standard::SoulInput]) -> String {
     s
 }
 
-const MC_N: usize = 4_000_000;
-const NORM_N: usize = 1_000_000;
-
-fn se(p: f64) -> f64 {
-    (p * (1.0 - p) / MC_N as f64).sqrt()
-}
-
-fn monte_carlo() -> String {
-    let m = standard::reference();
-    let ts = mc::all_thresholds();
-    let mut rng = mc::Rng::new(0x5941_5441_7631);
-    let groups: [(&str, Vec<Arch>); 6] = [
-        ("slot 1, 3, 5 (all archetypes)", mc::all_arches()),
-        ("slot 2 Spd (all archetypes)", mc::all_arches()),
-        ("slot 2 AtkPercent (output)", vec![Arch::Output]),
-        ("slot 4 EffectHit (hit)", vec![Arch::Hit]),
-        ("slot 6 CritDmg (output)", vec![Arch::Output]),
-        (
-            "slot 6 HpPercent (hit, resist)",
-            vec![Arch::Hit, Arch::Resist],
-        ),
-    ];
-    let mut per_arch = [[0usize; 6]; 3];
-    let mut per_group = vec![[0usize; 6]; groups.len()];
-    for _ in 0..MC_N {
-        let e = mc::draw(&m, &mut rng);
-        for (i, a) in ARCHES.iter().enumerate() {
-            per_arch[i][mc::arch_tier(&ts, &e, *a).0] += 1;
-        }
-        for (i, (_, acc)) in groups.iter().enumerate() {
-            per_group[i][mc::quality_tier(&ts, &e, acc).0] += 1;
-        }
-    }
-    let mut s = format!(
-        "{MC_N} souls per row, seed 0x594154417631, uniform increments, the reference measure. Each cell: rate (standard error), and its z-score against the exact rate.\n\n"
-    );
-    s += "| Row | N | R | SR | SSR | SP | UR |\n| --- | --- | --- | --- | --- | --- | --- |\n";
-    let cell = |c: usize| {
-        let p = c as f64 / MC_N as f64;
-        format!("{:.4}% ({:.4}%)", 100.0 * p, 100.0 * se(p))
-    };
-    let mut worst = 0.0f64;
-    for (i, a) in ARCHES.iter().enumerate() {
-        let exact = rates::tier_rates(&m, Law::Uniform, *a);
-        let ex = [
-            &exact.n, &exact.r, &exact.sr, &exact.ssr, &exact.sp, &exact.ur,
-        ];
-        let _ = write!(s, "| exact, {} |", a.key());
-        for x in ex {
-            let _ = write!(s, " {} |", pct(x));
-        }
-        let _ = write!(s, "\n| Monte Carlo, {} |", a.key());
-        for (c, x) in per_arch[i].iter().zip(ex) {
-            let p = *c as f64 / MC_N as f64;
-            let z = (p - f(x)) / se(f(x));
-            worst = worst.max(z.abs());
-            let _ = write!(s, " {} z={z:+.2} |", cell(*c));
-        }
-        s += "\n";
-    }
-    let _ = writeln!(
-        s,
-        "\nLargest |z| of a Monte Carlo rate against the exact rate: {worst:.2}.\n"
-    );
-    s += "| Quality over accepted archetypes | N | R | SR | SSR | SP | UR |\n";
-    s += "| --- | --- | --- | --- | --- | --- | --- |\n";
-    for (i, (name, _)) in groups.iter().enumerate() {
-        let _ = write!(s, "| {name} |");
-        for c in per_group[i] {
-            let _ = write!(s, " {} |", cell(c));
-        }
-        s += "\n";
-    }
-    s
-}
-
-fn normalization() -> String {
-    let m = standard::reference();
-    let t = mc::f64_thresholds(Arch::Output);
-    let profiles: [(&str, Vec<usize>); 3] = [
-        ("speed only (1 attribute)", vec![attr::SPD]),
-        ("crit pair (2 attributes)", vec![attr::CRIT, attr::CRIT_DMG]),
-        (
-            "output archetype (4 attributes)",
-            Arch::Output.attrs().to_vec(),
-        ),
-    ];
-    let mut rng = mc::Rng::new(0x4E4F_524D);
-    let souls: Vec<[f64; model::ATTRS]> = (0..NORM_N).map(|_| mc::draw(&m, &mut rng)).collect();
-    let cuts = [t.c_r, t.c_sr, t.c_ssr, t.t_ur];
-    let mut s = format!(
-        "{NORM_N} souls, seed 0x4E4F524D, uniform increments; the same souls for every profile. Each cell: share of souls scoring at or above the output archetype's c_R / c_SR / c_SSR / above its t_UR, and the mean score.\n\n| Normalization | Profile | ≥ c_R | ≥ c_SR | ≥ c_SSR | > t_UR | mean |\n| --- | --- | --- | --- | --- | --- | --- |\n"
-    );
-    for (norm, label) in [
-        ("A", "A. bound: 100·U/M"),
-        ("C", "C. mean ratio: min(100, 50·U/E)"),
-        ("H", "H. anchored (v1)"),
-        ("B", "B. percentile (mid-rank)"),
-    ] {
-        for (pname, useful) in &profiles {
-            let b = useful.len() as f64;
-            let max = 5.0 + b;
-            let e = f(&(mu() * standard::mean_useful(standard::reference_final(), useful)));
-            let us: Vec<f64> = souls
-                .iter()
-                .map(|x| useful.iter().map(|&a| x[a]).sum())
-                .collect();
-            let scores: Vec<f64> = match norm {
-                "A" => us.iter().map(|u| 100.0 * u / max).collect(),
-                "C" => us.iter().map(|u| (50.0 * u / e).min(100.0)).collect(),
-                "H" => {
-                    let tt = mc::F64Thresholds {
-                        e,
-                        m: max,
-                        ..mc::f64_thresholds(Arch::Output)
-                    };
-                    us.iter().map(|&u| mc::g(&tt, u)).collect()
-                }
-                _ => {
-                    let mut sorted = us.clone();
-                    sorted.sort_by(f64::total_cmp);
-                    us.iter()
-                        .map(|u| {
-                            let lo = sorted.partition_point(|x| x < u);
-                            let hi = sorted.partition_point(|x| x <= u);
-                            100.0 * (lo as f64 + (hi - lo) as f64 / 2.0) / NORM_N as f64
-                        })
-                        .collect()
-                }
-            };
-            let share = |c: f64, strict: bool| {
-                scores
-                    .iter()
-                    .filter(|&&x| if strict { x > c } else { x >= c })
-                    .count() as f64
-                    / NORM_N as f64
-            };
-            let mean = scores.iter().sum::<f64>() / NORM_N as f64;
-            let _ = writeln!(
-                s,
-                "| {label} | {pname} | {:.3}% | {:.3}% | {:.3}% | {:.4}% | {:.2} |",
-                100.0 * share(cuts[0], false),
-                100.0 * share(cuts[1], false),
-                100.0 * share(cuts[2], false),
-                100.0 * share(cuts[3], true),
-                mean
-            );
-        }
-    }
-    s
-}
-
 /// The utility at which "SSR or better" is `share` of +15 souls under the uniform law, for
 /// `output`: a distribution-calibrated alternative, found by bisection on the exact tail.
 fn tail_quantile(share: &Q) -> Q {
-    let ul = model::useful_law(standard::reference_final(), &Arch::Output.attrs());
+    let ul = model::useful_law(standard::reference_final(), Arch::Output.attrs());
     let ge = |u: &Q| -> Q {
         ul.iter()
             .map(|(v, p)| {
@@ -491,7 +496,7 @@ fn tail_quantile(share: &Q) -> Q {
     (hi * q(1000, 1)).round() / q(1000, 1)
 }
 
-/// Tier rates under four SSR milestones, every increment law and archetype group.
+/// Tier rates under four SSR milestones, every increment law and four-attribute archetype.
 fn ssr_candidates() -> String {
     let m = standard::reference();
     let d = tail_quantile(&q(5, 100));
@@ -502,21 +507,24 @@ fn ssr_candidates() -> String {
         ("D. SSR or better at 5% (uniform, output)", d),
     ];
     let mut s = String::from(
-        "SP's floor stays 7μ = 6.3 and UR's boundary 8 in every row; only SSR's edge moves.\n\n| Candidate | u_SSR | Increment law | Archetype | N | R | SR | SSR | SP | UR | SSR or better |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+        "SP's floor stays 7μ = 6.3 and UR's boundary 8 in every row; only SSR's edge moves. The four-attribute archetypes of v2; speed has no SSR edge of this kind.\n\n| Candidate | u_SSR | Increment law | Archetype | N | R | SR | SSR | SP | UR | SSR or better |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
     );
     for (name, u) in &cands {
         for l in [Law::Uniform, Law::Steps(7), Law::Steps(2)] {
-            for (label, a) in [("output", Arch::Output), ("hit, resist", Arch::Hit)] {
+            for (label, a) in [("output, healing", Arch::Output), ("hit", Arch::Hit)] {
                 let t = standard::thresholds_with(a, u.clone());
                 let r = rates::tier_rates_with(&m, l, a, &t);
-                if label != "output" {
-                    let o = rates::tier_rates_with(
+                if a == Arch::Output {
+                    let h = rates::tier_rates_with(
                         &m,
                         l,
-                        Arch::Resist,
-                        &standard::thresholds_with(Arch::Resist, u.clone()),
+                        Arch::Healing,
+                        &standard::thresholds_with(Arch::Healing, u.clone()),
                     );
-                    assert!(o.ssr == r.ssr && o.sp == r.sp, "hit and resist must agree");
+                    assert!(
+                        h.ssr == r.ssr && h.sp == r.sp,
+                        "output and healing must agree"
+                    );
                 }
                 let top = &r.ssr + &r.sp + &r.ur;
                 let _ = writeln!(
@@ -555,6 +563,9 @@ fn lean_milestones_agree(root: &Path) {
         ("uSSR", standard::u_ssr()),
         ("uSPFloor", standard::u_sp_floor()),
         ("uUR", standard::u_ur()),
+        ("speedGate", standard::speed_gate()),
+        ("uSpeedUR", standard::u_speed_ur()),
+        ("speedMax", standard::max_u(Arch::Speed)),
     ] {
         assert_eq!(
             value(name).as_ref(),
@@ -565,134 +576,9 @@ fn lean_milestones_agree(root: &Path) {
     }
 }
 
-fn vectors_table(vs: &[standard::SoulInput]) -> (String, String) {
-    let mut md = String::from(
-        "| Id | Soul | Slot, main, level | Archetype | U | Score | Specialized | Tier | Tier in v1 | Depth | Breadth | Growth |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
-    );
-    let mut json = String::from("[\n");
-    for (i, v) in vs.iter().enumerate() {
-        v.check()
-            .unwrap_or_else(|e| panic!("{} is not a legal soul: {e}", v.id));
-        let all = standard::quality(v);
-        let best = &all[0];
-        let lines: Vec<String> = v
-            .lines
-            .iter()
-            .map(|l| format!("{} {} ({})", model::NAMES[l.attr], l.value, l.hits))
-            .collect();
-        let growth = standard::growth(v, best.arch);
-        if let Some(g) = &growth {
-            // The spec's recursion must agree with exact propagation.
-            let present = v.lines.iter().fold(0u16, |m, l| m | (1 << l.attr));
-            let r = 5 - u32::from(v.level / 3);
-            let by_recursion = anchors(best.arch).g(&(&best.utility
-                + mu() * standard::growth_recursion(r, present, &best.arch.attrs())));
-            assert_eq!(&by_recursion, g, "{}: growth recursion disagrees", v.id);
-        }
-        let _ = writeln!(
-            md,
-            "| {} | {} | {}, {}, +{} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
-            v.id,
-            lines.join("; "),
-            v.slot,
-            model::NAMES[v.main],
-            v.level,
-            best.arch.key(),
-            dp(&best.utility, 4),
-            dp(&best.score, 2),
-            if best.specialized { "yes" } else { "no" },
-            best.tier.name(),
-            standard::quality_with(v, &standard::u_ssr_v1())[0]
-                .tier
-                .name(),
-            dp(&best.depth, 1),
-            dp(&best.breadth, 1),
-            growth.as_ref().map_or("—".to_owned(), |g| dp(g, 2)),
-        );
-        let others: Vec<String> = all
-            .iter()
-            .map(|a| {
-                format!(
-                    "{{\"archetype\": \"{}\", \"utility\": \"{}\", \"score\": \"{}\", \"specialized\": {}, \"tier\": \"{}\"}}",
-                    a.arch.key(),
-                    frac(&a.utility),
-                    frac(&a.score),
-                    a.specialized,
-                    a.tier.name()
-                )
-            })
-            .collect();
-        let lines_json: Vec<String> = v
-            .lines
-            .iter()
-            .map(|l| {
-                format!(
-                    "{{\"attribute\": \"{}\", \"value\": \"{}\", \"increments\": {}}}",
-                    model::NAMES[l.attr],
-                    l.value,
-                    l.hits
-                )
-            })
-            .collect();
-        let _ = writeln!(
-            json,
-            "  {{\"id\": \"{}\", \"what\": \"{}\", \"slot\": {}, \"main\": \"{}\", \"level\": {}, \"lines\": [{}], \"best\": \"{}\", \"growth\": {}, \"archetypes\": [{}]}}{}",
-            v.id,
-            v.what,
-            v.slot,
-            model::NAMES[v.main],
-            v.level,
-            lines_json.join(", "),
-            best.arch.key(),
-            growth
-                .as_ref()
-                .map_or("null".to_owned(), |g| format!("\"{}\"", frac(g))),
-            others.join(", "),
-            if i + 1 < vs.len() { "," } else { "" }
-        );
-    }
-    json += "]\n";
-    // The regressions the v1.1 recalibration exists for, and what it must not change.
-    let tier_of = |id: &str| {
-        let v = vs.iter().find(|v| v.id == id).expect("vector");
-        let b = standard::quality(v).remove(0);
-        (b.tier, b.specialized, b.score)
-    };
-    use standard::Tier;
-    assert_eq!(
-        tier_of("V04").0,
-        Tier::Ssr,
-        "one perfect line is SSR, not SP"
-    );
-    assert!(tier_of("V04").1, "V04 is specialized");
-    assert_eq!(
-        tier_of("V05").0,
-        Tier::Sp,
-        "specialized and above the SP floor is SP"
-    );
-    assert_ne!(
-        tier_of("V06").0,
-        Tier::Sp,
-        "five roll units exactly is not specialized"
-    );
-    assert_ne!(
-        tier_of("V07").0,
-        Tier::Sp,
-        "specialization alone does not reach SP"
-    );
-    assert_eq!(tier_of("V08").0, Tier::Ur);
-    assert_eq!(tier_of("V09").0, Tier::Ur);
-    assert!(tier_of("V15").2 > tier_of("V14").2 && tier_of("V15").0 >= tier_of("V14").0);
-    let mut why = String::from("\n| Id | What it shows |\n| --- | --- |\n");
-    for v in vs {
-        let _ = writeln!(why, "| {} | {} |", v.id, v.what);
-    }
-    (md + &why, json)
-}
-
 fn blocks() -> BTreeMap<&'static str, String> {
     let vs = vectors::all();
-    let (vmd, _) = vectors_table(&vs);
+    let (vmd, _) = golden::vectors_table(&vs);
     BTreeMap::from([
         ("constants", constants()),
         ("k-law", k_law()),
@@ -700,15 +586,34 @@ fn blocks() -> BTreeMap<&'static str, String> {
         ("measure-sensitivity", measure_sensitivity()),
         ("mu-sensitivity", mu_sensitivity(&vs)),
         ("law-robustness", law_robustness(&vs)),
-        ("monte-carlo", monte_carlo()),
-        ("normalization", normalization()),
+        ("monte-carlo", simulate::monte_carlo()),
+        ("normalization", simulate::normalization()),
         ("vectors", vmd),
         ("ssr-candidates", ssr_candidates()),
+        ("speed-rates", speed_rates()),
     ])
 }
 
+/// Every block and its Chinese edition, `NAME-zh`, for the Chinese paper. A Chinese block that
+/// still holds an English word fails the program: a new heading must be translated in `zh`.
+fn with_chinese(blocks: &BTreeMap<&'static str, String>) -> BTreeMap<String, String> {
+    let mut all = BTreeMap::new();
+    let mut missing = Vec::new();
+    for (name, body) in blocks {
+        let chinese = zh::zh(body);
+        let left = zh::untranslated(&chinese);
+        if !left.is_empty() {
+            missing.push(format!("{name}-zh: {left:?}"));
+        }
+        all.insert(format!("{name}-zh"), chinese);
+        all.insert((*name).to_owned(), body.clone());
+    }
+    assert!(missing.is_empty(), "untranslated: {}", missing.join("; "));
+    all
+}
+
 /// Replace every generated block of `text` with the current content.
-fn fill(text: &str, blocks: &BTreeMap<&str, String>) -> String {
+fn fill(text: &str, blocks: &BTreeMap<String, String>) -> String {
     let mut out = text.to_owned();
     for (name, body) in blocks {
         let open = format!("<!-- generated:{name} -->");
@@ -748,7 +653,8 @@ fn main() -> ExitCode {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     lean_milestones_agree(&root);
     let b = blocks();
-    let (_, json) = vectors_table(&vectors::all());
+    let all = with_chinese(&b);
+    let (_, json) = golden::vectors_table(&vectors::all());
     let mut files: Vec<(PathBuf, String)> = b
         .iter()
         .map(|(n, body)| {
@@ -763,7 +669,7 @@ fn main() -> ExitCode {
     for d in &docs {
         let p = Path::new(d).to_path_buf();
         let text = std::fs::read_to_string(&p).unwrap_or_default();
-        files.push((p, fill(&text, &b)));
+        files.push((p, fill(&text, &all)));
     }
     let mut stale = Vec::new();
     for (p, content) in &files {

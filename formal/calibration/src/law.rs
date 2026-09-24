@@ -2,6 +2,9 @@
 //! increments. The distribution within the range is open (`soul-mechanics.md`, § Open); the
 //! calibration uses a continuous uniform law and reports the sensitivity to discrete ones.
 
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
 use num_bigint::BigInt;
 use num_traits::{One, ToPrimitive, Zero};
 
@@ -77,8 +80,46 @@ pub fn tail(law: Law, k: u32, t: &Q) -> Q {
     }
 }
 
-/// The exact law of a sum of `k` step increments.
+/// E[S; S ≥ t] for the sum `S` of `k` increments: its mean over the event `S ≥ t`, times that
+/// event's probability. Exact. The uniform law is handled where the event is sure or null, which
+/// is every case the gate at four roll units needs: `4k/5 ≥ t`, or `k ≤ t`.
+pub fn partial_mean(law: Law, k: u32, t: &Q) -> Q {
+    let kq = Q::from_integer(BigInt::from(k));
+    match law {
+        Law::Uniform => {
+            if q(4 * i64::from(k), 5) >= *t {
+                q(9, 10) * kq
+            } else {
+                assert!(kq <= *t, "partial_mean: the event is neither sure nor null");
+                Q::zero()
+            }
+        }
+        Law::Steps(n) => steps_sum(n, k)
+            .iter()
+            .filter(|(v, _)| v >= t)
+            .map(|(v, p)| v * p)
+            .sum(),
+    }
+}
+
+/// The exact law of a sum of `k` step increments, computed once per `(n, k)`.
 pub fn steps_sum(n: u32, k: u32) -> Vec<(Q, Q)> {
+    type Sums = Vec<(Q, Q)>;
+    static CACHE: OnceLock<Mutex<HashMap<(u32, u32), Sums>>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    if let Some(d) = lock(cache).get(&(n, k)) {
+        return d.clone();
+    }
+    let d = convolve_steps(n, k);
+    lock(cache).insert((n, k), d.clone());
+    d
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn convolve_steps(n: u32, k: u32) -> Vec<(Q, Q)> {
     let vals: Vec<Q> = (0..n)
         .map(|j| q(4, 5) + q(i64::from(j), 5 * i64::from(n - 1)))
         .collect();
@@ -114,6 +155,21 @@ fn irwin_hall_pdf(k: u32, x: f64) -> f64 {
 /// P(X > 5 ∧ X + Y ≥ c), X the sum of six increments, Y of `m` more, all independent. Exact for
 /// step laws; Simpson's rule on 20 000 panels for the uniform law (error far below 1e-9).
 pub fn specialized_and_total(law: Law, m: u32, c: &Q) -> Q {
+    // The numerical integral is the slowest step of the program, and the tables ask for the same
+    // few arguments many times.
+    type Memo = HashMap<(String, u32, Q), Q>;
+    static CACHE: OnceLock<Mutex<Memo>> = OnceLock::new();
+    let cache = CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+    let key = (law.name(), m, c.clone());
+    if let Some(v) = lock(cache).get(&key) {
+        return v.clone();
+    }
+    let v = specialized_and_total_uncached(law, m, c);
+    lock(cache).insert(key, v.clone());
+    v
+}
+
+fn specialized_and_total_uncached(law: Law, m: u32, c: &Q) -> Q {
     match law {
         Law::Steps(n) => {
             let x6 = steps_sum(n, 6);
