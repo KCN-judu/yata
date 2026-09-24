@@ -6,9 +6,12 @@
 //! still being recovered, and a byte is a byte until the layout marks it solved.
 //!
 //! - [`transport`]: Base64 text ⇄ zlib stream ⇄ [`RawSchemePayload`], with bounded input.
+//! - [`inspect`]: a hex dump, a byte-and-bit diff of two payloads, and a low-level bit reader, for
+//!   comparing controlled samples.
 //!
 //! Reading a QR image and producing a QR module matrix are the daemon's (ADR-0009).
 
+pub mod inspect;
 pub mod transport;
 
 mod payload;
