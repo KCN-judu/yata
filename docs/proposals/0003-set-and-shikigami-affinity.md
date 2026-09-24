@@ -69,7 +69,7 @@ Nothing changes until an ADR accepts a design. Quality Model v1 is unaffected.
   not express a soul that is poor for its set yet excellent for one Shikigami.
 - **Per-set useful attributes inside quality.** Rejected for the same reason,
   and because profiles of different sizes break the common scale of pass 1
-  (`papers/quality-model-v1/paper.md`, § 12).
+  (`papers/archive/quality-model-v1/paper.md`, § 12).
 
 ## Implementation and evidence
 

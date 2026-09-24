@@ -27,7 +27,7 @@ Current truth about what the system means. Edited in place.
   set, QualityScore, AffinityScore, MatchingResult
 - [spec/quality-model.md](spec/quality-model.md) — the quality score of pass 1
   exactly: archetypes, roll units, anchored normalization, tiers N to UR, test
-  vectors (`yata-quality-v1.1`)
+  vectors (`yata-quality-v2`)
 - [spec/feature-scope.md](spec/feature-scope.md) — what is in scope, what is
   cut, what is deferred, and why
 - [spec/core-protocol.md](spec/core-protocol.md) — the daemon ↔ Flutter wire:
@@ -127,6 +127,9 @@ rewrite.
 - [decisions/0025-ssr-at-one-perfect-line.md](decisions/0025-ssr-at-one-perfect-line.md)
   — Quality Model v1.1: SSR begins at six roll units, one perfect line; SP keeps
   its own floor at `7μ`
+- [decisions/0027-quality-model-v2-catalogue.md](decisions/0027-quality-model-v2-catalogue.md)
+  — Quality Model v2: output, hit, healing, and a speed archetype gated at four
+  roll units; `resist` removed; archetypes of different sizes
 
 ## Proposals — `proposals/`
 
@@ -208,13 +211,17 @@ What changed for someone. Append-only; one fragment per change.
   — Quality Model v1 defined, proved, and calibrated; not yet implemented
 - [changes/unreleased/2026-09-quality-model-v1-1.md](changes/unreleased/2026-09-quality-model-v1-1.md)
   — Quality Model v1.1: the SSR edge moves to one perfect line
+- [changes/unreleased/2026-09-quality-model-v2.md](changes/unreleased/2026-09-quality-model-v2.md)
+  — Quality Model v2: the catalogue becomes output, hit, healing and speed
 - [changes/unreleased/2026-09-innate-attribute.md](changes/unreleased/2026-09-innate-attribute.md)
   — a soul carries its innate attribute, and 固有属性 is evaluated
 
 ## Outside `docs/`
 
-- `papers/quality-model-v1/paper.md` — the public paper explaining Quality Model
-  v1; explanatory, not normative (ADR-0023)
+- `papers/quality-model-v2/paper.md` and `paper.zh.md` — the public papers
+  explaining Quality Model v2, in English and Chinese; explanatory, not
+  normative (ADR-0023). `papers/archive/quality-model-v1/paper.md` is the frozen
+  record of v1.1
 - `formal/lean/` and `formal/calibration/` — the proofs and the program that
   reproduces every number of the quality standard (ADR-0023)
 
