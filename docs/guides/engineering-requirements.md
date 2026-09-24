@@ -67,6 +67,8 @@ opened to contributors when the project accepts outside contributions.
 
 ## Commits
 
+- Commit messages follow Conventional Commits 1.0.0:
+  `<type>(<scope>): <subject>`, with the types and scopes of ADR-0021.
 - One logical change per commit, at a point where the tree builds and the fast
   checks pass.
 - A move or split is its own commit and changes nothing else.

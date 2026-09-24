@@ -109,6 +109,8 @@ rewrite.
 - [decisions/0020-no-agent-attribution.md](decisions/0020-no-agent-attribution.md)
   — commits and published text carry no agent attribution, in every Yata
   repository
+- [decisions/0021-conventional-commits.md](decisions/0021-conventional-commits.md)
+  — commit messages follow Conventional Commits 1.0.0, in every Yata repository
 
 ## Proposals — `proposals/`
 
