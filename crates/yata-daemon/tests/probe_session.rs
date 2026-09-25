@@ -484,3 +484,32 @@ fn a_recording_with_no_acknowledgement_has_no_provenance_to_export() {
     assert_eq!(recorded.provenance, None);
     assert!(to_export(&recorded).is_err());
 }
+
+#[test]
+fn a_log_without_its_level_is_undecodable() {
+    let log = |level: probe::LogLevel| {
+        frame_of(Kind::Log(probe::Log {
+            level: level.into(),
+            message: "m".into(),
+        }))
+    };
+    let recorded = replay(&log(probe::LogLevel::Warning)).expect("a whole capture");
+    assert!(matches!(recorded.messages[0], Inbound::Log(_)));
+    assert_eq!(
+        replay(&log(probe::LogLevel::Unspecified)),
+        Err(SessionError::Undecodable(Undecodable::UnstatedLogLevel))
+    );
+}
+
+#[test]
+fn an_export_with_no_reading_is_refused() {
+    let mut stream = frame_of(ack());
+    stream.extend(frame_of(souls(1)));
+    let mut e = to_export(&load_bytes(&stream).expect("a recording")).expect("provenance");
+    e.readings.clear();
+    let json = export::to_json(&e).expect("json");
+    assert_eq!(
+        load_bytes(json.as_bytes()),
+        Err(yata_daemon::probe::input::InputError::NoReadings)
+    );
+}

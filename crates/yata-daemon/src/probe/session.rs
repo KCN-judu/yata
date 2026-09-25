@@ -17,7 +17,7 @@ use yata_protocol::discipline::{Breach, Ledger, RequestId};
 use yata_protocol::failure::{Failure, FailureError, RequestFailure, SessionFailure};
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
 use yata_protocol::probe::{
-    self, Cancel, Discover, Handshake, HandshakeAck, Log, ProbeMessage, ProtocolVersion,
+    self, Cancel, Discover, Handshake, HandshakeAck, LogLevel, ProbeMessage, ProtocolVersion,
     ReadRequest, Reading, Scope, Shutdown, failed::Subject, handshake, probe_message::Kind,
 };
 
@@ -57,6 +57,20 @@ impl Failed {
     }
 }
 
+/// How much a reader's log message matters.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Level {
+    Info,
+    Warning,
+}
+
+/// A message the reader sent for the user, parsed: never a state change.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReaderLog {
+    pub level: Level,
+    pub message: String,
+}
+
 /// What made a frame unreadable as a probe message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Undecodable {
@@ -74,6 +88,8 @@ pub enum Undecodable {
     SubjectMismatch,
     /// A result without its reading.
     NoReading,
+    /// A log message whose level is unspecified.
+    UnstatedLogLevel,
 }
 
 /// Why a session cannot go on.
@@ -140,7 +156,7 @@ pub enum Inbound {
         failure: RequestFailure,
     },
     SessionFailed(SessionFailure),
-    Log(Log),
+    Log(ReaderLog),
 }
 
 /// Where requests come from: the daemon live, or the stream itself on replay, where a request
@@ -203,7 +219,19 @@ impl Inbox {
             Kind::ReadRequest(_) => Err(SessionError::WrongDirection("ReadRequest")),
             Kind::Cancel(_) => Err(SessionError::WrongDirection("Cancel")),
             Kind::Shutdown(_) => Err(SessionError::WrongDirection("Shutdown")),
-            Kind::Log(l) => Ok(Inbound::Log(l)),
+            Kind::Log(l) => {
+                let level = match LogLevel::try_from(l.level) {
+                    Ok(LogLevel::Info) => Level::Info,
+                    Ok(LogLevel::Warning) => Level::Warning,
+                    Ok(LogLevel::Unspecified) | Err(_) => {
+                        return Err(SessionError::Undecodable(Undecodable::UnstatedLogLevel));
+                    }
+                };
+                Ok(Inbound::Log(ReaderLog {
+                    level,
+                    message: l.message,
+                }))
+            }
             Kind::HandshakeAck(a) => {
                 if self.phase == Phase::Acked {
                     return Err(SessionError::OutOfOrder("a second HandshakeAck"));
@@ -353,7 +381,7 @@ pub struct Session {
     inbox: Inbox,
     next_id: Option<RequestId>,
     wait: Option<Duration>,
-    logs: Vec<Log>,
+    logs: Vec<ReaderLog>,
 }
 
 impl Session {
@@ -383,7 +411,7 @@ impl Session {
     }
 
     /// The `Log` messages received so far, in order.
-    pub fn logs(&self) -> &[Log] {
+    pub fn logs(&self) -> &[ReaderLog] {
         &self.logs
     }
 

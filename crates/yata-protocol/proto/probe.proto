@@ -183,10 +183,13 @@ enum LogLevel {
   LOG_LEVEL_WARNING = 2;
 }
 
-// A message the user may eventually see. Never a state change.
+// A message the user may eventually see. Never a state change. It carries no code: a code the
+// daemon translates would need a closed set, and none exists yet; one is added as an enum when
+// the first is needed.
 message Log {
+  reserved 2;
+  reserved "code";
   LogLevel level = 1;
-  string code = 2;
   string message = 3;
 }
 

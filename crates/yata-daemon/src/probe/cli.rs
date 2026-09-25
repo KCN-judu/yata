@@ -175,12 +175,7 @@ fn decode(path: &Path) -> Result<String, String> {
             Inbound::SessionFailed(failure) => {
                 format!("failed    session {} {}", failure.name(), failure.message)
             }
-            Inbound::Log(l) => format!(
-                "log       {} {} {}",
-                l.level().as_str_name(),
-                l.code,
-                l.message
-            ),
+            Inbound::Log(l) => format!("log       {:?} {}", l.level, l.message),
         })
         .collect();
     Ok(format!(
@@ -338,7 +333,7 @@ fn read(reader: &Path, rest: &[&str]) -> Result<String, String> {
         }
     );
     for l in &outcome.logs {
-        text.push_str(&format!("log {} {}\n", l.code, l.message));
+        text.push_str(&format!("log {:?} {}\n", l.level, l.message));
     }
     let loaded = Loaded {
         carrier: input::Carrier::Live {

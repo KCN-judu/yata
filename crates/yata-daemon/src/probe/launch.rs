@@ -26,9 +26,9 @@ use interprocess::os::windows::security_descriptor::SecurityDescriptor;
 use sha2::Digest;
 use widestring::U16CString;
 use yata_protocol::failure::SessionReason;
-use yata_protocol::probe::{HandshakeAck, Log, Reading, Scope};
+use yata_protocol::probe::{HandshakeAck, Reading, Scope};
 
-use super::session::{Session, SessionError, Step, Target};
+use super::session::{ReaderLog, Session, SessionError, Step, Target};
 
 /// One access-allowed entry, for the object's owner, and no inheritance (`P`): R10.
 pub const PIPE_SDDL: &str = "D:P(A;;GA;;;OW)";
@@ -151,7 +151,7 @@ pub enum LaunchError {
 pub struct Outcome {
     pub ack: HandshakeAck,
     pub reading: Reading,
-    pub logs: Vec<Log>,
+    pub logs: Vec<ReaderLog>,
     pub elevation: Elevation,
 }
 

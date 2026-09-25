@@ -91,6 +91,8 @@ pub enum InputError {
     Export(ExportError),
     /// A `HandshakeAck` or an export header that leaves a field unstated.
     Unstated(Unstated),
+    /// An export with no reading: a file is one or more readings.
+    NoReadings,
 }
 
 /// Why a reading cannot be written as an export.
@@ -222,6 +224,9 @@ pub fn load_bytes(bytes: &[u8]) -> Result<Loaded, InputError> {
 }
 
 fn from_export(e: ProbeExport) -> Result<Loaded, InputError> {
+    if e.readings.is_empty() {
+        return Err(InputError::NoReadings);
+    }
     Ok(Loaded {
         provenance: Some(Provenance::parse(Header {
             version: e.protocol_version,
