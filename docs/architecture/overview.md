@@ -66,7 +66,7 @@ naming its trigger and editing this table.
 
 | Crate           | Class     | Owns                                                                                                                                                                       | Trigger                                         |
 | --------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
-| `yata-core`     | pure      | domain vocabulary; decode rules from probe records to domain values; scheme-code model, payload codec, and `matches`; the projection fold; query evaluation; scoring       | root                                            |
+| `yata-core`     | pure      | domain vocabulary; the snapshot IR and its admission into domain values; scheme-code model, payload codec, and `matches`; the projection fold; query evaluation; scoring   | root                                            |
 | `yata-protocol` | pure      | the frame codec; Rust types generated from the core, probe, and snapshot schemas; the yata-snapshot file                                                                   | 3 — its reader-side consumer is gone (ADR-0030) |
 | `yata-store`    | pure      | the store's instruction set; the SQLite schema; translation of instructions into SQL and of result rows into typed values                                                  | 5 — language boundary (ADR-0019)                |
 | `yata-daemon`   | effectful | the binary; the protocol session; domain ↔ message conversion; the store (fact schema, fact codec and lifting, the SQLite executor); file import; QR reading and rendering | 1 — the effectful shell                         |
@@ -168,25 +168,23 @@ durable derived thing is the user's _decisions_ — marks and notes (`SoulMarked
 
 ## Data exchange paths
 
-The user-facing answer to "how many paths are there" is: **eight, of which one
-is a file from outside and two remain from the reader's wire for tests and
-research** (ADR-0030).
+The user-facing answer to "how many paths are there" is: **six, of which one is
+a file from outside** (ADR-0030, ADR-0031).
 
-| #   | Path                                   | Format                                                 | Lives in                             | Verifiable                |
-| --- | -------------------------------------- | ------------------------------------------------------ | ------------------------------------ | ------------------------- |
-| 1   | imported file → core                   | a community format or yata-snapshot, by its header     | `../spec/import-format.md`, ADR-0031 | `cargo test`              |
-| 2   | core → blob store (raw snapshot bytes) | content-addressed by SHA-256                           | `yata-daemon`, store module          | `cargo test`              |
-| 3   | core → fact log (durable state)        | versioned tagged records, append-only                  | `../spec/fact-format.md`             | `cargo test`              |
-| 4   | fact log → projection (in memory)      | pure fold, no wire format                              | `yata-core`                          | `cargo test`              |
-| 5   | core → Flutter (queries and commands)  | length-prefixed frames, the core schema                | `../spec/core-protocol.md`, ADR-0004 | `cargo test` + Dart tests |
-| 6   | core → Flutter (subscriptions)         | same wire; the message carries a revision, not a value | same                                 | same                      |
-| 7   | recording file → core                  | a reader session's frame stream, kept as a fixture     | `../spec/probe-protocol.md`          | `cargo test`              |
-| 8   | probe export file → core               | proto3 JSON of a `ProbeExport`                         | `../spec/probe-protocol.md`          | `cargo test`              |
+| #   | Path                                  | Format                                                 | Lives in                             | Verifiable                |
+| --- | ------------------------------------- | ------------------------------------------------------ | ------------------------------------ | ------------------------- |
+| 1   | imported file → core                  | a community format or yata-snapshot, by its header     | `../spec/import-format.md`, ADR-0031 | `cargo test`              |
+| 2   | core → blob store (snapshot and file) | content-addressed by SHA-256                           | `yata-daemon`, store module          | `cargo test`              |
+| 3   | core → fact log (durable state)       | versioned tagged records, append-only                  | `../spec/fact-format.md`             | `cargo test`              |
+| 4   | fact log → projection (in memory)     | pure fold, no wire format                              | `yata-core`                          | `cargo test`              |
+| 5   | core → Flutter (queries and commands) | length-prefixed frames, the core schema                | `../spec/core-protocol.md`, ADR-0004 | `cargo test` + Dart tests |
+| 6   | core → Flutter (subscriptions)        | same wire; the message carries a revision, not a value | same                                 | same                      |
 
 Path 1 ends at the snapshot IR (`../spec/snapshot-ir.md`): every format module
 normalizes into it, and the IR's canonical binary encoding is the blob a fact
-names. Paths 7 and 8 are what remains of the reader's wire; ADR-0031 deletes
-them.
+names. Path 3 records each import by the sections it holds, and path 4 folds
+them per profile and section, so an import that lacks a section leaves that
+section as it was (ADR-0032).
 
 Two rules keep this list from growing, which is its own kind of design:
 
@@ -196,7 +194,7 @@ game or an emulator is excluded by
 
 **No path exists only to serve the UI.** A boundary whose purpose is "the UI
 needs it more conveniently" is a violation of the layer table above; the fix is
-a better shape on path 5, not a ninth path.
+a better shape on path 5, not a seventh path.
 
 ### What each boundary carries, and in which direction
 
@@ -257,7 +255,6 @@ There is no layer CI cannot see: nothing depends on a running game.
   [ADR-0030](../decisions/0030-no-game-reader.md)
 - What crosses each boundary:
   [../spec/core-protocol.md](../spec/core-protocol.md),
-  [../spec/probe-protocol.md](../spec/probe-protocol.md),
   [../spec/protocol-versions.md](../spec/protocol-versions.md)
 - What the system means: [../spec/scoring.md](../spec/scoring.md),
   [../spec/glossary.md](../spec/glossary.md)
