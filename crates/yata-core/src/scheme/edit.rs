@@ -12,39 +12,12 @@
 
 use super::layout::Record;
 use super::mapping;
+pub use super::mapping::{FilterBit, SoulBit};
 use super::name::SchemeName;
 use crate::nonempty::NonEmptySet;
 
 /// Soul bits in use: one per mapped soul set ([`super::mapping`]).
 pub const SOUL_BIT_COUNT: u16 = mapping::SOUL_BIT_COUNT;
-
-/// A soul-set bit this codec may write.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SoulBit(u16);
-
-impl SoulBit {
-    pub fn new(bit: u16) -> Option<SoulBit> {
-        (bit < SOUL_BIT_COUNT).then_some(SoulBit(bit))
-    }
-
-    pub fn index(self) -> u16 {
-        self.0
-    }
-}
-
-/// A filter bit this codec may write: one of a solved group of [`super::mapping`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct FilterBit(u16);
-
-impl FilterBit {
-    pub fn new(bit: u16) -> Option<FilterBit> {
-        mapping::is_solved_filter_bit(bit).then_some(FilterBit(bit))
-    }
-
-    pub fn index(self) -> u16 {
-        self.0
-    }
-}
 
 /// 类型 as bits: the editor's "all souls", or the souls chosen.
 ///
@@ -107,18 +80,18 @@ impl Record {
     }
 
     pub fn has_soul(&self, bit: SoulBit) -> bool {
-        get(&self.soul_mask, bit.0)
+        get(&self.soul_mask, bit.index())
     }
 
     pub fn has_filter(&self, bit: FilterBit) -> bool {
-        get(&self.filter, bit.0)
+        get(&self.filter, bit.index())
     }
 
     /// Set or clear one soul bit. Setting a bit on an "all souls" record makes it choose that one
     /// soul; clearing the last one makes it "all souls" again. Clearing trims trailing zero bytes,
     /// as the game writes masks.
     pub fn set_soul(&mut self, bit: SoulBit, state: BitState) {
-        set(&mut self.soul_mask, bit.0, state);
+        set(&mut self.soul_mask, bit.index(), state);
         if state == BitState::Off {
             while self.soul_mask.last() == Some(&0) {
                 self.soul_mask.pop();
@@ -128,7 +101,7 @@ impl Record {
 
     /// Set or clear one solved filter bit, and nothing else.
     pub fn set_filter(&mut self, bit: FilterBit, state: BitState) {
-        set(&mut self.filter, bit.0, state);
+        set(&mut self.filter, bit.index(), state);
     }
 
     /// A record from nothing. The filter has only the given solved bits set and, like the soul
@@ -137,12 +110,12 @@ impl Record {
         let mut soul_mask = Vec::new();
         if let SoulChoice::Souls(souls) = souls {
             for s in souls {
-                set(&mut soul_mask, s.0, BitState::On);
+                set(&mut soul_mask, s.index(), BitState::On);
             }
         }
         let mut filter_bytes = Vec::new();
         for f in filter {
-            set(&mut filter_bytes, f.0, BitState::On);
+            set(&mut filter_bytes, f.index(), BitState::On);
         }
         Record {
             name: name.as_str().as_bytes().to_vec(),

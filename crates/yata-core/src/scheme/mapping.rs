@@ -15,6 +15,57 @@ use crate::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
 
 use super::selection::{InnateAttribute, LevelBand, SubCount};
 
+/// A soul-mask bit this codec may write: one per mapped soul set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct SoulBit(u16);
+
+impl SoulBit {
+    pub fn new(bit: u16) -> Option<SoulBit> {
+        (bit < SOUL_BIT_COUNT).then_some(SoulBit(bit))
+    }
+
+    pub fn index(self) -> u16 {
+        self.0
+    }
+
+    /// The set this bit selects.
+    pub fn set(self) -> SoulSet {
+        SoulSet::from_suit_code(SUIT_CODE_BY_SOUL_BIT[usize::from(self.0)])
+    }
+}
+
+/// A filter bit this codec may write: one of a solved group of the tables below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct FilterBit(u16);
+
+impl FilterBit {
+    pub fn new(bit: u16) -> Option<FilterBit> {
+        is_solved_filter_bit(bit).then_some(FilterBit(bit))
+    }
+
+    pub fn index(self) -> u16 {
+        self.0
+    }
+}
+
+/// The two filter bits of one sub-attribute.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SubBits {
+    /// ○.
+    pub include: FilterBit,
+    /// ✕.
+    pub exclude: FilterBit,
+}
+
+impl SubBits {
+    const fn new(include: u16, exclude: u16) -> SubBits {
+        SubBits {
+            include: FilterBit(include),
+            exclude: FilterBit(exclude),
+        }
+    }
+}
+
 /// The suit code of the soul each soul-mask bit selects: bit `n` is `SUIT_CODE_BY_SOUL_BIT[n]`.
 /// Not derivable from the suit code: 薙魂 (21) and 木魅 (23) sit at bits 29 and 28, and codes
 /// 55–60 at bits 64–69, after codes 94–99.
@@ -32,96 +83,95 @@ const SUIT_CODE_BY_SOUL_BIT: [u8; 70] = [
 pub(crate) const SOUL_BIT_COUNT: u16 = SUIT_CODE_BY_SOUL_BIT.len() as u16;
 
 /// 位置: bit `n` is slot `n + 1`.
-pub(crate) const SLOT_BITS: [(SoulSlot, u16); 6] = [
-    (SoulSlot::Slot1, 0),
-    (SoulSlot::Slot2, 1),
-    (SoulSlot::Slot3, 2),
-    (SoulSlot::Slot4, 3),
-    (SoulSlot::Slot5, 4),
-    (SoulSlot::Slot6, 5),
+pub(crate) const SLOT_BITS: [(SoulSlot, FilterBit); 6] = [
+    (SoulSlot::Slot1, FilterBit(0)),
+    (SoulSlot::Slot2, FilterBit(1)),
+    (SoulSlot::Slot3, FilterBit(2)),
+    (SoulSlot::Slot4, FilterBit(3)),
+    (SoulSlot::Slot5, FilterBit(4)),
+    (SoulSlot::Slot6, FilterBit(5)),
 ];
 
 /// 星级: bit `5 + n` is `n` stars.
-pub(crate) const STAR_BITS: [(Star, u16); 6] = [
-    (Star::One, 6),
-    (Star::Two, 7),
-    (Star::Three, 8),
-    (Star::Four, 9),
-    (Star::Five, 10),
-    (Star::Six, 11),
+pub(crate) const STAR_BITS: [(Star, FilterBit); 6] = [
+    (Star::One, FilterBit(6)),
+    (Star::Two, FilterBit(7)),
+    (Star::Three, FilterBit(8)),
+    (Star::Four, FilterBit(9)),
+    (Star::Five, FilterBit(10)),
+    (Star::Six, FilterBit(11)),
 ];
 
 /// 主属性, in the game's attribute order.
-pub(crate) const MAIN_BITS: [(SoulAttribute, u16); 11] = [
-    (SoulAttribute::AtkFlat, 12),
-    (SoulAttribute::AtkPercent, 13),
-    (SoulAttribute::DefFlat, 14),
-    (SoulAttribute::DefPercent, 15),
-    (SoulAttribute::HpFlat, 16),
-    (SoulAttribute::HpPercent, 17),
-    (SoulAttribute::Spd, 18),
-    (SoulAttribute::EffectHit, 19),
-    (SoulAttribute::EffectRes, 20),
-    (SoulAttribute::Crit, 21),
-    (SoulAttribute::CritDmg, 22),
+pub(crate) const MAIN_BITS: [(SoulAttribute, FilterBit); 11] = [
+    (SoulAttribute::AtkFlat, FilterBit(12)),
+    (SoulAttribute::AtkPercent, FilterBit(13)),
+    (SoulAttribute::DefFlat, FilterBit(14)),
+    (SoulAttribute::DefPercent, FilterBit(15)),
+    (SoulAttribute::HpFlat, FilterBit(16)),
+    (SoulAttribute::HpPercent, FilterBit(17)),
+    (SoulAttribute::Spd, FilterBit(18)),
+    (SoulAttribute::EffectHit, FilterBit(19)),
+    (SoulAttribute::EffectRes, FilterBit(20)),
+    (SoulAttribute::Crit, FilterBit(21)),
+    (SoulAttribute::CritDmg, FilterBit(22)),
 ];
 
-/// 副属性: `(attribute, include bit ○, exclude bit ✕)`, in the main-attribute order.
-pub(crate) const SUB_BITS: [(SoulAttribute, u16, u16); 11] = [
-    (SoulAttribute::AtkFlat, 23, 24),
-    (SoulAttribute::AtkPercent, 25, 26),
-    (SoulAttribute::DefFlat, 27, 28),
-    (SoulAttribute::DefPercent, 29, 30),
-    (SoulAttribute::HpFlat, 31, 32),
-    (SoulAttribute::HpPercent, 33, 34),
-    (SoulAttribute::Spd, 35, 36),
-    (SoulAttribute::EffectHit, 37, 38),
-    (SoulAttribute::EffectRes, 39, 40),
-    (SoulAttribute::Crit, 41, 42),
-    (SoulAttribute::CritDmg, 43, 44),
+/// 副属性: each attribute's include bit ○ and exclude bit ✕, in the main-attribute order.
+pub(crate) const SUB_BITS: [(SoulAttribute, SubBits); 11] = [
+    (SoulAttribute::AtkFlat, SubBits::new(23, 24)),
+    (SoulAttribute::AtkPercent, SubBits::new(25, 26)),
+    (SoulAttribute::DefFlat, SubBits::new(27, 28)),
+    (SoulAttribute::DefPercent, SubBits::new(29, 30)),
+    (SoulAttribute::HpFlat, SubBits::new(31, 32)),
+    (SoulAttribute::HpPercent, SubBits::new(33, 34)),
+    (SoulAttribute::Spd, SubBits::new(35, 36)),
+    (SoulAttribute::EffectHit, SubBits::new(37, 38)),
+    (SoulAttribute::EffectRes, SubBits::new(39, 40)),
+    (SoulAttribute::Crit, SubBits::new(41, 42)),
+    (SoulAttribute::CritDmg, SubBits::new(43, 44)),
 ];
 
 /// 数量.
-pub(crate) const COUNT_BITS: [(SubCount, u16); 4] = [
-    (SubCount::FewerThanTwo, 45),
-    (SubCount::Two, 46),
-    (SubCount::Three, 47),
-    (SubCount::Four, 48),
+pub(crate) const COUNT_BITS: [(SubCount, FilterBit); 4] = [
+    (SubCount::FewerThanTwo, FilterBit(45)),
+    (SubCount::Two, FilterBit(46)),
+    (SubCount::Three, FilterBit(47)),
+    (SubCount::Four, FilterBit(48)),
 ];
 
 /// 等级.
-pub(crate) const LEVEL_BITS: [(LevelBand, u16); 6] = [
-    (LevelBand::L0to2, 49),
-    (LevelBand::L3to5, 50),
-    (LevelBand::L6to8, 51),
-    (LevelBand::L9to11, 52),
-    (LevelBand::L12to14, 53),
-    (LevelBand::L15, 54),
+pub(crate) const LEVEL_BITS: [(LevelBand, FilterBit); 6] = [
+    (LevelBand::L0to2, FilterBit(49)),
+    (LevelBand::L3to5, FilterBit(50)),
+    (LevelBand::L6to8, FilterBit(51)),
+    (LevelBand::L9to11, FilterBit(52)),
+    (LevelBand::L12to14, FilterBit(53)),
+    (LevelBand::L15, FilterBit(54)),
 ];
 
 /// 固有属性, left to right in the editor.
-pub(crate) const INNATE_BITS: [(InnateAttribute, u16); 6] = [
-    (InnateAttribute(SoulAttribute::AtkPercent), 55),
-    (InnateAttribute(SoulAttribute::DefPercent), 56),
-    (InnateAttribute(SoulAttribute::HpPercent), 57),
-    (InnateAttribute(SoulAttribute::EffectHit), 58),
-    (InnateAttribute(SoulAttribute::EffectRes), 59),
-    (InnateAttribute(SoulAttribute::Crit), 60),
+pub(crate) const INNATE_BITS: [(InnateAttribute, FilterBit); 6] = [
+    (InnateAttribute(SoulAttribute::AtkPercent), FilterBit(55)),
+    (InnateAttribute(SoulAttribute::DefPercent), FilterBit(56)),
+    (InnateAttribute(SoulAttribute::HpPercent), FilterBit(57)),
+    (InnateAttribute(SoulAttribute::EffectHit), FilterBit(58)),
+    (InnateAttribute(SoulAttribute::EffectRes), FilterBit(59)),
+    (InnateAttribute(SoulAttribute::Crit), FilterBit(60)),
 ];
 
 /// The soul-mask bit of a set, or `None` for a suit code no bit is mapped to.
-pub(crate) fn soul_bit(set: SoulSet) -> Option<u16> {
+pub(crate) fn soul_bit(set: SoulSet) -> Option<SoulBit> {
     SUIT_CODE_BY_SOUL_BIT
         .iter()
         .position(|&c| c == set.suit_code())
         .and_then(|i| u16::try_from(i).ok())
+        .map(SoulBit)
 }
 
-/// The set a soul-mask bit selects, or `None` for a bit beyond the mapped sets.
+/// The set a raw soul-mask position selects, or `None` for a position beyond the mapped sets.
 pub(crate) fn soul_set(bit: u16) -> Option<SoulSet> {
-    SUIT_CODE_BY_SOUL_BIT
-        .get(usize::from(bit))
-        .map(|&c| SoulSet::from_suit_code(c))
+    SoulBit::new(bit).map(SoulBit::set)
 }
 
 /// Every mapped filter bit, ascending: the bits the semantic codec owns.
@@ -131,10 +181,11 @@ pub(crate) fn solved_filter_bits() -> impl Iterator<Item = u16> {
         .map(|e| e.1)
         .chain(STAR_BITS.iter().map(|e| e.1))
         .chain(MAIN_BITS.iter().map(|e| e.1))
-        .chain(SUB_BITS.iter().flat_map(|e| [e.1, e.2]))
+        .chain(SUB_BITS.iter().flat_map(|e| [e.1.include, e.1.exclude]))
         .chain(COUNT_BITS.iter().map(|e| e.1))
         .chain(LEVEL_BITS.iter().map(|e| e.1))
         .chain(INNATE_BITS.iter().map(|e| e.1))
+        .map(FilterBit::index)
         .collect();
     bits.sort_unstable();
     bits.into_iter()
@@ -157,7 +208,7 @@ mod tests {
         assert_eq!(SOUL_BIT_COUNT, 70);
         for bit in 0..SOUL_BIT_COUNT {
             let set = soul_set(bit).expect("mapped");
-            assert_eq!(soul_bit(set), Some(bit));
+            assert_eq!(soul_bit(set).map(SoulBit::index), Some(bit));
         }
         assert_eq!(soul_set(70), None);
     }

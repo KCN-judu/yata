@@ -13,8 +13,8 @@ use crate::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
 
 use super::layout::Record;
 use super::mapping::{
-    COUNT_BITS, INNATE_BITS, LEVEL_BITS, MAIN_BITS, SLOT_BITS, SOUL_BIT_COUNT, STAR_BITS, SUB_BITS,
-    solved_filter_bits, soul_bit, soul_set,
+    COUNT_BITS, FilterBit, INNATE_BITS, LEVEL_BITS, MAIN_BITS, SLOT_BITS, SOUL_BIT_COUNT,
+    STAR_BITS, SUB_BITS, solved_filter_bits, soul_bit, soul_set,
 };
 use crate::nonempty::NonEmptySet;
 
@@ -270,18 +270,18 @@ fn ones(bytes: &[u8]) -> impl Iterator<Item = u16> + '_ {
 }
 
 /// The values of a one-bit-per-value group that are set in `filter`.
-fn read_group<T: Copy + Ord>(filter: &[u8], table: &[(T, u16)]) -> BTreeSet<T> {
+fn read_group<T: Copy + Ord>(filter: &[u8], table: &[(T, FilterBit)]) -> BTreeSet<T> {
     table
         .iter()
-        .filter(|e| get(filter, e.1))
+        .filter(|e| get(filter, e.1.index()))
         .map(|e| e.0)
         .collect()
 }
 
 /// Write a one-bit-per-value group: each value's bit set exactly when it is chosen.
-fn write_group<T: Ord>(filter: &mut Vec<u8>, table: &[(T, u16)], chosen: &BTreeSet<T>) {
+fn write_group<T: Ord>(filter: &mut Vec<u8>, table: &[(T, FilterBit)], chosen: &BTreeSet<T>) {
     for (value, bit) in table {
-        put(filter, *bit, chosen.contains(value));
+        put(filter, bit.index(), chosen.contains(value));
     }
 }
 
@@ -299,8 +299,11 @@ pub fn decode_selection(record: &Record) -> Result<(SoulSelection, Preserved), S
         (true, None) => SetChoice::OnlyUnmapped,
     };
     let mut sub_attributes = SubAttributeModes::default();
-    for &(attribute, include, exclude) in &SUB_BITS {
-        let mode = match (get(filter, include), get(filter, exclude)) {
+    for &(attribute, bits) in &SUB_BITS {
+        let mode = match (
+            get(filter, bits.include.index()),
+            get(filter, bits.exclude.index()),
+        ) {
             (true, true) => return Err(SelectionError::IncludeAndExclude(attribute)),
             (true, false) => SubAttributeMode::Include,
             (false, true) => SubAttributeMode::Exclude,
@@ -336,7 +339,11 @@ pub fn encode_selection(
     let mut chosen = BTreeSet::new();
     if let SetChoice::Sets(sets) = &selection.sets {
         for &set in sets {
-            chosen.insert(soul_bit(set).ok_or(SelectionError::UnknownSet(set))?);
+            chosen.insert(
+                soul_bit(set)
+                    .ok_or(SelectionError::UnknownSet(set))?
+                    .index(),
+            );
         }
     }
     let mut soul_mask = preserved.soul_mask.clone();
@@ -354,10 +361,10 @@ pub fn encode_selection(
     write_group(f, &SLOT_BITS, &selection.slots);
     write_group(f, &STAR_BITS, &selection.stars);
     write_group(f, &MAIN_BITS, &selection.main_attributes);
-    for &(attribute, include, exclude) in &SUB_BITS {
+    for &(attribute, bits) in &SUB_BITS {
         let mode = selection.sub_attributes.get(attribute);
-        put(f, include, mode == SubAttributeMode::Include);
-        put(f, exclude, mode == SubAttributeMode::Exclude);
+        put(f, bits.include.index(), mode == SubAttributeMode::Include);
+        put(f, bits.exclude.index(), mode == SubAttributeMode::Exclude);
     }
     write_group(f, &COUNT_BITS, &selection.sub_counts);
     write_group(f, &LEVEL_BITS, &selection.levels);
@@ -705,8 +712,8 @@ mod tests {
         bits(a).symmetric_difference(&bits(b)).copied().collect()
     }
 
-    fn group_bits<T>(table: &[(T, u16)]) -> BTreeSet<u16> {
-        table.iter().map(|e| e.1).collect()
+    fn group_bits<T>(table: &[(T, FilterBit)]) -> BTreeSet<u16> {
+        table.iter().map(|e| e.1.index()).collect()
     }
 
     /// Each single-group edit of `base` towards `other`, with the filter bits it may change.
@@ -715,7 +722,8 @@ mod tests {
         other: &SoulSelection,
         attribute: usize,
     ) -> Vec<(SoulSelection, BTreeSet<u16>)> {
-        let (a, include, exclude) = SUB_BITS[attribute];
+        let (a, bits) = SUB_BITS[attribute];
+        let (include, exclude) = (bits.include.index(), bits.exclude.index());
         let mut sub = base.clone();
         sub.sub_attributes.set(a, other.sub_attributes.get(a));
         let b = || base.clone();
