@@ -248,7 +248,7 @@ pub fn soul(id: &str, s: &Soul) -> pb::Soul {
         suit_code: u32::from(s.set.suit_code()),
         slot: wire_slot(s.slot).into(),
         star: u32::from(s.star.get()),
-        level: u32::from(s.level),
+        level: u32::from(s.level.get()),
         main: attribute(s.main),
         main_value: s.main_value.get(),
         subs: s
@@ -367,7 +367,9 @@ pub fn scheme_source(m: pb::DecodeSchemeCode) -> Result<SchemeSource, Failure> {
 
 #[cfg(test)]
 mod tests {
-    use yata_core::soul::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue};
+    use yata_core::soul::{
+        InnateAttribute, Level, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue,
+    };
 
     use super::*;
 
@@ -376,7 +378,7 @@ mod tests {
             set: SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,
             star: Star::Six,
-            level: 15,
+            level: Level::MAX,
             main: SoulAttribute::Spd,
             main_value: StoredValue::from_tenths(570),
             subs: vec![],

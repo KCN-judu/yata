@@ -12,7 +12,7 @@ use crate::scheme::name::SchemeName;
 use crate::scheme::selection::{InnateAttribute, SetChoice, SoulSelection};
 use crate::scheme::transport::encode_text;
 use crate::soul::{
-    Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
+    Level, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
 };
 
 use SoulAttribute::*;
@@ -22,7 +22,7 @@ fn soul(set: u8, slot: SoulSlot, star: u8, level: u8, main: SoulAttribute) -> So
         set: SoulSet::from_suit_code(set),
         slot,
         star: Star::try_from(star).expect("a star"),
-        level,
+        level: Level::new(level).expect("a level"),
         main,
         main_value: StoredValue::from_tenths(570),
         subs: Vec::new(),
@@ -187,7 +187,7 @@ fn bool_predicates_test_presence_and_pristine() {
     let pristine = with_subs(soul(30, SoulSlot::Slot2, 6, 0, Spd), &four);
     assert_eq!(verdict(is(Field::Pristine, true), &pristine), YES);
     let strengthened = Soul {
-        level: 3,
+        level: Level::new(3).expect("a level"),
         ..pristine.clone()
     };
     assert_eq!(verdict(is(Field::Pristine, true), &strengthened), NO);

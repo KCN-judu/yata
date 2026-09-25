@@ -17,7 +17,8 @@ use yata_core::scheme::selection::{
     InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
 };
 use yata_core::soul::{
-    RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
+    Level, RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue,
+    SubAttribute,
 };
 use yata_protocol::core as wire;
 
@@ -88,7 +89,7 @@ fn soul(s: wire::Soul) -> Result<Soul, WireProblem> {
         set: SoulSet::from_suit_code(byte(s.suit_code)?),
         slot: slot(s.slot)?,
         star: star(s.star)?,
-        level: byte(s.level)?,
+        level: Level::try_from(s.level).map_err(|_| WireProblem::OutOfRange)?,
         main: attribute(s.main)?,
         main_value: stored(s.main_value)?,
         subs,

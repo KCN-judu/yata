@@ -1,7 +1,7 @@
 //! The value tables of `soul-mechanics.md`: § Values and § Main-attribute values.
 
 use super::inference::HitCount;
-use crate::soul::{RollCount, SoulAttribute, Star};
+use crate::soul::{Level, RollCount, SoulAttribute, Star};
 
 /// The tolerance of every comparison between a stored value and a table bound, in display
 /// units (`soul-mechanics.md`, "Comparing values"). Stored values are binary floats; the
@@ -64,7 +64,7 @@ pub fn increment_range(attribute: SoulAttribute, star: Star) -> Option<Increment
 }
 
 /// M-Main: `main(m, ℓ) = base(m) + ℓ · step(m)` for a 6★ soul, or `None` below 6★ (TBD).
-pub fn main_value(attribute: SoulAttribute, star: Star, level: u8) -> Option<f64> {
+pub fn main_value(attribute: SoulAttribute, star: Star, level: Level) -> Option<f64> {
     use SoulAttribute::*;
     if star != Star::Six {
         return None;
@@ -77,7 +77,7 @@ pub fn main_value(attribute: SoulAttribute, star: Star, level: u8) -> Option<f64
         CritDmg => (14, 5),
         AtkPercent | DefPercent | HpPercent | Crit | EffectHit | EffectRes => (10, 3),
     };
-    Some(f64::from(base + u32::from(level) * step))
+    Some(f64::from(base + u32::from(level.get()) * step))
 }
 
 #[cfg(test)]
@@ -121,7 +121,7 @@ mod tests {
     fn ranges_below_six_stars_are_undecided() {
         for star in [Star::One, Star::Two, Star::Three, Star::Four, Star::Five] {
             assert_eq!(increment_range(Spd, star), None);
-            assert_eq!(main_value(Spd, star, 15), None);
+            assert_eq!(main_value(Spd, star, Level::MAX), None);
         }
     }
 
@@ -138,7 +138,7 @@ mod tests {
             (EffectRes, 55.0),
         ];
         for (a, v) in expected {
-            assert_eq!(main_value(a, Star::Six, 15), Some(v), "{a:?}");
+            assert_eq!(main_value(a, Star::Six, Level::MAX), Some(v), "{a:?}");
         }
     }
 
@@ -146,10 +146,13 @@ mod tests {
     fn main_values_at_the_nodes_match_the_growth_table() {
         let atk = [81.0, 162.0, 243.0, 324.0, 405.0, 486.0];
         for (i, v) in atk.into_iter().enumerate() {
-            let level = u8::try_from(i * 3).expect("small");
+            let level = Level::new(u8::try_from(i * 3).expect("small")).expect("a level");
             assert_eq!(main_value(AtkFlat, Star::Six, level), Some(v));
         }
-        assert_eq!(main_value(CritDmg, Star::Six, 0), Some(14.0));
-        assert_eq!(main_value(CritDmg, Star::Six, 9), Some(59.0));
+        assert_eq!(main_value(CritDmg, Star::Six, Level::ZERO), Some(14.0));
+        assert_eq!(
+            main_value(CritDmg, Star::Six, Level::new(9).expect("a level")),
+            Some(59.0)
+        );
     }
 }

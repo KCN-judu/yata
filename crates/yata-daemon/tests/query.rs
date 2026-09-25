@@ -492,6 +492,13 @@ fn a_star_outside_one_to_six_is_malformed() {
 }
 
 #[test]
+fn a_level_above_fifteen_is_malformed() {
+    let mut r = request(1, query(None));
+    r.inventory[0].level = 16;
+    assert_eq!(code(&r), "query.malformed");
+}
+
+#[test]
 fn a_value_that_is_not_a_stored_value_is_malformed() {
     for bad in [f64::NAN, f64::INFINITY, -1.0] {
         let mut sub = request(1, query(None));

@@ -3,14 +3,11 @@
 use super::Undecided;
 use super::inference::{HitCount, Hits, hits};
 use super::values::{VALUE_TOLERANCE, increment_range, main_value};
-use crate::soul::{Soul, SoulAttribute, SoulSlot, StoredValue};
+use crate::soul::{Level, Soul, SoulAttribute, SoulSlot, StoredValue};
 
 /// Why a soul is not well-formed. Each variant carries the values that broke the rule.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Violation {
-    LevelOutOfRange {
-        level: u8,
-    },
     MainNotAllowed {
         slot: SoulSlot,
         main: SoulAttribute,
@@ -33,7 +30,7 @@ pub enum Violation {
     ValueUnreachable {
         attribute: SoulAttribute,
         value: StoredValue,
-        level: u8,
+        level: Level,
     },
     /// `Σ c(a) > nodes(ℓ)`: more rolls than the level has had. `rolls` is a lower bound when
     /// some `c(a)` are inferred.
@@ -88,9 +85,6 @@ impl Assessment {
 pub fn assess(soul: &Soul) -> Assessment {
     let mut out = Assessment::default();
     let v = &mut out.violations;
-    if soul.level > 15 {
-        v.push(Violation::LevelOutOfRange { level: soul.level });
-    }
     if !soul.slot.main_options().contains(&soul.main) {
         v.push(Violation::MainNotAllowed {
             slot: soul.slot,
@@ -197,7 +191,7 @@ mod tests {
             set: crate::soul::SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,
             star: Star::Six,
-            level: 15,
+            level: Level::MAX,
             main: Spd,
             main_value: v(57.0),
             subs: vec![
@@ -227,11 +221,9 @@ mod tests {
     #[test]
     fn shape_violations_are_all_reported() {
         let mut s = soul();
-        s.level = 16;
         s.slot = SoulSlot::Slot1;
         s.subs.push(sub(Crit, 2.5));
         let v = assess(&s).violations;
-        assert!(v.contains(&Violation::LevelOutOfRange { level: 16 }));
         assert!(v.contains(&Violation::MainNotAllowed {
             slot: SoulSlot::Slot1,
             main: Spd
@@ -254,7 +246,7 @@ mod tests {
     #[test]
     fn a_value_no_roll_count_reaches_is_malformed() {
         let mut s = soul();
-        s.level = 0;
+        s.level = Level::ZERO;
         s.main_value = v(12.0);
         s.subs = vec![sub(Spd, 4.0)];
         assert_eq!(assess(&s).verdict(), Verdict::Malformed);

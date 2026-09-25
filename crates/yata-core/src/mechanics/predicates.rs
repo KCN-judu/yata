@@ -6,7 +6,7 @@
 use super::Undecided;
 use super::inference::{HitCount, Hits, hits};
 use super::values::{VALUE_TOLERANCE, increment_range};
-use crate::soul::{Soul, SoulAttribute, SoulSlot};
+use crate::soul::{Level, Soul, SoulAttribute, SoulSlot};
 
 /// The truth of a predicate over every admitted roll count.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,7 +39,7 @@ pub fn maxed(soul: &Soul, attribute: SoulAttribute) -> Result<Truth, Undecided> 
     let Some(sub) = soul.sub(attribute) else {
         return Ok(Truth::Impossible);
     };
-    if soul.level != 15 {
+    if soul.level != Level::MAX {
         return Ok(Truth::Impossible);
     }
     let six = |h: HitCount| h.get() == 6;
@@ -87,7 +87,7 @@ mod tests {
             set: crate::soul::SoulSet::from_suit_code(30),
             slot,
             star: Star::Six,
-            level: 15,
+            level: Level::MAX,
             main,
             main_value: StoredValue::ZERO,
             subs: subs
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn maxed_needs_plus_fifteen() {
         let mut s = soul(SoulSlot::Slot4, EffectHit, &[(Spd, 12.0)]);
-        s.level = 12;
+        s.level = Level::new(12).expect("a level");
         assert_eq!(maxed(&s, Spd), Ok(Truth::Impossible));
     }
 

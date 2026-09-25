@@ -117,7 +117,7 @@ pub fn matches(selection: &SoulSelection, soul: &Soul) -> Verdict {
         && picks(s.stars.is_empty(), s.stars.contains(&soul.star))
         && picks(
             s.levels.is_empty(),
-            LevelBand::of(soul.level).is_some_and(|b| s.levels.contains(&b)),
+            s.levels.contains(&LevelBand::of(soul.level)),
         )
         && picks(
             s.main_attributes.is_empty(),
@@ -199,7 +199,7 @@ mod tests {
     use super::*;
     use crate::nonempty::NonEmptySet;
     use crate::soul::{
-        InnateAttribute, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
+        InnateAttribute, Level, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
     };
 
     use SoulAttribute::*;
@@ -207,6 +207,7 @@ mod tests {
     /// A 破势 (30) soul with main attribute `Spd` and the given sub-attributes.
     fn with_subs(slot: SoulSlot, star: u8, level: u8, subs: &[SoulAttribute]) -> Soul {
         let star = Star::try_from(star).expect("a star");
+        let level = Level::new(level).expect("a level");
         Soul {
             set: SoulSet::from_suit_code(30),
             slot,
@@ -304,11 +305,9 @@ mod tests {
         // 类型 with nothing chosen is AnySet: the one encoding of "all souls".
         let everything_empty = SoulSelection::new(SetChoice::AnySet);
         assert_eq!(matches(&everything_empty, &soul()), Verdict::Matches);
-        let mut beyond_every_band = soul();
-        beyond_every_band.level = 16;
         let mut no_levels = passing();
         no_levels.levels.clear();
-        assert_eq!(matches(&no_levels, &beyond_every_band), Verdict::Matches);
+        assert_eq!(matches(&no_levels, &soul()), Verdict::Matches);
     }
 
     #[test]
@@ -552,13 +551,6 @@ mod tests {
         let mut sel = passing();
         sel.sets = SetChoice::AnySet;
         assert_eq!(matches(&sel, &soul()), Verdict::Matches);
-    }
-
-    #[test]
-    fn a_level_above_fifteen_is_in_no_band() {
-        let mut s = soul();
-        s.level = 16;
-        assert_eq!(matches(&passing(), &s), Verdict::DoesNotMatch);
     }
 
     /// The record of one discard scheme with these soul-mask bytes and filter bits.

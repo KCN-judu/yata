@@ -1,4 +1,4 @@
-use super::{InnateAttribute, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue};
+use super::{InnateAttribute, Level, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue};
 
 /// A soul as the game records it: `⟨k, σ, ℓ, m, S, c⟩` of `soul-mechanics.md`, plus its set, the
 /// main attribute's value, and whether it is a boss soul.
@@ -13,7 +13,7 @@ pub struct Soul {
     pub set: SoulSet,
     pub slot: SoulSlot,
     pub star: Star,
-    pub level: u8,
+    pub level: Level,
     pub main: SoulAttribute,
     pub main_value: StoredValue,
     pub subs: Vec<SubAttribute>,
@@ -67,6 +67,6 @@ impl Soul {
 
     /// `nodes(ℓ) = ⌊ℓ / 3⌋`: the rolls a soul at this level has had.
     pub fn nodes(&self) -> u8 {
-        self.level / 3
+        self.level.nodes()
     }
 }

@@ -9,7 +9,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 pub use crate::soul::InnateAttribute;
-use crate::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
+use crate::soul::{Level, SoulAttribute, SoulSet, SoulSlot, Star};
 
 use super::layout::Record;
 use super::mapping::{
@@ -132,16 +132,15 @@ impl LevelBand {
         LevelBand::L15,
     ];
 
-    /// The band a level falls in, by the editor's labels 0–2 … 15; `None` above 15.
-    pub fn of(level: u8) -> Option<LevelBand> {
-        match level {
-            0..=2 => Some(LevelBand::L0to2),
-            3..=5 => Some(LevelBand::L3to5),
-            6..=8 => Some(LevelBand::L6to8),
-            9..=11 => Some(LevelBand::L9to11),
-            12..=14 => Some(LevelBand::L12to14),
-            15 => Some(LevelBand::L15),
-            _ => None,
+    /// The band a level falls in, by the editor's labels 0–2 … 15. Every level is in one.
+    pub fn of(level: Level) -> LevelBand {
+        match level.get() {
+            0..=2 => LevelBand::L0to2,
+            3..=5 => LevelBand::L3to5,
+            6..=8 => LevelBand::L6to8,
+            9..=11 => LevelBand::L9to11,
+            12..=14 => LevelBand::L12to14,
+            _ => LevelBand::L15,
         }
     }
 }
@@ -537,9 +536,9 @@ mod tests {
             (15, L15),
         ];
         for (level, band) in expected {
-            assert_eq!(LevelBand::of(level), Some(band), "{level}");
+            let l = Level::new(level).expect("a level");
+            assert_eq!(LevelBand::of(l), band, "{level}");
         }
-        assert_eq!(LevelBand::of(16), None);
     }
 
     // Sets.

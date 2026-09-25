@@ -28,7 +28,7 @@ use yata_core::scheme::name::SchemeName;
 use yata_core::scheme::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode};
 use yata_core::scheme::transport::encode_text;
 use yata_core::soul::{
-    Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
+    Level, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
 };
 use yata_protocol::core as wire;
 
@@ -57,6 +57,7 @@ impl Lcg {
 
 fn inventory(n: usize, seed: u64) -> BTreeMap<String, Soul> {
     let mut r = Lcg(seed);
+    let below_fifteen: Vec<Level> = (0..15).filter_map(Level::new).collect();
     (0..n)
         .map(|i| {
             let slot = SoulSlot::ALL[r.below(6) as usize];
@@ -68,9 +69,9 @@ fn inventory(n: usize, seed: u64) -> BTreeMap<String, Soul> {
                 _ => Star::Six,
             };
             let level = match r.below(10) {
-                0..=3 => 0,
-                4..=7 => 15,
-                _ => r.below(15) as u8,
+                0..=3 => Level::ZERO,
+                4..=7 => Level::MAX,
+                _ => below_fifteen[r.below(15) as usize],
             };
             let count = 2 + r.below(3) as usize;
             let mut attributes = BTreeSet::new();
@@ -201,7 +202,7 @@ fn wire_soul(id: &str, s: &Soul) -> wire::Soul {
         suit_code: u32::from(s.set.suit_code()),
         slot,
         star: u32::from(s.star.get()),
-        level: u32::from(s.level),
+        level: u32::from(s.level.get()),
         main: attribute(s.main),
         main_value: s.main_value.get(),
         subs: s

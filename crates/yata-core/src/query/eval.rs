@@ -11,7 +11,7 @@ use crate::mechanics::VALUE_TOLERANCE;
 use crate::scheme::code::{DiscardScheme, StrengtheningPlan};
 use crate::scheme::evaluate::{OpenRules, Verdict, matches};
 use crate::scheme::selection::SoulSelection;
-use crate::soul::{Soul, SoulAttribute, SoulSet, SoulSlot};
+use crate::soul::{Level, Soul, SoulAttribute, SoulSet, SoulSlot};
 
 /// A filter [`super::compile`] accepted. Each variant is total over every soul.
 #[derive(Debug, Clone)]
@@ -155,7 +155,7 @@ impl IntField {
     pub(super) fn value(self, soul: &Soul) -> i64 {
         match self {
             IntField::Star => i64::from(soul.star.get()),
-            IntField::Level => i64::from(soul.level),
+            IntField::Level => i64::from(soul.level.get()),
             // A soul holds at most a handful of sub-attributes; the count always fits.
             IntField::SubCount => i64::try_from(soul.subs.len()).unwrap_or(i64::MAX),
         }
@@ -177,7 +177,7 @@ impl BoolField {
         match self {
             BoolField::HasSub(a) => soul.sub(a).is_some(),
             // At +0 no roll has happened, so the sub-attributes held are the initial ones.
-            BoolField::Pristine => soul.level == 0 && soul.subs.len() == 4,
+            BoolField::Pristine => soul.level == Level::ZERO && soul.subs.len() == 4,
         }
     }
 }

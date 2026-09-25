@@ -125,9 +125,10 @@ pub fn hits(soul: &Soul, sub: &SubAttribute) -> Result<Hits, Undecided> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::soul::{SoulAttribute, SoulSlot, Star, StoredValue};
+    use crate::soul::{Level, SoulAttribute, SoulSlot, Star, StoredValue};
 
     fn spd_soul(level: u8, value: f64) -> Soul {
+        let level = Level::new(level).expect("a level");
         Soul {
             set: crate::soul::SoulSet::from_suit_code(30),
             slot: SoulSlot::Slot2,

@@ -5,6 +5,7 @@
 
 mod attribute;
 mod innate;
+mod level;
 mod model;
 mod set;
 mod slot;
@@ -13,6 +14,7 @@ mod value;
 
 pub use attribute::{AttributeCategory, RollClass, SoulAttribute};
 pub use innate::InnateAttribute;
+pub use level::{Level, NotALevel};
 pub use model::{RollCount, Soul, SoulKind, SubAttribute};
 pub use set::SoulSet;
 pub use slot::SoulSlot;
