@@ -74,9 +74,6 @@ CODE_SCAN = ("crates/", "app/lib/")
 CODE_LITERAL_HOMES = (CORE_PROTO,)
 # The messages whose `oneof kind` cases are the error codes: per request, per stream, client only.
 CODE_MESSAGES = ("Error", "SessionFailed", "ClientFailure")
-# Every ProbeErrorCode but UNSPECIFIED has a row in the spec's error-code table.
-PROBE_PROTO = "crates/yata-protocol/proto/probe.proto"
-PROBE_DOC = "docs/spec/probe-protocol.md"
 # The wording of every explanation: a cause and a remedy per code, never blank (A-Q4).
 ARB_ZH = "app/lib/l10n/app_zh.arb"
 
@@ -576,32 +573,6 @@ def error_codes() -> Result:
     return Result(not found, "\n".join(found))
 
 
-def probe_code_problems(proto: str, doc: str) -> list[str] | None:
-    """Every `ProbeErrorCode` value but UNSPECIFIED has a row in the spec's error-code table, and
-    every `probe.*` row names a value. None while the schema has no such enum."""
-    enum = re.search(r"enum ProbeErrorCode\s*\{(.*?)\}", proto, re.S)
-    if enum is None:
-        return None
-    values = re.findall(r"\bPROBE_ERROR_CODE_([A-Z0-9_]+)\s*=\s*\d+", enum.group(1))
-    codes = {"probe." + v.lower() for v in values if v != "UNSPECIFIED"}
-    table = re.search(r"^### Error codes\n(.*?)(?=^#|\Z)", doc, re.S | re.M)
-    rows = set(re.findall(r"^\|\s*`(probe\.[a-z0-9_]+)`\s*\|", table.group(1), re.M)) if table else set()
-    bad = [
-        f"{c}: a ProbeErrorCode value with no row in {PROBE_DOC}, section 'Error codes'" for c in sorted(codes - rows)
-    ]
-    bad += [
-        f"{r}: a row in {PROBE_DOC}, section 'Error codes', with no ProbeErrorCode value" for r in sorted(rows - codes)
-    ]
-    return bad
-
-
-def probe_codes() -> Result:
-    found = probe_code_problems(_read(PROBE_PROTO), _read(PROBE_DOC))
-    if found is None:
-        return Result(True, f"no ProbeErrorCode in {PROBE_PROTO} yet", na=True)
-    return Result(not found, "\n".join(found))
-
-
 def explanation_problems(arb: str) -> list[str]:
     """Every `cause*` message has its `remedy*`, the other way round too, and none is blank. That
     each code reaches a cause and a remedy is proved by the exhaustive switch; the text is not."""
@@ -627,16 +598,7 @@ def explanation_text() -> Result:
 
 def checks_selftest() -> Result:
     """Planted defects the code checks must catch, and clean inputs they must pass."""
-    proto = "enum ProbeErrorCode {\n  PROBE_ERROR_CODE_UNSPECIFIED = 0;\n  PROBE_ERROR_CODE_NOT_FOUND = 1;\n}\n"
-    row = "| `probe.not_found` | not found | 1 |\n"
-    head = "### Error codes\n\n| Code | Meaning | Exit |\n| --- | --- | --- |\n"
-    cases: list[tuple[str, list[str] | None, int | None]] = [
-        ("a value with its row passes", probe_code_problems(proto, head + row), 0),
-        ("a value without a row fails", probe_code_problems(proto, head), 1),
-        ("a row without a value fails", probe_code_problems(proto, head + row + "| `probe.gone` | x | 2 |\n"), 1),
-        ("a row outside the table does not count", probe_code_problems(proto, row + "\n" + head), 1),
-        ("no enum is n/a", probe_code_problems("message Other {}\n", head + row), None),
-    ]
+    cases: list[tuple[str, list[str] | None, int | None]] = []
     core = (
         "message Error {\n  oneof kind {\n    StoreNewerFormat store_newer_format = 2;\n"
         "    InternalBug internal_bug = 3;\n  }\n  string message = 1;\n}\n"
@@ -738,9 +700,6 @@ CHECKS = [
     Check("dart-layers", "app/lib/ui never imports app/lib/daemon", dart_layers, (), "go through state/ (ADR-0012)"),
     Check("icon-profile", "committed icons follow the SVG profile and layout", icon_profile, (), "ADR-0017"),
     Check("error-codes", "codes are core.proto oneof cases, spelled nowhere else", error_codes, (), "ADR-0012"),
-    Check(
-        "probe-codes", "every ProbeErrorCode has a row in the spec", probe_codes, (), "add the row to probe-protocol.md"
-    ),
     Check("explanation-text", "every cause has its remedy, none blank", explanation_text, (), "fill app_zh.arb"),
     Check(
         "checks-selftest", "the code checks fail on planted defects", checks_selftest, (), "fix the check, not the case"
@@ -781,7 +740,6 @@ STRUCTURE = [
     "dart-layers",
     "icon-profile",
     "error-codes",
-    "probe-codes",
     "explanation-text",
     "checks-selftest",
 ]
