@@ -42,30 +42,20 @@ Encoding: the game's official format only; there is no project-defined format
 image as well as text, and export produces one. The model and codec rules are
 [scheme-code.md](scheme-code.md). Design: ADR-0009.
 
-### Soul import via two read channels
+### Soul import from a file the user supplies
 
-Souls are read from the running game via exactly two channels (probe-boundary
-decision, recorded in `architecture/overview.md`):
-
-1. **Desktop memory** — `yata-reader` reads the game's memory from outside the
-   process, without injecting code (ADR-0007). Authoritative and fast; requires
-   the game to be running on the same machine.
-2. **MuMu over ADB** — reads the emulated game's memory through
-   `/proc/<pid>/mem` under a temporary adbd root, without injecting code
-   (ADR-0007). Covers the case where the user plays on emulator rather than (or
-   in addition to) the PC client.
-
-A third channel is an ADR decision, not a feature addition.
-
-Both channels run on Windows only. The application also runs on macOS, where the
-inventory comes from an **export file**: the probe writes its reading as JSON,
-and the application imports it on either platform (ADR-0008). The same file is a
-portable backup and a documented format other tools can read. Every reading has
-one of three sources:
+The application does not read the game (ADR-0030). The inventory comes from a
+file the user imports, in a community snapshot format, and the import is the
+same on Windows and macOS. The formats and the CSV template a user can fill in
+by hand are [import-format.md](import-format.md). The application does not
+suggest where a file comes from.
 
 ```text
-type InventorySource = Channel(DesktopMemory | MumuAdb) | ExportFile
+type InventorySource = ImportedFile(FormatTag)   -- FormatTag: import-format.md
 ```
+
+The daemon does not parse these formats yet (PRP-0008). Until it does, the probe
+export file is the only file it reads.
 
 ### GameProfile — multi-profile support
 
@@ -76,11 +66,11 @@ loss and can run comparisons across profiles.
 
 ### Item / GameAsset import
 
-The probe reads the user's item inventory alongside souls. The 21-category item
-list from the legacy application is the starting point; the authoritative
-category list must be sourced from the game or EN wiki before this feature is
-finalized (see `glossary.md`). Tracked as `GameAsset` (the union of items and
-realm cards the probe can read).
+An imported file can carry the user's item inventory alongside souls. The
+21-category item list from the legacy application is the starting point; the
+authoritative category list must be sourced from the game or EN wiki before this
+feature is finalized (see `glossary.md`). Tracked as `GameAsset` (the union of
+items and realm cards an imported file can carry).
 
 ### Shikigami collection (式神录)
 
@@ -92,7 +82,7 @@ Shikigami wears now". Added 2026-09-23 (PRP-0002).
 ### Guild view (寮) — view only
 
 The application shows the guild the account belongs to and its member roster, as
-the reader reads it (ADR-0007): other players' names, online state, and
+an imported file carries it (ADR-0030): other players' names, online state, and
 contribution, kept on this machine. The view is read-only; exporting the roster
 is deferred (below). Added 2026-09-23 (PRP-0002).
 

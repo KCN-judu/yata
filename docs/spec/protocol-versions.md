@@ -55,6 +55,9 @@ into the wrong field. The schema file marks retired numbers in a comment.
 
 ## Probe protocol — daemon ↔ `yata-reader`
 
+The reader is gone (ADR-0030). The schema remains only for recordings and export
+files, until PRP-0008 decides what data reception keeps of it.
+
 Schema: `docs/spec/probe-protocol.md`. Schema file:
 `crates/yata-protocol/proto/probe.proto`, drafted 2026-09-24 and revised
 2026-09-25: every typed soul field optional with its stated evidence, observed

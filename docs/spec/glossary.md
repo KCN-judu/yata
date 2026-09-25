@@ -76,7 +76,7 @@ outside the Soul sub-system use bare terms: `Shikigami`, `Guild`, `Realm`.
 | 神龛                   | `Altar`                        | Altar              | Where discarded souls are exchanged for gold                                                                                                                                                                 |
 | 藏宝阁                 | `Cbg`                          | —                  | NetEase's account and item trading platform (cbg.163.com); no EN client string, and the legacy codebase used `cbg` throughout                                                                                |
 | 道具                   | `Item`                         | —                  | Project-defined; a consumable resource tracked in the game inventory. The legacy import covered 21 categories; the authoritative list must be sourced from the game or EN wiki before this row is finalized. |
-| 游戏资产               | `GameAsset`                    | —                  | Project feature: the combined inventory of `Item`s and `RealmCard`s readable from the probe                                                                                                                  |
+| 游戏资产               | `GameAsset`                    | —                  | Project feature: the combined inventory of `Item`s and `RealmCard`s an imported file can carry                                                                                                               |
 
 ## Soul slot main-attribute rules
 

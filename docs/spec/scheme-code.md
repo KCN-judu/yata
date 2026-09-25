@@ -129,8 +129,8 @@ carries. The scheme bit and the UI order are both mappings from it, recorded in
 and the UI presents sets in ascending suit code. A suit code with no scheme bit
 is an encode error. The evidence has two links of different strength: which soul
 each scheme bit selects is confirmed by import for all 70 bits, but the suit
-code of each soul comes from the prior tool, a hypothesis until a reader
-recording re-establishes it (ADR-0014).
+code of each soul comes from the prior tool, a hypothesis until an imported file
+re-establishes it (ADR-0014, ADR-0030).
 
 **One table places every value.** `yata-core::scheme::mapping` is the only code
 that knows a bit position: the soul-mask bit of each suit code, and the filter
@@ -449,7 +449,7 @@ user could not import.
   under 全部 (above); whether an empty 位置, 星级 or 主属性 is no constraint, as
   extrapolated, rather than observed
 - how a reading carries a boss soul's innate attribute
-- the suit code of each soul, to be re-established by a reader recording
+- the suit code of each soul, to be re-established by an imported file
 
 ## Related
 

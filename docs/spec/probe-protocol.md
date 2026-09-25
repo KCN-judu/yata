@@ -6,18 +6,21 @@ area: import
 
 # Probe protocol
 
-The wire between `yata-daemon` and `yata-reader`, the child process that reads
-the game's memory. ADR-0006 decides that this channel speaks the same framing
-and encoding as the core channel; this page defines its messages.
+The wire that `yata-daemon` once spoke with `yata-reader`, a child process that
+read the game's memory. ADR-0006 decided that this channel speaks the same
+framing and encoding as the core channel. ADR-0030 superseded it: the project
+maintains no reader, and nothing starts one. What remains is kept only as far as
+data reception uses it: the reading records, the export file, and the recording
+format that the daemon's research commands and tests read. PRP-0008 replaces
+them with the community snapshot formats ([import-format.md](import-format.md)).
 
 What of it is implemented and tested is in
 [../project/status.md](../project/status.md).
 
-**Naming.** The repository and binary are `yata-reader`. The protocol keeps the
-name _probe protocol_, and its messages keep the `Probe` prefix (`ProbeMessage`,
-`ProbeExport`, `probe.*` error codes): the name describes the channel's role,
-and renaming the protocol would touch every accepted record for no change in
-meaning.
+**Naming.** The protocol keeps the name _probe protocol_, and its messages keep
+the `Probe` prefix (`ProbeMessage`, `ProbeExport`, `probe.*` error codes): the
+name describes the channel's role, and renaming the protocol would touch every
+accepted record for no change in meaning.
 
 The probe is the one boundary no CI can exercise against a live game. **The
 recording format defined at the bottom of this page is therefore the entire test
@@ -46,51 +49,9 @@ prefix counting the payload only, then exactly that many bytes of serialized
 protobuf. Maximum frame length 16 MiB. A corrupt or oversized prefix is rejected
 before allocation.
 
-**The transport is a named pipe the daemon creates** (ADR-0006), elevated or
-not: a random per-session name passed on the reader's command line, restricted
-to the current user's SID, first instance only, remote clients rejected, and the
-connected client's process id checked against the process the daemon started.
-
-The security descriptor is one access-allowed entry for the pipe's owner,
-`D:P(A;;GA;;;OW)`: the owner is the user the unelevated daemon runs as, and an
-elevated reader of the same user holds that SID. If the descriptor cannot be
-built, the pipe is not created (R10). The reader refuses to connect to any name
-that is not the daemon's prefix `\\.\pipe\yata-reader-` and 32 lowercase
-hexadecimal digits.
-
-**The pipe carries frames and nothing else.** Reader diagnostics, including the
-ones that make memory reading debuggable at all, go to the reader's own log file
-in its own data directory; an elevated reader has no stderr the daemon can read.
-This includes panic output: a reader that panics still owes the daemon a
-well-formed `Failed` message before it exits.
-
-**Elevation is detected, not assumed.** One read goes through these states:
-
-```text
-type Attempt = Unelevated | Elevated                      -- at most one Elevated per read
-type Outcome = Read(Reading)
-             | Failed(SessionFailure | RequestFailure)   -- other than elevation
-             | Declined                                  -- import.elevation_declined
-             | Unverified                                -- import.elevation_unverified
-             | HashMismatch { found: Sha256 }            -- the reader file is not the expected one
-
- run(Unelevated) = SessionFailed(ElevationRequired)   no expected hash
-──────────────────────────────────────────────────────────────── (E-Unverified)
- read = Unverified
-
- run(Unelevated) = SessionFailed(ElevationRequired)   sha256(reader) = expected
-──────────────────────────────────────────────────────────────── (E-Elevate)
- read = run(Elevated)            -- its own ElevationRequired is a Failed, never a second prompt
-
- run(Unelevated) = SessionFailed(ElevationRequired)   sha256(reader) ≠ expected
-──────────────────────────────────────────────────────────────── (E-Mismatch)
- read = HashMismatch { found: sha256(reader) }
-```
-
-Only a session failure with `probe.elevation_required` leads to elevation; a
-request's failure never does. A declined UAC prompt is `Declined`, which the UI
-turns into a pointer to the export file. Until the release manifest exists
-(ADR-0011) the expected hash is given by whoever starts the read (R7).
+The transport was a named pipe the daemon created and the reader connected to
+(ADR-0006). ADR-0030 removed it with the reader, together with the elevation
+rules. A recording still holds the frames such a session carried.
 
 The reader exits cleanly (0) only when the daemon closes the pipe or sends
 `Shutdown`. Every other exit follows from the session failure that ended it,
@@ -364,14 +325,14 @@ recorded in the local research records (ADR-0016), and the reader then states
 
 ## Export file
 
-The probe also writes its reading to a file, in a standalone export mode that
-needs no daemon (ADR-0008). The file is the proto3 JSON mapping of a
-`ProbeExport` message:
+An export file holds readings outside a session (ADR-0008, superseded by
+ADR-0030). The daemon reads and writes it; `probe to-export` turns a recording
+into one. The file is the proto3 JSON mapping of a `ProbeExport` message:
 
 ```text
 ProbeExport {
   protocol_version, probe_build_id, engine,
-  channel     : DesktopMemory | MumuAdb,
+  channel     : DesktopMemory,
   readings    : NonEmpty [Reading],
   captured_at : optional, RFC 3339, UTC
   target      : TargetProcess
@@ -389,11 +350,9 @@ accepted: its unknown fields are skipped, and an unknown enum name reads as the
 enum's zero value, which the daemon then refuses where a value is required. The
 export mode writes a new file and never overwrites one.
 
-It is the macOS application's only inventory source, and on Windows it doubles
-as a portable backup and a documented format for other tools. The version rules
-of [protocol-versions.md](protocol-versions.md) apply to it unchanged, and every
-field in the probe schema is therefore public: renaming one breaks outside
-readers of the JSON as well as the daemon.
+The version rules of [protocol-versions.md](protocol-versions.md) apply to it
+unchanged, and every field in the probe schema is therefore public: renaming one
+breaks outside readers of the JSON as well as the daemon.
 
 The daemon imports a file as a job. Each `Reading` is serialized as protobuf and
 stored as the blob, so a reading has the same digest whether it arrived by pipe
@@ -414,8 +373,7 @@ recording := frame*          // the same frames the daemon would have read
 ```
 
 There is no wrapper, no header, no metadata block, and no re-encoding. The
-daemon writes each byte it reads to the recording before it decodes it; when a
-read is retried elevated, the recording is of the final attempt. Three
+daemon writes each byte it reads to the recording before it decodes it. Three
 consequences follow, and they are the reason for the choice:
 
 - **Replay is the live path.** The fixture is fed to the same decoder the live
@@ -430,7 +388,7 @@ consequences follow, and they are the reason for the choice:
   is a broken capture.
 
 Recordings live beside the test that consumes them and are named for what they
-capture, not for when: `mumu-6star-page-partial.frames`, not
+capture, not for when: `desktop-6star-page-partial.frames`, not
 `capture-2026-09-23.frames`. A fixture whose meaning depends on a date is a
 fixture that will be kept long after it explains anything.
 
@@ -489,8 +447,10 @@ does not yet say that the file is newer.
 
 ## Related
 
-- Why this channel uses this wire:
-  [ADR-0006](../decisions/0006-reader-channel.md)
+- Why this channel used this wire:
+  [ADR-0006](../decisions/0006-reader-channel.md), superseded by
+  [ADR-0030](../decisions/0030-no-game-reader.md)
+- The format that replaces it: [import-format.md](import-format.md)
 - The sibling channel: [core-protocol.md](core-protocol.md)
 - Assigned protocol versions: [protocol-versions.md](protocol-versions.md)
 - Where the probe sits:
