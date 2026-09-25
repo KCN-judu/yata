@@ -725,6 +725,7 @@ message Error {
     InternalResponseTooLarge internal_response_too_large = 102;
     InternalPageWithoutSoul internal_page_without_soul = 103;
     InternalImportMismatch internal_import_mismatch = 104;
+    InternalBlobFailed internal_blob_failed = 105;
   }
 }
 
@@ -929,6 +930,11 @@ message InternalPageWithoutSoul {
 // The daemon paired a snapshot with other original bytes than the file its provenance names: a
 // daemon bug, not a defect of the file.
 message InternalImportMismatch {
+  string problem = 1;
+}
+// A blob the daemon writes could not be encoded, the compressor failing: a daemon fault. A blob
+// over the size limit is the file's, `import.malformed_source`.
+message InternalBlobFailed {
   string problem = 1;
 }
 

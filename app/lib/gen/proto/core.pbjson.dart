@@ -2547,6 +2547,15 @@ const Error$json = {
       '9': 0,
       '10': 'internalImportMismatch'
     },
+    {
+      '1': 'internal_blob_failed',
+      '3': 105,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.InternalBlobFailed',
+      '9': 0,
+      '10': 'internalBlobFailed'
+    },
   ],
   '8': [
     {'1': 'kind'},
@@ -2650,10 +2659,12 @@ final $typed_data.Uint8List errorDescriptor = $convert.base64Decode(
     'GmludGVybmFsX3BhZ2Vfd2l0aG91dF9zb3VsGGcgASgLMiUueWF0YS5jb3JlLnYxLkludGVybm'
     'FsUGFnZVdpdGhvdXRTb3VsSABSF2ludGVybmFsUGFnZVdpdGhvdXRTb3VsEmAKGGludGVybmFs'
     'X2ltcG9ydF9taXNtYXRjaBhoIAEoCzIkLnlhdGEuY29yZS52MS5JbnRlcm5hbEltcG9ydE1pc2'
-    '1hdGNoSABSFmludGVybmFsSW1wb3J0TWlzbWF0Y2hCBgoEa2luZEoECAEQAkoECAMQBEoECDwQ'
-    'QVIEY29kZVIHZGV0YWlsc1IXaW1wb3J0X3Byb2ZpbGVfbWlzbWF0Y2hSGGltcG9ydF9tYWxmb3'
-    'JtZWRfcmVhZGluZ1IYaW1wb3J0X3JlYWRpbmdfdG9vX2xhcmdlUh1pbXBvcnRfdW5lc3RhYmxp'
-    'c2hlZF9pZGVudGl0eVIVaW1wb3J0X2R1cGxpY2F0ZV9zb3Vs');
+    '1hdGNoSABSFmludGVybmFsSW1wb3J0TWlzbWF0Y2gSVAoUaW50ZXJuYWxfYmxvYl9mYWlsZWQY'
+    'aSABKAsyIC55YXRhLmNvcmUudjEuSW50ZXJuYWxCbG9iRmFpbGVkSABSEmludGVybmFsQmxvYk'
+    'ZhaWxlZEIGCgRraW5kSgQIARACSgQIAxAESgQIPBBBUgRjb2RlUgdkZXRhaWxzUhdpbXBvcnRf'
+    'cHJvZmlsZV9taXNtYXRjaFIYaW1wb3J0X21hbGZvcm1lZF9yZWFkaW5nUhhpbXBvcnRfcmVhZG'
+    'luZ190b29fbGFyZ2VSHWltcG9ydF91bmVzdGFibGlzaGVkX2lkZW50aXR5UhVpbXBvcnRfZHVw'
+    'bGljYXRlX3NvdWw=');
 
 @$core.Deprecated('Use sessionFailedDescriptor instead')
 const SessionFailed$json = {
@@ -3444,6 +3455,19 @@ const InternalImportMismatch$json = {
 final $typed_data.Uint8List internalImportMismatchDescriptor =
     $convert.base64Decode(
         'ChZJbnRlcm5hbEltcG9ydE1pc21hdGNoEhgKB3Byb2JsZW0YASABKAlSB3Byb2JsZW0=');
+
+@$core.Deprecated('Use internalBlobFailedDescriptor instead')
+const InternalBlobFailed$json = {
+  '1': 'InternalBlobFailed',
+  '2': [
+    {'1': 'problem', '3': 1, '4': 1, '5': 9, '10': 'problem'},
+  ],
+};
+
+/// Descriptor for `InternalBlobFailed`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List internalBlobFailedDescriptor =
+    $convert.base64Decode(
+        'ChJJbnRlcm5hbEJsb2JGYWlsZWQSGAoHcHJvYmxlbRgBIAEoCVIHcHJvYmxlbQ==');
 
 @$core.Deprecated('Use sessionMalformedFrameDescriptor instead')
 const SessionMalformedFrame$json = {

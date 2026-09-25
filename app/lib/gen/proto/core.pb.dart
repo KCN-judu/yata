@@ -5031,6 +5031,7 @@ enum Error_Kind {
   internalResponseTooLarge,
   internalPageWithoutSoul,
   internalImportMismatch,
+  internalBlobFailed,
   notSet
 }
 
@@ -5088,6 +5089,7 @@ class Error extends $pb.GeneratedMessage {
     InternalResponseTooLarge? internalResponseTooLarge,
     InternalPageWithoutSoul? internalPageWithoutSoul,
     InternalImportMismatch? internalImportMismatch,
+    InternalBlobFailed? internalBlobFailed,
   }) {
     final result = Error._();
     if (message != null) result.message = message;
@@ -5175,6 +5177,8 @@ class Error extends $pb.GeneratedMessage {
       result.internalPageWithoutSoul = internalPageWithoutSoul;
     if (internalImportMismatch != null)
       result.internalImportMismatch = internalImportMismatch;
+    if (internalBlobFailed != null)
+      result.internalBlobFailed = internalBlobFailed;
     return result;
   }
 
@@ -5239,6 +5243,7 @@ class Error extends $pb.GeneratedMessage {
     102: Error_Kind.internalResponseTooLarge,
     103: Error_Kind.internalPageWithoutSoul,
     104: Error_Kind.internalImportMismatch,
+    105: Error_Kind.internalBlobFailed,
     0: Error_Kind.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -5296,7 +5301,8 @@ class Error extends $pb.GeneratedMessage {
       101,
       102,
       103,
-      104
+      104,
+      105
     ])
     ..aOS(2, _omitFieldNames ? '' : 'message')
     ..aOM<SessionProtocolUnsupported>(
@@ -5423,6 +5429,8 @@ class Error extends $pb.GeneratedMessage {
     ..aOM<InternalImportMismatch>(
         104, _omitFieldNames ? '' : 'internalImportMismatch',
         subBuilder: InternalImportMismatch.$_createMessage)
+    ..aOM<InternalBlobFailed>(105, _omitFieldNames ? '' : 'internalBlobFailed',
+        subBuilder: InternalBlobFailed.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5496,6 +5504,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(102)
   @$pb.TagNumber(103)
   @$pb.TagNumber(104)
+  @$pb.TagNumber(105)
   Error_Kind whichKind() => _Error_KindByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
   @$pb.TagNumber(11)
@@ -5548,6 +5557,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(102)
   @$pb.TagNumber(103)
   @$pb.TagNumber(104)
+  @$pb.TagNumber(105)
   void clearKind() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(2)
@@ -6141,6 +6151,17 @@ class Error extends $pb.GeneratedMessage {
   void clearInternalImportMismatch() => $_clearField(104);
   @$pb.TagNumber(104)
   InternalImportMismatch ensureInternalImportMismatch() => $_ensure(51);
+
+  @$pb.TagNumber(105)
+  InternalBlobFailed get internalBlobFailed => $_getN(52);
+  @$pb.TagNumber(105)
+  set internalBlobFailed(InternalBlobFailed value) => $_setField(105, value);
+  @$pb.TagNumber(105)
+  $core.bool hasInternalBlobFailed() => $_has(52);
+  @$pb.TagNumber(105)
+  void clearInternalBlobFailed() => $_clearField(105);
+  @$pb.TagNumber(105)
+  InternalBlobFailed ensureInternalBlobFailed() => $_ensure(52);
 }
 
 enum SessionFailed_Kind {
@@ -9425,6 +9446,65 @@ class InternalImportMismatch extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<InternalImportMismatch>(
           InternalImportMismatch.$_createMessage);
   static InternalImportMismatch? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+/// A blob the daemon writes could not be encoded, the compressor failing: a daemon fault. A blob
+/// over the size limit is the file's, `import.malformed_source`.
+class InternalBlobFailed extends $pb.GeneratedMessage {
+  factory InternalBlobFailed({
+    $core.String? problem,
+  }) {
+    final result = InternalBlobFailed._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  InternalBlobFailed._();
+
+  factory InternalBlobFailed.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalBlobFailed()..mergeFromBuffer(data, registry);
+  factory InternalBlobFailed.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalBlobFailed()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InternalBlobFailed',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: InternalBlobFailed.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalBlobFailed clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalBlobFailed copyWith(void Function(InternalBlobFailed) updates) =>
+      super.copyWith((message) => updates(message as InternalBlobFailed))
+          as InternalBlobFailed;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use InternalBlobFailed() / InternalBlobFailed.new instead')
+  static InternalBlobFailed create() => InternalBlobFailed._();
+  static $pb.GeneratedMessage $_createMessage() => InternalBlobFailed._();
+  @$core.override
+  InternalBlobFailed createEmptyInstance() => InternalBlobFailed._();
+  @$core.pragma('dart2js:noInline')
+  static InternalBlobFailed getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InternalBlobFailed>(
+          InternalBlobFailed.$_createMessage);
+  static InternalBlobFailed? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get problem => $_getSZ(0);

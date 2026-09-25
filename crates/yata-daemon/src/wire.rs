@@ -22,6 +22,7 @@ use yata_protocol::core as pb;
 use crate::import::{Format, ImportError as FileError};
 use crate::qr::QrMatrix;
 use crate::query::convert::{wire_attribute, wire_slot};
+use crate::store::blob::BlobError;
 use crate::store::fact::FactError;
 use crate::store::{CommitError, ImportError, LoadError, OpenError};
 
@@ -158,10 +159,26 @@ pub fn import_failure(e: &ImportError) -> pb::error::Kind {
             })
         }
         ImportError::Refused(f) => ir_failure(f),
-        ImportError::Blob(f) => Kind::ImportMalformedSource(pb::ImportMalformedSource {
-            problem: problem(f),
-        }),
+        ImportError::Blob(f) => blob_failure(f),
         ImportError::Commit(f) => commit_failure(f),
+    }
+}
+
+/// Why a blob an import writes could not be stored: too large is the file's; anything else is
+/// the daemon's own fault.
+fn blob_failure(e: &BlobError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        BlobError::TooLarge => Kind::ImportMalformedSource(pb::ImportMalformedSource {
+            problem: problem(e),
+        }),
+        BlobError::Compress
+        | BlobError::Empty
+        | BlobError::UnknownCodec(_)
+        | BlobError::Corrupt
+        | BlobError::DigestMismatch => Kind::InternalBlobFailed(pb::InternalBlobFailed {
+            problem: problem(e),
+        }),
     }
 }
 
@@ -653,6 +670,14 @@ mod tests {
         assert_eq!(
             import_failure(&ImportError::NoSections).code(),
             "import.normalization_failed"
+        );
+        assert_eq!(
+            import_failure(&ImportError::Blob(BlobError::Compress)).code(),
+            "internal.blob_failed"
+        );
+        assert_eq!(
+            import_failure(&ImportError::Blob(BlobError::TooLarge)).code(),
+            "import.malformed_source"
         );
     }
 
