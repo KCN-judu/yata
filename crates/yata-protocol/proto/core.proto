@@ -19,14 +19,6 @@ message ProtocolVersion {
   uint32 minor = 2;
 }
 
-// Every failure (core-protocol.md, "Errors"). `code` is the contract; `message` is English and
-// never parsed.
-message Error {
-  string code = 1;
-  string message = 2;
-  bytes details = 3;
-}
-
 // ---- the soul domain (glossary.md) ----
 
 enum SoulSlot {
@@ -313,13 +305,10 @@ message Query {
   // At most 8 keys; the row identity is the final key.
   repeated SortKey sort = 3;
   ParamSetRef params = 4;
-  PageRequest page = 5;
-  // The session only (`ClientMessage.query`): the profile the rows come from. The headless
-  // endpoint supplies its own inventory and ignores it.
-  string profile_id = 6;
-  // The session only: absent on a scan's first page; every later page repeats the revision the
-  // first page was valid at, and is refused with `query.stale_revision` if the projection moved.
-  optional uint64 scan_revision = 7;
+  // The page moved into the request that pages (`EvaluateQuery.page`, `SessionQuery`), and the
+  // session's fields into `SessionQuery`: a shared query carries neither.
+  reserved 5, 6, 7;
+  reserved "page", "profile_id", "scan_revision";
 }
 
 enum OpenRule {
@@ -345,9 +334,9 @@ message QueryRow {
     ExactVerdict exact = 4;
     OpenVerdict open = 5;
   }
-  // The session only: the row's values, so the application shows what the daemon holds without a
-  // second request. The headless endpoint leaves it absent; its caller supplied the souls.
-  Soul soul = 3;
+  // The session's rows carry their soul in `SessionRow`.
+  reserved 3;
+  reserved "soul";
 }
 
 message QueryPage {
@@ -357,8 +346,10 @@ message QueryPage {
   // Present when more rows follow: the cursor of the next page. Opaque: sent back unmodified,
   // never parsed.
   optional bytes next_cursor = 6;
-  // The revision the page is valid at; zero from the headless endpoint, which has no projection.
-  uint64 revision = 4;
+  // The headless endpoint has no projection, so no revision; the session's is in
+  // `SessionQueryPage`.
+  reserved 4;
+  reserved "revision";
   // Every row the query keeps, exact or open, across all pages.
   uint64 total = 5;
 }
@@ -373,6 +364,7 @@ message EvaluateQuery {
   // At most 100 000 souls.
   repeated Soul inventory = 3;
   Query query = 4;
+  PageRequest page = 5;
 }
 
 // A request frame that is not an `EvaluateQuery`, so no id can be answered.
@@ -394,8 +386,9 @@ message EvaluateQueryResult {
 
 // Client to daemon: one request per frame.
 message ClientMessage {
-  // The protocol version the client was built against. Compared at `OpenSession`.
-  ProtocolVersion protocol_version = 1;
+  // Moved into `OpenSession.client_version`: the version is read once, at session start.
+  reserved 1;
+  reserved "protocol_version";
   // Chosen by the client, unique within the session, never reused. Never zero.
   uint64 id = 2;
   oneof kind {
@@ -404,10 +397,12 @@ message ClientMessage {
     Subscribe subscribe = 12;
     // Queries.
     ListProfiles list_profiles = 20;
-    // Carries `profile_id`, and `scan_revision` after the first page.
-    Query query = 21;
+    SessionQuery session_query = 23;
     DecodeSchemeCode decode_scheme_code = 22;
   }
+  // A shared `Query` carried the session's fields; `SessionQuery` carries them now.
+  reserved 21;
+  reserved "query";
 }
 
 // Daemon to client: a response to one request, or an event.
@@ -427,10 +422,11 @@ message Response {
     ShutdownAccepted shutdown_accepted = 11;
     Subscribed subscribed = 12;
     ProfileList profile_list = 20;
-    // Every row carries `soul`, and the page its `revision` and `total`.
-    QueryPage query_page = 21;
+    SessionQueryPage session_query_page = 23;
     SchemeCodeDecoded scheme_code_decoded = 22;
   }
+  reserved 21;
+  reserved "query_page";
 }
 
 // Not a response: something the client did not ask for.
@@ -438,26 +434,26 @@ message Event {
   oneof kind {
     ProjectionChanged projection_changed = 1;
     Warning warning = 2;
-    // The session cannot continue, and the daemon exits after sending it: a frame that does not
-    // decode, or a payload that is not a `ClientMessage`. No request id is known for it.
-    Error session_failed = 3;
+    // The session cannot continue, and the daemon exits after sending it.
+    SessionFailed session_failure = 4;
   }
-}
-
-// Surfaced to the user; changes no state and advances no revision.
-message Warning {
-  string code = 1;
-  string message = 2;
+  // Carried an `Error`, which mixed the failures of one request with those of the session.
+  reserved 3;
+  reserved "session_failed";
 }
 
 // ---- the session: lifecycle and subscriptions ----
 
 // The first request of a session. Anything before it is refused with `session.not_open`.
-message OpenSession {}
+message OpenSession {
+  // The protocol version the client was built against; absent is refused.
+  ProtocolVersion client_version = 1;
+}
 
 message SessionOpened {
   ProtocolVersion daemon_version = 1;
-  // The projection's revision when the session opened.
+  // The projection's revision when the session opened: the `seq` of the last commit, 0 for the
+  // empty log (a real revision, not "none").
   uint64 revision = 2;
 }
 
@@ -492,10 +488,56 @@ message ProfileList {
 
 // One game account (GameProfile).
 message Profile {
-  // Opaque; sent back unmodified.
+  // The profile's id: 32 lowercase hex digits, its 16 bytes. Sent back unmodified.
   string id = 1;
   // The user's own name for it.
   string name = 2;
+}
+
+// ---- the session: soul queries (core-protocol.md, "Queries and pages") ----
+
+// A query over one profile's souls. A later page carries the cursor and the revision its scan
+// began at together, so a cursor never travels without its scan.
+message SessionQuery {
+  string profile_id = 1;
+  Query query = 2;
+  // Absent: the daemon's default. 1 to 10 000.
+  optional uint32 row_budget = 3;
+  // Exactly one; absent is refused.
+  oneof position {
+    FirstPage first = 4;
+    NextPage next = 5;
+  }
+}
+
+message FirstPage {}
+
+message NextPage {
+  // A cursor a page of this scan returned, unmodified; never empty.
+  bytes cursor = 1;
+  // The revision the scan's first page was valid at. Refused with `query.stale_revision` when
+  // the projection has moved.
+  uint64 scan = 2;
+}
+
+message SessionQueryPage {
+  repeated SessionRow rows = 1;
+  // Present when more rows follow.
+  optional bytes next_cursor = 2;
+  // Every row the query keeps, exact or open, across all pages.
+  uint64 total = 3;
+  // The revision the page is valid at.
+  uint64 revision = 4;
+}
+
+// A row with the values the application shows: the soul, and the query's verdict on it.
+message SessionRow {
+  Soul soul = 1;
+  // Exactly one is set.
+  oneof verdict {
+    ExactVerdict exact = 2;
+    OpenVerdict open = 3;
+  }
 }
 
 // ---- the session: scheme codes (scheme-code.md, "Codec") ----
@@ -542,4 +584,291 @@ message EncodedScheme {
 message QrMatrix {
   uint32 size = 1;
   bytes modules = 2;
+}
+
+// ---- failures (core-protocol.md, "Errors") ----
+//
+// A failure is one case of a `kind` oneof, and the case is its code: the field name with its
+// first `_` read as `.` (`query_stale_revision` is `query.stale_revision`). Each case carries the
+// debug record of that code: what a developer needs to diagnose it, shown in logs and the
+// expert view, never as the user's text. The application writes the user's text — the cause and
+// the remedy — from the case. `message` is English, for developers, and never parsed.
+//
+// Three sets, by what their receiver does with them: `Error` answers one request; `SessionFailed`
+// ends the session; `ClientFailure` never crosses the wire and is raised by the application
+// itself. A new code is a new case, which the exhaustive matches on both sides then have to name.
+
+message Error {
+  reserved 1, 3;
+  reserved "code", "details";
+  string message = 2;
+  oneof kind {
+    SessionProtocolUnsupported session_protocol_unsupported = 10;
+    SessionNotOpen session_not_open = 11;
+    SessionAlreadyOpen session_already_open = 12;
+    SessionInvalidRequestId session_invalid_request_id = 13;
+    SessionUnknownRequest session_unknown_request = 14;
+
+    QueryUnknownProfile query_unknown_profile = 20;
+    QueryStaleRevision query_stale_revision = 21;
+    QueryMalformed query_malformed = 22;
+    QueryUnknownField query_unknown_field = 23;
+    QueryTooComplex query_too_complex = 24;
+    QueryTypeMismatch query_type_mismatch = 25;
+    QueryParamSetRequired query_param_set_required = 26;
+    QueryFieldUnavailable query_field_unavailable = 27;
+    QueryUnknownScheme query_unknown_scheme = 28;
+    QueryMalformedCursor query_malformed_cursor = 29;
+
+    DecodeNoInput decode_no_input = 40;
+    DecodeMalformedText decode_malformed_text = 41;
+    DecodeUnknownFormat decode_unknown_format = 42;
+    DecodeMalformedLayout decode_malformed_layout = 43;
+    DecodeMalformedScheme decode_malformed_scheme = 44;
+    DecodeImageInvalid decode_image_invalid = 45;
+    DecodeNoQrCode decode_no_qr_code = 46;
+    DecodeSeveralQrCodes decode_several_qr_codes = 47;
+    DecodeQrUnreadable decode_qr_unreadable = 48;
+
+    ImportProfileMismatch import_profile_mismatch = 60;
+    ImportMalformedReading import_malformed_reading = 61;
+    ImportReadingTooLarge import_reading_too_large = 62;
+    ImportUnestablishedIdentity import_unestablished_identity = 63;
+    ImportDuplicateSoul import_duplicate_soul = 64;
+
+    CommandRefused command_refused = 70;
+    CommandTooLarge command_too_large = 71;
+
+    StoreFailure store_failure = 80;
+    StoreInvalidLog store_invalid_log = 81;
+    StoreNewerFormat store_newer_format = 82;
+    StoreMalformedCommit store_malformed_commit = 83;
+    StoreMissing store_missing = 84;
+    StoreNotADatabase store_not_a_database = 85;
+    StoreForeign store_foreign = 86;
+    StoreNoFormatVersion store_no_format_version = 87;
+    StoreDamaged store_damaged = 88;
+    StoreUninitialized store_uninitialized = 89;
+
+    InternalPanic internal_panic = 100;
+    InternalQrTooLong internal_qr_too_long = 101;
+    InternalResponseTooLarge internal_response_too_large = 102;
+    InternalPageWithoutSoul internal_page_without_soul = 103;
+  }
+}
+
+// The session cannot continue; the daemon exits after sending it. No request id is known for it.
+message SessionFailed {
+  string message = 1;
+  oneof kind {
+    SessionMalformedFrame session_malformed_frame = 10;
+    SessionMalformedMessage session_malformed_message = 11;
+    InternalIo internal_io = 12;
+  }
+}
+
+// Raised by the application for what only it can see. Never sent: it is in this file so that
+// every code has one list and both sides read it from one place.
+message ClientFailure {
+  oneof kind {
+    ClientDaemonNotFound client_daemon_not_found = 10;
+    ClientDaemonStartFailed client_daemon_start_failed = 11;
+    ClientDaemonExited client_daemon_exited = 12;
+    ClientTimeout client_timeout = 13;
+    ClientProtocolError client_protocol_error = 14;
+    ClientNotConnected client_not_connected = 15;
+    ClientUnexpected client_unexpected = 16;
+  }
+}
+
+// The debug record of each code. A `problem` is the English rendering of the typed failure the
+// daemon holds, for diagnosis; nothing reads it.
+
+message SessionProtocolUnsupported {
+  // Absent when the client sent no version.
+  ProtocolVersion client = 1;
+  ProtocolVersion daemon = 2;
+}
+message SessionNotOpen {
+  // The request kind that came before `OpenSession`, as its field name.
+  string request = 1;
+}
+message SessionAlreadyOpen {}
+message SessionInvalidRequestId {
+  uint64 id = 1;
+}
+message SessionUnknownRequest {}
+
+message QueryUnknownProfile {
+  string profile_id = 1;
+}
+message QueryStaleRevision {
+  // The revision the scan began at, and the projection's.
+  uint64 scan = 1;
+  uint64 current = 2;
+}
+message QueryMalformed {
+  string problem = 1;
+}
+message QueryUnknownField {
+  int32 value = 1;
+}
+message QueryTooComplex {
+  string limit = 1;
+  uint64 found = 2;
+  uint64 max = 3;
+}
+message QueryTypeMismatch {
+  string problem = 1;
+}
+message QueryParamSetRequired {
+  string field = 1;
+}
+message QueryFieldUnavailable {
+  string field = 1;
+}
+message QueryUnknownScheme {
+  string problem = 1;
+}
+message QueryMalformedCursor {}
+
+message DecodeNoInput {}
+message DecodeMalformedText {
+  // The transport layer that refused the text, with its position.
+  string problem = 1;
+}
+message DecodeUnknownFormat {
+  uint64 payload_bytes = 1;
+}
+message DecodeMalformedLayout {
+  string problem = 1;
+}
+message DecodeMalformedScheme {
+  // The plan or discard scheme, by position in the code; absent when no one record is at fault.
+  optional uint32 record = 1;
+  string problem = 2;
+}
+message DecodeImageInvalid {
+  string problem = 1;
+}
+message DecodeNoQrCode {}
+message DecodeSeveralQrCodes {
+  uint32 count = 1;
+}
+message DecodeQrUnreadable {
+  string problem = 1;
+}
+
+message ImportProfileMismatch {
+  string problem = 1;
+}
+message ImportMalformedReading {
+  string problem = 1;
+}
+message ImportReadingTooLarge {
+  string problem = 1;
+}
+message ImportUnestablishedIdentity {
+  string evidence = 1;
+}
+message ImportDuplicateSoul {
+  string soul_id = 1;
+}
+
+message CommandRefused {
+  string problem = 1;
+}
+message CommandTooLarge {
+  string problem = 1;
+}
+
+message StoreFailure {
+  string problem = 1;
+}
+message StoreInvalidLog {
+  string problem = 1;
+}
+message StoreNewerFormat {
+  string problem = 1;
+}
+message StoreMalformedCommit {
+  string problem = 1;
+}
+message StoreMissing {
+  string path = 1;
+}
+message StoreNotADatabase {}
+message StoreForeign {
+  int64 application_id = 1;
+  int64 objects = 2;
+}
+message StoreNoFormatVersion {}
+message StoreDamaged {
+  repeated string problems = 1;
+}
+message StoreUninitialized {}
+
+message InternalPanic {}
+message InternalQrTooLong {
+  uint64 bits = 1;
+  uint64 capacity_bits = 2;
+}
+message InternalResponseTooLarge {
+  string problem = 1;
+}
+// A page row whose soul is not among the souls the page was selected from: a daemon bug.
+message InternalPageWithoutSoul {
+  string soul_id = 1;
+}
+
+message SessionMalformedFrame {
+  string problem = 1;
+}
+message SessionMalformedMessage {
+  string problem = 1;
+}
+message InternalIo {
+  string problem = 1;
+}
+
+message ClientDaemonNotFound {
+  // Every path tried, in order.
+  repeated string searched = 1;
+}
+message ClientDaemonStartFailed {
+  string path = 1;
+  string problem = 2;
+}
+message ClientDaemonExited {
+  int32 exit_code = 1;
+  // The daemon's last stderr line; absent when it wrote none.
+  optional string last_log_line = 2;
+}
+message ClientTimeout {
+  uint64 request_id = 1;
+  uint64 limit_ms = 2;
+}
+message ClientProtocolError {
+  string problem = 1;
+}
+message ClientNotConnected {}
+message ClientUnexpected {
+  string problem = 1;
+}
+
+// Surfaced to the user; changes no state and advances no revision. Not a failure: it has no
+// code, only its kind.
+message Warning {
+  reserved 1;
+  reserved "code";
+  string message = 2;
+  oneof kind {
+    ClientOutdated client_outdated = 10;
+  }
+}
+
+// The client was built against an older major than the daemon's; the session opened anyway.
+message ClientOutdated {
+  ProtocolVersion client = 1;
+  ProtocolVersion daemon = 2;
 }

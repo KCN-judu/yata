@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../../gen/l10n/app_localizations.dart';
 import '../../state/core.dart';
-import 'error_text.dart';
+import 'explanation.dart';
 
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key, required this.label});
@@ -55,12 +55,18 @@ class EmptyView extends StatelessWidget {
   }
 }
 
-/// A failure: the text for its code, the code itself when it has no text of its own, and the
-/// English message behind a details toggle, never as the main text.
+/// A failure: its cause and remedy as the main text; the code, the English message, and the
+/// debug record behind a details toggle. An unknown code is shown with the code visible.
 class ErrorView extends StatefulWidget {
-  const ErrorView({super.key, required this.error, this.title, this.onRetry, this.log = const []});
+  const ErrorView({
+    super.key,
+    required this.failure,
+    this.title,
+    this.onRetry,
+    this.log = const [],
+  });
 
-  final CoreError error;
+  final CoreFailure failure;
   final String? title;
   final VoidCallback? onRetry;
   final List<String> log;
@@ -76,8 +82,9 @@ class _ErrorViewState extends State<ErrorView> {
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final e = widget.error;
-    final mapped = mappedErrorText(l, e.code);
+    final f = widget.failure;
+    final explanation = explain(l, f);
+    final small = theme.textTheme.bodySmall;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 480),
@@ -86,16 +93,16 @@ class _ErrorViewState extends State<ErrorView> {
           children: [
             Icon(Icons.error_outline, size: 32, color: theme.colorScheme.error),
             const SizedBox(height: 12),
-            if (widget.title != null) Text(widget.title!, style: theme.textTheme.titleMedium),
-            Text(mapped ?? l.errorUnknown, textAlign: TextAlign.center),
-            if (mapped == null)
-              SelectableText(l.labelErrorCode(e.code), style: theme.textTheme.bodySmall),
+            if (widget.title case final title?) Text(title, style: theme.textTheme.titleMedium),
+            Text(explanation.cause, textAlign: TextAlign.center),
+            Text(explanation.remedy, textAlign: TextAlign.center, style: small),
+            if (!isKnown(f)) SelectableText(l.labelErrorCode(f.code), style: small),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               children: [
-                if (widget.onRetry != null)
-                  FilledButton(onPressed: widget.onRetry, child: Text(l.actionRetry)),
+                if (widget.onRetry case final retry?)
+                  FilledButton(onPressed: retry, child: Text(l.actionRetry)),
                 TextButton(
                   onPressed: () => setState(() => _details = !_details),
                   child: Text(_details ? l.actionHideDetails : l.actionShowDetails),
@@ -103,12 +110,13 @@ class _ErrorViewState extends State<ErrorView> {
               ],
             ),
             if (_details) ...[
-              SelectableText(l.labelErrorCode(e.code), style: theme.textTheme.bodySmall),
-              SelectableText(l.labelErrorMessage(e.message), style: theme.textTheme.bodySmall),
+              SelectableText(l.labelErrorCode(f.code), style: small),
+              SelectableText(l.labelErrorMessage(f.message), style: small),
+              if (f.debugRecord.isNotEmpty) SelectableText(f.debugRecord, style: small),
               if (widget.log.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Text(l.labelCoreLog, style: theme.textTheme.labelMedium),
-                SelectableText(widget.log.join('\n'), style: theme.textTheme.bodySmall),
+                SelectableText(widget.log.join('\n'), style: small),
               ],
             ],
           ],

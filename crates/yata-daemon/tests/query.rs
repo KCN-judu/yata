@@ -8,6 +8,7 @@ use yata_core::scheme::selection::{SetChoice, SoulSelection};
 use yata_core::scheme::transport::encode_text;
 use yata_core::soul::SoulSlot as DomainSlot;
 use yata_daemon::query::{MAX_ROW_BUDGET, ServeError, handle, respond, serve};
+use yata_daemon::wire::Code as _;
 use yata_protocol::core::evaluate_query_result::{Outcome, Subject};
 use yata_protocol::core::expr::Kind;
 use yata_protocol::core::field::Field as FieldKind;
@@ -88,11 +89,17 @@ fn query(filter: Option<Expr>) -> Query {
 }
 
 fn request(id: u64, q: Query) -> EvaluateQuery {
+    paged(id, q, None)
+}
+
+/// A request for one page: the page belongs to the request, not to the query it pages.
+fn paged(id: u64, q: Query, page: Option<PageRequest>) -> EvaluateQuery {
     EvaluateQuery {
         id,
         protocol_version: Some(VERSION),
         inventory: inventory(),
         query: Some(q),
+        page,
     }
 }
 
@@ -113,7 +120,7 @@ fn code(r: &EvaluateQuery) -> String {
 
 fn error_code(result: &EvaluateQueryResult) -> String {
     match &result.outcome {
-        Some(Outcome::Error(e)) => e.code.clone(),
+        Some(Outcome::Error(e)) => e.kind.as_ref().map_or("no kind", |k| k.code()).to_owned(),
         other => panic!("expected an error, got {other:?}"),
     }
 }
@@ -166,11 +173,14 @@ fn pages_follow_their_cursor_across_requests() {
     let mut seen = Vec::new();
     let mut cursor = None;
     loop {
-        q.page = Some(PageRequest {
-            row_budget: Some(2),
-            cursor: cursor.clone(),
-        });
-        let p = page(&request(1, q.clone()));
+        let p = page(&paged(
+            1,
+            q.clone(),
+            Some(PageRequest {
+                row_budget: Some(2),
+                cursor: cursor.clone(),
+            }),
+        ));
         seen.extend(ids(&p).into_iter().map(str::to_owned));
         match p.next_cursor {
             None => break,
@@ -442,9 +452,11 @@ fn request_level_refusals_carry_their_codes() {
     unnamed.inventory[0].soul_id = String::new();
     assert_eq!(code(&unnamed), "query.malformed");
     let with_page = |row_budget, cursor| {
-        let mut q = query(None);
-        q.page = Some(PageRequest { row_budget, cursor });
-        code(&request(1, q))
+        code(&paged(
+            1,
+            query(None),
+            Some(PageRequest { row_budget, cursor }),
+        ))
     };
     assert_eq!(with_page(Some(0), None), "query.malformed");
     assert_eq!(

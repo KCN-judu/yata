@@ -9,6 +9,11 @@ import 'dart:typed_data';
 import 'package:fixnum/fixnum.dart';
 import 'package:yata/daemon/frame_codec.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
+import 'package:yata/state/core.dart';
+
+/// The two profiles of the daemon's fixture projection.
+const fixtureProfile = ProfileId('796174612d666978747572652d303030');
+const emptyProfile = ProfileId('796174612d666978747572652d6e696c');
 
 /// `flutter test` runs in `app/`.
 const fixtureRoot = '../crates/yata-protocol/fixtures';
@@ -33,9 +38,9 @@ pb.Response recordedResponse(int id) => recordedServerMessages()
 /// fixture profile, 6 names an unknown profile, 7 decodes a scheme code.
 pb.ProfileList recordedProfiles() => recordedResponse(3).profileList;
 
-pb.QueryPage recordedFirstPage() => recordedResponse(4).queryPage;
+pb.SessionQueryPage recordedFirstPage() => recordedResponse(4).sessionQueryPage;
 
-pb.QueryPage recordedSecondPage() => recordedResponse(5).queryPage;
+pb.SessionQueryPage recordedSecondPage() => recordedResponse(5).sessionQueryPage;
 
 pb.Error recordedUnknownProfile() => recordedResponse(6).error;
 

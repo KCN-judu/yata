@@ -9,10 +9,12 @@ import 'core.dart';
 final profilesProvider = FutureProvider<List<pb.Profile>>((ref) async {
   ref.watch(sessionEpochProvider);
   final client = ref.watch(daemonClientProvider);
-  final list = await coreCall(client.listProfiles());
-  ref.read(projectionRevisionProvider.notifier).observe(list.revision);
+  final list = await coreCall(client.listProfiles);
+  if (!ref.mounted) return list.profiles;
+  final revision = Revision(list.revision);
+  ref.read(projectionRevisionProvider.notifier).observe(revision);
   ref.listen(projectionRevisionProvider, (_, held) {
-    if (list.revision < held) ref.invalidateSelf();
+    if (isStale(revision, held)) ref.invalidateSelf();
   });
   return list.profiles;
 });
@@ -20,16 +22,16 @@ final profilesProvider = FutureProvider<List<pb.Profile>>((ref) async {
 /// The profile every per-profile view reads. View state: choosing one changes nothing in the
 /// daemon. It follows the profile list: the first profile until the user picks another, and the
 /// first again if the chosen one disappears.
-class SelectedProfile extends Notifier<String?> {
+class SelectedProfile extends Notifier<ProfileId?> {
   @override
-  String? build() {
+  ProfileId? build() {
     final profiles = ref.watch(profilesProvider).value ?? const [];
     final previous = stateOrNull;
-    if (previous != null && profiles.any((p) => p.id == previous)) return previous;
-    return profiles.isEmpty ? null : profiles.first.id;
+    if (previous != null && profiles.any((p) => p.id == previous.hex)) return previous;
+    return profiles.isEmpty ? null : ProfileId(profiles.first.id);
   }
 
-  void select(String id) => state = id;
+  void select(ProfileId id) => state = id;
 }
 
-final selectedProfileProvider = NotifierProvider<SelectedProfile, String?>(SelectedProfile.new);
+final selectedProfileProvider = NotifierProvider<SelectedProfile, ProfileId?>(SelectedProfile.new);

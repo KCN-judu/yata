@@ -266,9 +266,8 @@ fn main() {
                 filter: None,
                 sort: Vec::new(),
                 params: None,
-                page: None,
-                ..wire::Query::default()
             }),
+            page: None,
         }
         .encode_to_vec();
         let t = median(11, || {

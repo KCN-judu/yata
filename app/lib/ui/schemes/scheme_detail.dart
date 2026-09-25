@@ -31,10 +31,14 @@ class SchemeDetail extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (encoded.hasQr())
-              QrMatrixView(matrix: encoded.qr, size: 200, semanticLabel: l.schemeQrLabel)
-            else
-              SizedBox(width: 200, child: Text(l.schemeQrUnavailable)),
+            switch (encoded.hasQr() ? QrModules.parse(encoded.qr) : null) {
+              final modules? => QrMatrixView(
+                modules: modules,
+                size: 200,
+                semanticLabel: l.schemeQrLabel,
+              ),
+              null => SizedBox(width: 200, child: Text(l.schemeQrUnavailable)),
+            },
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -76,32 +80,42 @@ class _Entry extends StatelessWidget {
     final theme = Theme.of(context);
     final s = entry.selection;
     String list(Iterable<String> values) => values.isEmpty ? l.groupAny : values.join('、');
-    final groups = [
-      (
-        l.groupSets,
-        switch (s.whichSets()) {
-          pb.SoulSelection_Sets.all => l.anySet,
-          pb.SoulSelection_Sets.chosen => list(s.chosen.codes.map((c) => setName(l, c))),
-          pb.SoulSelection_Sets.notSet => l.valueUnknown,
-        },
-      ),
-      (l.groupSlots, list(s.slots.map((k) => slotName(l, k)))),
-      (l.groupStars, list(s.stars.map(l.soulStar))),
-      (l.groupLevels, list(s.levels.map((b) => levelBandName(l, b)))),
-      (l.groupMain, list(s.mainAttributes.map((a) => attributeName(l, a)))),
-      (l.groupInnate, list(s.innate.map((a) => attributeName(l, a)))),
-      (
-        l.groupSubs,
-        list([
-          for (final c in s.subAttributes)
-            if (c.mode == pb.SubAttributeMode.SUB_ATTRIBUTE_MODE_INCLUDE)
-              l.subInclude(attributeName(l, c.attribute))
-            else if (c.mode == pb.SubAttributeMode.SUB_ATTRIBUTE_MODE_EXCLUDE)
-              l.subExclude(attributeName(l, c.attribute)),
-        ]),
-      ),
-      (l.groupCounts, list(s.subCounts.map((c) => subCountName(l, c)))),
-    ];
+    // An absent selection is one the daemon could not state (it selects souls this build does
+    // not know): it is shown as such, never as every group unrestricted.
+    final groups = !entry.hasSelection()
+        ? const <(String, String)>[]
+        : [
+            (
+              l.groupSets,
+              switch (s.whichSets()) {
+                pb.SoulSelection_Sets.all => l.anySet,
+                pb.SoulSelection_Sets.chosen => list(s.chosen.codes.map((c) => setName(l, c))),
+                pb.SoulSelection_Sets.notSet => l.valueUnknown,
+              },
+            ),
+            (l.groupSlots, list(s.slots.map((k) => slotName(l, k)))),
+            (l.groupStars, list(s.stars.map(l.soulStar))),
+            (l.groupLevels, list(s.levels.map((b) => levelBandName(l, b)))),
+            (l.groupMain, list(s.mainAttributes.map((a) => attributeName(l, a)))),
+            (l.groupInnate, list(s.innate.map((a) => attributeName(l, a)))),
+            (
+              l.groupSubs,
+              list([
+                for (final c in s.subAttributes)
+                  switch (c.mode) {
+                    pb.SubAttributeMode.SUB_ATTRIBUTE_MODE_INCLUDE => l.subInclude(
+                      attributeName(l, c.attribute),
+                    ),
+                    pb.SubAttributeMode.SUB_ATTRIBUTE_MODE_EXCLUDE => l.subExclude(
+                      attributeName(l, c.attribute),
+                    ),
+                    // A choice with no mode is shown, as unknown, not dropped from the list.
+                    _ => l.subUnknownMode(attributeName(l, c.attribute)),
+                  },
+              ]),
+            ),
+            (l.groupCounts, list(s.subCounts.map((c) => subCountName(l, c)))),
+          ];
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -116,6 +130,8 @@ class _Entry extends StatelessWidget {
                 Expanded(child: Text(l.schemeUnknownConditions, style: theme.textTheme.bodySmall)),
               ],
             ),
+          if (!entry.hasSelection())
+            Text(l.schemeConditionsUnshowable, style: theme.textTheme.bodyMedium),
           for (final (label, value) in groups)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 2),

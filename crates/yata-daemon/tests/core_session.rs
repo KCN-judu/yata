@@ -23,21 +23,31 @@ use yata_daemon::qr;
 use yata_daemon::serve::projection::{Projection, fixture};
 use yata_daemon::serve::session::Session;
 use yata_daemon::serve::{ServeError, serve};
+use yata_daemon::wire::{self, Code as _};
 use yata_protocol::core::{
     self as pb, client_message::Kind, event, response::Result as Reply, server_message,
+    session_query::Position,
 };
 use yata_protocol::frame::{decode_all, encode};
 
 fn request(id: u64, kind: Kind) -> pb::ClientMessage {
     pb::ClientMessage {
-        protocol_version: Some(pb::VERSION),
         id,
         kind: Some(kind),
     }
 }
 
+fn open_as(id: u64, client_version: Option<pb::ProtocolVersion>) -> pb::ClientMessage {
+    request(id, Kind::OpenSession(pb::OpenSession { client_version }))
+}
+
 fn open(id: u64) -> pb::ClientMessage {
-    request(id, Kind::OpenSession(pb::OpenSession {}))
+    open_as(id, Some(pb::VERSION))
+}
+
+/// The fixture's profile ids as the wire spells them.
+fn fixture_profile() -> String {
+    wire::profile_id(fixture::PROFILE_ID)
 }
 
 fn frames(messages: &[pb::ClientMessage]) -> Vec<u8> {
@@ -69,31 +79,34 @@ fn reply(m: &pb::ServerMessage) -> (u64, &Reply) {
     }
 }
 
-fn error_code(m: &pb::ServerMessage) -> &str {
+fn error_code(m: &pb::ServerMessage) -> &'static str {
     match reply(m).1 {
-        Reply::Error(e) => &e.code,
+        Reply::Error(e) => e.kind.as_ref().expect("a kind").code(),
         other => panic!("expected an error, got {other:?}"),
     }
 }
 
+/// A session query for `profile`: the first page, or the page after `next = (cursor, scan)`.
 fn souls_query(
     id: u64,
     profile: &str,
-    budget: u32,
-    cursor: Option<Vec<u8>>,
-    scan: Option<u64>,
+    budget: Option<u32>,
+    next: Option<(Vec<u8>, u64)>,
 ) -> pb::ClientMessage {
+    let position = match next {
+        None => Position::First(pb::FirstPage {}),
+        Some((cursor, scan)) => Position::Next(pb::NextPage { cursor, scan }),
+    };
     request(
         id,
-        Kind::Query(pb::Query {
+        Kind::SessionQuery(pb::SessionQuery {
             profile_id: profile.to_owned(),
-            collection: pb::Collection::Souls.into(),
-            page: Some(pb::PageRequest {
-                row_budget: (budget != 0).then_some(budget),
-                cursor,
+            query: Some(pb::Query {
+                collection: pb::Collection::Souls.into(),
+                ..pb::Query::default()
             }),
-            scan_revision: scan,
-            ..pb::Query::default()
+            row_budget: budget,
+            position: Some(position),
         }),
     )
 }
@@ -121,7 +134,17 @@ fn a_session_opens_answers_every_request_once_and_shuts_down() {
         panic!()
     };
     let ids: Vec<&str> = list.profiles.iter().map(|p| p.id.as_str()).collect();
-    assert_eq!(ids, [fixture::PROFILE_ID, fixture::EMPTY_PROFILE_ID]);
+    assert_eq!(
+        ids,
+        [
+            wire::profile_id(fixture::PROFILE_ID),
+            wire::profile_id(fixture::EMPTY_PROFILE_ID)
+        ]
+    );
+    assert!(
+        ids.iter()
+            .all(|id| wire::profile_id_of(id).is_some_and(|p| wire::profile_id(p) == *id))
+    );
     assert!(matches!(reply(&out[2]), (3, Reply::ShutdownAccepted(_))));
 }
 
@@ -136,21 +159,39 @@ fn a_request_before_open_session_is_refused_by_code() {
 
 #[test]
 fn a_newer_major_is_refused_and_the_session_stays_closed() {
-    let mut newer = open(1);
-    newer.protocol_version = Some(pb::ProtocolVersion {
-        major: pb::VERSION.major + 1,
-        minor: 0,
-    });
-    let input = frames(&[newer, request(2, Kind::ListProfiles(pb::ListProfiles {}))]);
+    let newer = open_as(
+        1,
+        Some(pb::ProtocolVersion {
+            major: pb::VERSION.major + 1,
+            minor: 0,
+        }),
+    );
+    let input = frames(&[
+        newer,
+        open_as(2, None),
+        request(3, Kind::ListProfiles(pb::ListProfiles {})),
+    ]);
     let (_, out, _) = run(Projection::empty(), &input);
     assert_eq!(error_code(&out[0]), "session.protocol_unsupported");
-    assert_eq!(error_code(&out[1]), "session.not_open");
+    // The debug record names both versions.
+    let Reply::Error(pb::Error {
+        kind: Some(pb::error::Kind::SessionProtocolUnsupported(d)),
+        ..
+    }) = reply(&out[0]).1
+    else {
+        panic!("{:?}", out[0])
+    };
+    assert_eq!(
+        (d.client.map(|v| v.major), d.daemon),
+        (Some(pb::VERSION.major + 1), Some(pb::VERSION))
+    );
+    assert_eq!(error_code(&out[1]), "session.protocol_unsupported");
+    assert_eq!(error_code(&out[2]), "session.not_open");
 }
 
 #[test]
 fn an_older_major_opens_with_a_warning_event() {
-    let mut older = open(1);
-    older.protocol_version = Some(pb::ProtocolVersion { major: 0, minor: 9 });
+    let older = open_as(1, Some(pb::ProtocolVersion { major: 0, minor: 9 }));
     let (_, out, _) = run(Projection::empty(), &frames(&[older]));
     assert!(matches!(reply(&out[0]).1, Reply::SessionOpened(_)));
     let Some(server_message::Kind::Event(pb::Event {
@@ -159,16 +200,22 @@ fn an_older_major_opens_with_a_warning_event() {
     else {
         panic!("{:?}", out[1])
     };
-    assert_eq!(w.code, "session.client_outdated");
+    assert!(matches!(
+        &w.kind,
+        Some(pb::warning::Kind::ClientOutdated(pb::ClientOutdated {
+            client: Some(pb::ProtocolVersion { major: 0, minor: 9 }),
+            ..
+        }))
+    ));
 }
 
 #[test]
 fn a_scan_pages_by_cursor_to_the_end() {
     let (_, out, _) = run(
         fixture::projection(),
-        &frames(&[open(1), souls_query(2, fixture::PROFILE_ID, 5, None, None)]),
+        &frames(&[open(1), souls_query(2, &fixture_profile(), Some(5), None)]),
     );
-    let Reply::QueryPage(first) = reply(&out[1]).1 else {
+    let Reply::SessionQueryPage(first) = reply(&out[1]).1 else {
         panic!()
     };
     assert_eq!(
@@ -177,16 +224,13 @@ fn a_scan_pages_by_cursor_to_the_end() {
     );
     let mut seen = Vec::new();
     let mut cursor = first.next_cursor.clone();
-    // Every row carries its values under its own id.
-    let rows = |r: &pb::QueryPage| {
+    // Every row carries its soul and its verdict.
+    let rows = |r: &pb::SessionQueryPage| {
         r.rows
             .iter()
             .map(|row| {
-                assert_eq!(
-                    row.soul.as_ref().map(|s| s.soul_id.as_str()),
-                    Some(row.soul_id.as_str())
-                );
-                row.soul_id.clone()
+                assert!(row.verdict.is_some());
+                row.soul.as_ref().expect("a soul").soul_id.clone()
             })
             .collect::<Vec<_>>()
     };
@@ -197,10 +241,15 @@ fn a_scan_pages_by_cursor_to_the_end() {
             fixture::projection(),
             &frames(&[
                 open(1),
-                souls_query(id, fixture::PROFILE_ID, 5, cursor.clone(), Some(1)),
+                souls_query(
+                    id,
+                    &fixture_profile(),
+                    Some(5),
+                    cursor.clone().map(|c| (c, 1)),
+                ),
             ]),
         );
-        let Reply::QueryPage(page) = reply(&out[1]).1 else {
+        let Reply::SessionQueryPage(page) = reply(&out[1]).1 else {
             panic!("{:?}", out[1])
         };
         seen.extend(rows(page));
@@ -219,16 +268,18 @@ fn a_scan_pages_by_cursor_to_the_end() {
 fn query_failures_carry_their_codes() {
     let input = frames(&[
         open(1),
-        souls_query(2, "nobody", 5, None, None),
-        souls_query(3, fixture::PROFILE_ID, 5, None, Some(0)),
-        souls_query(4, fixture::PROFILE_ID, 5, Some(vec![7, 7]), None),
+        souls_query(2, "nobody", Some(5), None),
+        souls_query(3, &fixture_profile(), Some(5), Some((vec![7], 0))),
+        souls_query(4, &fixture_profile(), Some(5), Some((vec![7, 7], 1))),
         request(
             5,
-            Kind::Query(pb::Query {
-                profile_id: fixture::PROFILE_ID.to_owned(),
-                ..pb::Query::default()
+            Kind::SessionQuery(pb::SessionQuery {
+                profile_id: fixture_profile(),
+                ..pb::SessionQuery::default()
             }),
         ),
+        // An uppercase spelling is not the fixture's id: an id has one spelling.
+        souls_query(6, &fixture_profile().to_uppercase(), Some(5), None),
     ]);
     let (_, out, _) = run(fixture::projection(), &input);
     let codes: Vec<&str> = out[1..].iter().map(error_code).collect();
@@ -238,7 +289,8 @@ fn query_failures_carry_their_codes() {
             "query.unknown_profile",
             "query.stale_revision",
             "query.malformed_cursor",
-            "query.malformed"
+            "query.malformed",
+            "query.unknown_profile"
         ]
     );
 }
@@ -391,12 +443,15 @@ fn a_broken_frame_ends_the_session_with_an_event() {
     let (result, out, _) = run(Projection::empty(), &input);
     assert!(matches!(result, Err(ServeError::Frame(_))));
     let Some(server_message::Kind::Event(pb::Event {
-        kind: Some(event::Kind::SessionFailed(e)),
+        kind: Some(event::Kind::SessionFailure(f)),
     })) = &out[1].kind
     else {
         panic!("{:?}", out[1])
     };
-    assert_eq!(e.code, "session.malformed_frame");
+    assert_eq!(
+        f.kind.as_ref().map(|k| k.code()),
+        Some("session.malformed_frame")
+    );
 }
 
 #[test]
@@ -436,9 +491,9 @@ fn golden(name: &str, bytes: &[u8]) {
 
 /// The cursor after the first eight fixture souls, as the daemon writes it.
 fn first_page_cursor() -> Vec<u8> {
-    let input = frames(&[open(1), souls_query(2, fixture::PROFILE_ID, 8, None, None)]);
+    let input = frames(&[open(1), souls_query(2, &fixture_profile(), Some(8), None)]);
     let (_, out, _) = run(fixture::projection(), &input);
-    let Reply::QueryPage(page) = reply(&out[1]).1 else {
+    let Reply::SessionQueryPage(page) = reply(&out[1]).1 else {
         panic!("{:?}", out[1])
     };
     page.next_cursor.clone().expect("more than one page")
@@ -453,15 +508,14 @@ fn the_recorded_session_matches_the_shared_fixtures() {
         open(1),
         request(2, Kind::Subscribe(pb::Subscribe { revision: 0 })),
         request(3, Kind::ListProfiles(pb::ListProfiles {})),
-        souls_query(4, fixture::PROFILE_ID, 8, None, None),
+        souls_query(4, &fixture_profile(), Some(8), None),
         souls_query(
             5,
-            fixture::PROFILE_ID,
-            8,
-            Some(first_page_cursor()),
-            Some(1),
+            &fixture_profile(),
+            Some(8),
+            Some((first_page_cursor(), 1)),
         ),
-        souls_query(6, "nobody", 0, None, None),
+        souls_query(6, "nobody", None, None),
         decode(
             7,
             pb::decode_scheme_code::Source::Text(sample_scheme_text()),

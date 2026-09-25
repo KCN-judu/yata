@@ -100,18 +100,6 @@ pub enum FactError {
     },
 }
 
-impl FactError {
-    /// The stable error code (`core-protocol.md`, § Errors).
-    pub fn code(&self) -> &'static str {
-        match self {
-            FactError::NewerFormat { .. } => "store.newer_format",
-            FactError::TooLarge { .. }
-            | FactError::Malformed { .. }
-            | FactError::SeqMismatch { .. } => "store.malformed_commit",
-        }
-    }
-}
-
 /// Why a commit could not be written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EncodeError {
@@ -454,6 +442,7 @@ fn account(seq: Seq, id: Option<String>) -> Result<Option<GameAccountId>, FactEr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::wire::Code as _;
 
     const P: ProfileId = ProfileId([0xAB; 16]);
 
@@ -725,7 +714,7 @@ mod tests {
         );
         let v2 = with_fact(|f| f.version = 2);
         let e = decode_commit(seq(3), &v2).expect_err("newer");
-        assert_eq!(e.code(), "store.newer_format");
+        assert_eq!(crate::wire::fact_failure(&e).code(), "store.newer_format");
         assert!(matches!(
             e,
             FactError::NewerFormat {
@@ -804,7 +793,7 @@ mod tests {
             let e = decode_commit(seq(3), &bytes);
             assert_eq!(e, malformed(what), "{what:?}");
             assert_eq!(
-                e.map_err(|e| e.code()),
+                e.map_err(|e| crate::wire::fact_failure(&e).code()),
                 Err("store.malformed_commit"),
                 "{what:?}"
             );

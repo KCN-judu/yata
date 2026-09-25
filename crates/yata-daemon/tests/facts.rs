@@ -14,6 +14,7 @@ use yata_daemon::store::blob::digest_of;
 use yata_daemon::store::{
     CommandOutcome, CommitError, FactLog, IngestError, Provenance, Store, read_commits,
 };
+use yata_daemon::wire::{self, Code as _};
 use yata_protocol::probe;
 use yata_store::{GetBlob, ReplaceCache, StoreId};
 
@@ -449,7 +450,7 @@ fn profiles_are_isolated_and_a_reading_never_crosses_accounts() {
             0,
         )
         .expect_err("another account");
-    assert_eq!(e.code(), "import.profile_mismatch");
+    assert_eq!(wire::ingest_failure(&e).code(), "import.profile_mismatch");
     assert_eq!(log.projection().revision(), revision);
     assert_eq!(log.inventory(P), Ok(p));
     assert_eq!(
@@ -504,7 +505,7 @@ fn an_impossible_reading_is_refused_and_writes_nothing() {
     let e = log
         .ingest(P, &twice, provenance(), Origin::Job { job_id: 1 }, 0)
         .expect_err("duplicate soul");
-    assert_eq!(e.code(), "import.duplicate_soul");
+    assert_eq!(wire::ingest_failure(&e).code(), "import.duplicate_soul");
     let unknown = complete("p", vec![soul("a", 15)]);
     assert!(matches!(
         log.ingest(Q, &unknown, provenance(), Origin::Job { job_id: 1 }, 0),
@@ -557,12 +558,18 @@ fn a_reading_without_an_established_soul_id_is_refused_and_writes_nothing() {
     let e = log
         .ingest(P, &today, provenance(), Origin::Job { job_id: 1 }, 0)
         .expect_err("unestablished");
-    assert_eq!(e.code(), "import.unestablished_identity");
+    assert_eq!(
+        wire::ingest_failure(&e).code(),
+        "import.unestablished_identity"
+    );
     records(&mut today).mappings = Some(probe::SoulMappings::default());
     let e = log
         .ingest(P, &today, provenance(), Origin::Job { job_id: 2 }, 0)
         .expect_err("unmapped");
-    assert_eq!(e.code(), "import.unestablished_identity");
+    assert_eq!(
+        wire::ingest_failure(&e).code(),
+        "import.unestablished_identity"
+    );
     assert_eq!(log.projection().revision(), Revision::at(seq(1)));
 }
 

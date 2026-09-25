@@ -2,18 +2,19 @@
 //!
 //! The handler is serial and holds no I/O (`core-protocol.md`, "Requests and responses"); the
 //! loop in [`super`] moves frames. Every request gets exactly one response, a failure included,
-//! and every failure crosses as a stable code (`wire::Failure`).
+//! and every failure crosses as one typed case of `Error.kind` (`wire::Failure`).
 
-use yata_core::scheme::code::decode_code;
+use yata_core::scheme::code::{CodeError, decode_code};
 use yata_core::scheme::layout::{LayoutError, parse};
 use yata_core::scheme::transport::decode_text;
 use yata_protocol::core::{
-    self as pb, client_message::Kind, response::Result as Reply, server_message,
+    self as pb, client_message::Kind, error::Kind as Code, response::Result as Reply,
+    server_message,
 };
 
 use super::projection::Projection;
 use crate::qr::{self, QrError};
-use crate::query::{self, RequestError};
+use crate::query::{self, Paging, RequestError};
 use crate::wire::{self, Failure, SchemeSource};
 
 /// What the loop does after a message.
@@ -24,17 +25,32 @@ pub enum Next {
     Exit,
 }
 
+/// Where a session is: before `OpenSession`, or open with the version the client declared.
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Phase {
+    AwaitingOpen,
+    Open { client: pb::ProtocolVersion },
+}
+
 #[derive(Debug)]
 pub struct Session {
     projection: Projection,
-    open: bool,
+    phase: Phase,
 }
 
 impl Session {
     pub fn new(projection: Projection) -> Session {
         Session {
             projection,
-            open: false,
+            phase: Phase::AwaitingOpen,
+        }
+    }
+
+    /// The protocol version the client declared, once the session is open.
+    pub fn client_version(&self) -> Option<pb::ProtocolVersion> {
+        match self.phase {
+            Phase::AwaitingOpen => None,
+            Phase::Open { client } => Some(client),
         }
     }
 
@@ -43,34 +59,38 @@ impl Session {
         let id = m.id;
         let mut events = Vec::new();
         let mut next = Next::Continue;
-        let result = match (m.kind, self.open) {
+        let result = match (m.kind, self.phase) {
             _ if id == 0 => Err(Failure::new(
-                "session.invalid_request_id",
+                Code::SessionInvalidRequestId(pb::SessionInvalidRequestId { id }),
                 "a request id is never zero",
             )),
             (None, _) => Err(Failure::new(
-                "session.unknown_request",
+                Code::SessionUnknownRequest(pb::SessionUnknownRequest {}),
                 "the request kind is not one this daemon knows",
             )),
-            (Some(Kind::OpenSession(_)), true) => Err(Failure::new(
-                "session.already_open",
+            (Some(Kind::OpenSession(_)), Phase::Open { .. }) => Err(Failure::new(
+                Code::SessionAlreadyOpen(pb::SessionAlreadyOpen {}),
                 "the session is already open",
             )),
-            (Some(Kind::OpenSession(_)), false) => {
-                self.open_session(m.protocol_version, &mut events)
+            (Some(Kind::OpenSession(o)), Phase::AwaitingOpen) => {
+                self.open_session(o.client_version, &mut events)
             }
-            (Some(_), false) => Err(Failure::new(
-                "session.not_open",
+            (Some(k), Phase::AwaitingOpen) => Err(Failure::new(
+                Code::SessionNotOpen(pb::SessionNotOpen {
+                    request: request_name(&k).to_owned(),
+                }),
                 "the first request of a session is OpenSession",
             )),
-            (Some(Kind::Shutdown(_)), true) => {
+            (Some(Kind::Shutdown(_)), Phase::Open { .. }) => {
                 next = Next::Exit;
                 Ok(Reply::ShutdownAccepted(pb::ShutdownAccepted {}))
             }
-            (Some(Kind::Subscribe(s)), true) => Ok(self.subscribe(s.revision, &mut events)),
-            (Some(Kind::ListProfiles(_)), true) => Ok(self.list_profiles()),
-            (Some(Kind::Query(q)), true) => self.query(q),
-            (Some(Kind::DecodeSchemeCode(d)), true) => decode_scheme(d),
+            (Some(Kind::Subscribe(s)), Phase::Open { .. }) => {
+                Ok(self.subscribe(s.revision, &mut events))
+            }
+            (Some(Kind::ListProfiles(_)), Phase::Open { .. }) => Ok(self.list_profiles()),
+            (Some(Kind::SessionQuery(q)), Phase::Open { .. }) => self.query(q),
+            (Some(Kind::DecodeSchemeCode(d)), Phase::Open { .. }) => decode_scheme(d),
         };
         let result = result.unwrap_or_else(|f| Reply::Error(wire::error(&f)));
         let response = pb::ServerMessage {
@@ -94,34 +114,42 @@ impl Session {
         events: &mut Vec<pb::event::Kind>,
     ) -> Result<Reply, Failure> {
         let ours = pb::VERSION;
+        let unsupported = |why: String| {
+            Failure::new(
+                Code::SessionProtocolUnsupported(pb::SessionProtocolUnsupported {
+                    client,
+                    daemon: Some(ours),
+                }),
+                why,
+            )
+        };
         let Some(client) = client else {
-            return Err(Failure::new(
-                "session.protocol_unsupported",
-                "the client sent no protocol version",
+            return Err(unsupported(
+                "the client sent no protocol version".to_owned(),
             ));
         };
         if client.major > ours.major {
-            return Err(Failure::new(
-                "session.protocol_unsupported",
-                format!(
-                    "client protocol {}.{} is newer than this daemon's {}.{}",
-                    client.major, client.minor, ours.major, ours.minor
-                ),
-            ));
+            return Err(unsupported(format!(
+                "client protocol {}.{} is newer than this daemon's {}.{}",
+                client.major, client.minor, ours.major, ours.minor
+            )));
         }
         if client.major < ours.major {
             events.push(pb::event::Kind::Warning(pb::Warning {
-                code: "session.client_outdated".to_owned(),
                 message: format!(
                     "client protocol {} is older than this daemon's; the oldest supported major is {}",
                     client.major, ours.major
                 ),
+                kind: Some(pb::warning::Kind::ClientOutdated(pb::ClientOutdated {
+                    client: Some(client),
+                    daemon: Some(ours),
+                })),
             }));
         }
-        self.open = true;
+        self.phase = Phase::Open { client };
         Ok(Reply::SessionOpened(pb::SessionOpened {
             daemon_version: Some(ours),
-            revision: self.projection.revision,
+            revision: wire::revision(self.projection.revision),
         }))
     }
 
@@ -129,67 +157,97 @@ impl Session {
     /// behind it; nothing is emitted for a revision the client already holds.
     fn subscribe(&self, held: u64, events: &mut Vec<pb::event::Kind>) -> Reply {
         let current = self.projection.revision;
-        if current > held {
+        if current > wire::revision_of(held) {
             events.push(pb::event::Kind::ProjectionChanged(pb::ProjectionChanged {
-                revision: current,
+                revision: wire::revision(current),
             }));
         }
-        Reply::Subscribed(pb::Subscribed { revision: current })
+        Reply::Subscribed(pb::Subscribed {
+            revision: wire::revision(current),
+        })
     }
 
     fn list_profiles(&self) -> Reply {
         Reply::ProfileList(pb::ProfileList {
-            revision: self.projection.revision,
+            revision: wire::revision(self.projection.revision),
             profiles: self
                 .projection
                 .profiles
                 .iter()
-                .map(|p| pb::Profile {
-                    id: p.id.clone(),
+                .map(|(&id, p)| pb::Profile {
+                    id: wire::profile_id(id),
                     name: p.name.clone(),
                 })
                 .collect(),
         })
     }
 
-    /// A page of one profile's souls through the query engine every query goes through, with
-    /// each row's values and the page's revision added.
-    fn query(&self, q: pb::Query) -> Result<Reply, Failure> {
-        let revision = self.projection.revision;
-        if let Some(scan) = q.scan_revision
-            && scan != revision
-        {
-            return Err(Failure::new(
-                "query.stale_revision",
-                format!("the scan began at revision {scan}; the projection is at {revision}"),
-            ));
-        }
-        let profile = self.projection.profile(&q.profile_id).ok_or_else(|| {
+    /// A page of one profile's souls, through the query engine every query goes through. A later
+    /// page names the revision its scan began at, and is refused if the projection moved.
+    fn query(&self, q: pb::SessionQuery) -> Result<Reply, Failure> {
+        let current = self.projection.revision;
+        let profile = wire::profile_id_of(&q.profile_id)
+            .and_then(|id| self.projection.profiles.get(&id))
+            .ok_or_else(|| {
+                Failure::new(
+                    Code::QueryUnknownProfile(pb::QueryUnknownProfile {
+                        profile_id: q.profile_id.clone(),
+                    }),
+                    format!("no profile '{}'", q.profile_id),
+                )
+            })?;
+        let absent = |what: &str| {
+            let problem = format!("SessionQuery.{what} is absent");
             Failure::new(
-                "query.unknown_profile",
-                format!("no profile '{}'", q.profile_id),
+                Code::QueryMalformed(pb::QueryMalformed {
+                    problem: problem.clone(),
+                }),
+                problem,
             )
-        })?;
-        let refused = |e: RequestError| Failure::new(e.code(), format!("{e:?}"));
-        let prepared = query::prepare(q).map_err(refused)?;
+        };
+        let query = q.query.ok_or_else(|| absent("query"))?;
+        let cursor = match q.position.ok_or_else(|| absent("position"))? {
+            pb::session_query::Position::First(_) => None,
+            pb::session_query::Position::Next(n) => {
+                if wire::revision_of(n.scan) != current {
+                    return Err(Failure::new(
+                        Code::QueryStaleRevision(pb::QueryStaleRevision {
+                            scan: n.scan,
+                            current: wire::revision(current),
+                        }),
+                        format!(
+                            "the scan began at revision {}; the projection is at {}",
+                            n.scan,
+                            wire::revision(current)
+                        ),
+                    ));
+                }
+                Some(n.cursor)
+            }
+        };
+        let refused = |e: RequestError| Failure::new(e.kind(), format!("{e:?}"));
+        let prepared = query::prepare(
+            query,
+            Paging {
+                row_budget: q.row_budget,
+                cursor: cursor.as_deref(),
+            },
+        )
+        .map_err(refused)?;
         let page = query::run(&prepared, &profile.souls).map_err(refused)?;
-        // Every row's id is a key of the souls the page was selected from.
-        let values: Vec<Option<pb::Soul>> = page
-            .rows
-            .iter()
-            .map(|row| {
-                profile
-                    .souls
-                    .get(&row.id)
-                    .map(|s| wire::soul(row.id.as_str(), s))
-            })
-            .collect();
-        let mut page = query::render_headless(page);
-        for (row, soul) in page.rows.iter_mut().zip(values) {
-            row.soul = soul;
-        }
-        page.revision = revision;
-        Ok(Reply::QueryPage(page))
+        query::render_session(page, current, &profile.souls).map(Reply::SessionQueryPage)
+    }
+}
+
+/// A request kind's field name, for the debug record of `session.not_open`.
+fn request_name(k: &Kind) -> &'static str {
+    match k {
+        Kind::OpenSession(_) => "open_session",
+        Kind::Shutdown(_) => "shutdown",
+        Kind::Subscribe(_) => "subscribe",
+        Kind::ListProfiles(_) => "list_profiles",
+        Kind::SessionQuery(_) => "session_query",
+        Kind::DecodeSchemeCode(_) => "decode_scheme_code",
     }
 }
 
@@ -202,23 +260,39 @@ fn decode_scheme(d: pb::DecodeSchemeCode) -> Result<Reply, Failure> {
     };
     let payload = decode_text(&text).map_err(|e| {
         Failure::new(
-            "decode.malformed_text",
-            format!("the scheme text does not decode: {e:?}"),
+            Code::DecodeMalformedText(pb::DecodeMalformedText {
+                problem: format!("{e:?}"),
+            }),
+            "the scheme text does not decode",
         )
     })?;
     let layout = parse(&payload).map_err(|e| match e {
-        LayoutError::UnknownFormat | LayoutError::TooShort { .. } => {
-            Failure::new("decode.unknown_format", format!("not a scheme code: {e:?}"))
-        }
+        LayoutError::UnknownFormat | LayoutError::TooShort { .. } => Failure::new(
+            Code::DecodeUnknownFormat(pb::DecodeUnknownFormat {
+                payload_bytes: payload.len() as u64,
+            }),
+            format!("not a scheme code: {e:?}"),
+        ),
         e => Failure::new(
-            "decode.malformed_layout",
-            format!("the scheme layout is malformed: {e:?}"),
+            Code::DecodeMalformedLayout(pb::DecodeMalformedLayout {
+                problem: format!("{e:?}"),
+            }),
+            "the scheme layout is malformed",
         ),
     })?;
     let code = decode_code(&layout).map_err(|e| {
+        let record = match &e {
+            CodeError::NameNotUtf8 { record }
+            | CodeError::NameTooLong { record }
+            | CodeError::Selection { record, .. } => Some(*record as u32),
+            CodeError::NoDiscardScheme => None,
+        };
         Failure::new(
-            "decode.malformed_scheme",
-            format!("a scheme record does not read: {e:?}"),
+            Code::DecodeMalformedScheme(pb::DecodeMalformedScheme {
+                record,
+                problem: format!("{e:?}"),
+            }),
+            "a scheme record does not read",
         )
     })?;
     let matrix = qr::encode(&text).ok();
@@ -230,14 +304,29 @@ fn decode_scheme(d: pb::DecodeSchemeCode) -> Result<Reply, Failure> {
 }
 
 fn qr_failure(e: QrError) -> Failure {
-    let code = match e {
-        QrError::NoCode => "decode.no_qr_code",
-        QrError::SeveralCodes { .. } => "decode.several_qr_codes",
-        QrError::Unreadable { .. } | QrError::NotText => "decode.qr_unreadable",
+    let problem = format!("{e:?}");
+    let kind = match e {
+        QrError::NoCode => Code::DecodeNoQrCode(pb::DecodeNoQrCode {}),
+        QrError::SeveralCodes { count } => Code::DecodeSeveralQrCodes(pb::DecodeSeveralQrCodes {
+            count: count as u32,
+        }),
+        QrError::Unreadable { .. } | QrError::NotText => {
+            Code::DecodeQrUnreadable(pb::DecodeQrUnreadable {
+                problem: problem.clone(),
+            })
+        }
         QrError::ImageTooLarge { .. }
         | QrError::FileTooLarge { .. }
-        | QrError::NotAnImage { .. } => "decode.image_invalid",
-        QrError::TooLong { .. } => "internal.qr_too_long",
+        | QrError::NotAnImage { .. } => Code::DecodeImageInvalid(pb::DecodeImageInvalid {
+            problem: problem.clone(),
+        }),
+        QrError::TooLong {
+            bits,
+            capacity_bits,
+        } => Code::InternalQrTooLong(pb::InternalQrTooLong {
+            bits: bits as u64,
+            capacity_bits: capacity_bits as u64,
+        }),
     };
-    Failure::new(code, format!("{e:?}"))
+    Failure::new(kind, problem)
 }

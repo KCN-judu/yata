@@ -26,7 +26,7 @@ class SoulSetMark extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l = AppLocalizations.of(context);
-    final source = ref.watch(iconSourceProvider(IconKey(IconKind.soulSet, role, suitCode)));
+    final source = ref.watch(iconSourceProvider(IconKey(SoulSetIcon(suitCode), role)));
     final label = setName(l, suitCode);
     final child = switch (source) {
       ProjectSvgIcon(:final assetPath) => SvgPicture.asset(assetPath, width: size, height: size),

@@ -1,49 +1,46 @@
 /// The daemon as the views see it: its status, the session it is in, the revision the state
-/// holds, the warnings it sent, and the one error type every provider fails with.
+/// holds, the warnings it sent, and the one failure type every provider fails with.
 ///
-/// This file is the state layer's boundary with `daemon/`: it maps the client's health and
-/// exceptions into values the views can show, so no view imports the daemon client (ADR-0012).
+/// This file is the state layer's boundary with `daemon/`: it maps the client's health into
+/// values the views can show, and exposes the failure types, so no view imports the daemon client
+/// (ADR-0012).
 library;
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../daemon/daemon_client.dart';
-import '../daemon/daemon_error.dart';
+import '../daemon/failure.dart';
 import '../daemon/transport.dart';
+import '../gen/proto/core.pb.dart' as pb;
 import '../platform/io_platform_services.dart';
 import '../platform/platform_services.dart';
 
-/// A failure as the views show it: by [code], with [message] only in the detail view.
-final class CoreError implements Exception {
-  const CoreError(this.code, this.message, this.details);
+export '../daemon/failure.dart'
+    show CoreFailure, RaisedFailure, RequestFailure, SessionFailure, failureOf;
 
-  /// A failure in the client itself: a bug, not a daemon answer.
-  static const unexpected = 'client.unexpected';
+/// A game profile's id as the wire spells it: 32 lowercase hex digits, sent back unmodified.
+extension type const ProfileId(String hex) {}
 
-  factory CoreError.of(Object error) => switch (error) {
-    CoreError e => e,
-    DaemonException e => CoreError(e.code, e.message, e.details),
-    _ => CoreError(unexpected, error.toString(), Uint8List(0)),
-  };
-
-  final String code;
-  final String message;
-  final Uint8List details;
-
-  @override
-  String toString() => 'CoreError($code: $message)';
+/// A projection revision: the `seq` of the last commit, 0 for the empty log. 0 is a real
+/// revision here, not "none"; "not known yet" is a `null` revision.
+extension type const Revision(Int64 seq) {
+  bool isBefore(Revision other) => seq < other.seq;
 }
 
-/// Run a daemon call, failing with a [CoreError] whatever went wrong.
-Future<T> coreCall<T>(Future<T> call) async {
+/// The number of a session since the application started; a new one makes every cached query
+/// stale. "No session yet" is a `null` epoch.
+extension type const SessionEpoch(int n) {}
+
+/// Run a daemon call, failing with a [CoreFailure] whatever went wrong, including a throw while
+/// the call is being made.
+Future<T> coreCall<T>(Future<T> Function() call) async {
   try {
-    return await call;
+    return await call();
   } on Object catch (e) {
-    throw CoreError.of(e);
+    throw failureOf(e);
   }
 }
 
@@ -55,17 +52,14 @@ final fixtureModeProvider = Provider<bool>(
 );
 
 /// Start the daemon the platform locates, serving the fixture when asked to.
-Future<DaemonTransport> launchDaemon(PlatformServices platform) async {
-  final location = platform.locateDaemon();
-  final path = location.path;
-  if (path == null) {
-    throw DaemonException(
-      ClientErrorCode.daemonNotFound,
-      'no yata-daemon executable; looked in: ${location.searched.join(', ')}',
-    );
-  }
-  return ProcessTransport.start(path, ['serve', if (platform.serveFixture) '--fixture']);
-}
+Future<DaemonTransport> launchDaemon(PlatformServices platform) async =>
+    switch (platform.locateDaemon()) {
+      DaemonFound(:final path) => ProcessTransport.start(path, [
+        'serve',
+        if (platform.serveFixture) '--fixture',
+      ]),
+      DaemonNotFound(:final searched) => throw RaisedFailure.daemonNotFound(searched),
+    };
 
 final daemonClientProvider = Provider<DaemonClient>((ref) {
   final platform = ref.watch(platformServicesProvider);
@@ -73,6 +67,22 @@ final daemonClientProvider = Provider<DaemonClient>((ref) {
   ref.onDispose(daemon.shutdown);
   return daemon;
 });
+
+/// Whether the open session reports projection changes.
+sealed class ChangeFeed {
+  const ChangeFeed();
+}
+
+final class ChangesLive extends ChangeFeed {
+  const ChangesLive();
+}
+
+/// No change notifications: shown data may go stale without the views knowing.
+final class ChangesUnavailable extends ChangeFeed {
+  const ChangesUnavailable(this.failure);
+
+  final CoreFailure failure;
+}
 
 /// What the status bar and the banners show.
 sealed class CoreStatus {
@@ -83,28 +93,39 @@ final class CoreStopped extends CoreStatus {
   const CoreStopped();
 }
 
-/// Starting; [cause] is set when this start replaces a daemon that exited.
 final class CoreStarting extends CoreStatus {
-  const CoreStarting({this.cause});
+  const CoreStarting();
+}
 
-  final CoreError? cause;
+/// Starting again after [cause]; the data on screen stays, read-only.
+final class CoreRestarting extends CoreStatus {
+  const CoreRestarting({required this.attempt, required this.cause});
+
+  final int attempt;
+  final CoreFailure cause;
 }
 
 final class CoreReady extends CoreStatus {
-  const CoreReady({required this.version, required this.session, required this.restarted});
+  const CoreReady({
+    required this.version,
+    required this.session,
+    required this.restarted,
+    required this.changes,
+  });
 
   /// `major.minor` of the daemon's protocol.
   final String version;
-  final int session;
+  final SessionEpoch session;
 
   /// The core exited and this session replaced it.
   final bool restarted;
+  final ChangeFeed changes;
 }
 
 final class CoreFailed extends CoreStatus {
-  const CoreFailed(this.error, this.log);
+  const CoreFailed(this.failure, this.log);
 
-  final CoreError error;
+  final CoreFailure failure;
 
   /// The daemon's last stderr lines, for the detail view.
   final List<String> log;
@@ -122,13 +143,22 @@ class CoreStatusNotifier extends Notifier<CoreStatus> {
 
   static CoreStatus _status(DaemonClient client, DaemonHealth h) => switch (h) {
     DaemonStopped() => const CoreStopped(),
-    DaemonStarting(:final after) => CoreStarting(cause: after == null ? null : CoreError.of(after)),
-    DaemonReady(:final daemonVersion, :final session, :final restarted) => CoreReady(
-      version: '${daemonVersion.major}.${daemonVersion.minor}',
-      session: session,
-      restarted: restarted,
+    DaemonStarting() => const CoreStarting(),
+    DaemonRestarting(:final attempt, :final cause) => CoreRestarting(
+      attempt: attempt,
+      cause: cause,
     ),
-    DaemonFailed(:final error) => CoreFailed(CoreError.of(error), client.recentLog),
+    DaemonReady(:final daemonVersion, :final session, :final restarted, :final subscription) =>
+      CoreReady(
+        version: '${daemonVersion.major}.${daemonVersion.minor}',
+        session: SessionEpoch(session),
+        restarted: restarted,
+        changes: switch (subscription) {
+          SubscriptionLive() => const ChangesLive(),
+          SubscriptionFailed(:final failure) => ChangesUnavailable(failure),
+        },
+      ),
+    DaemonFailed(:final failure) => CoreFailed(failure, client.recentLog),
   };
 
   Future<void> restart() => ref.read(daemonClientProvider).restart();
@@ -136,55 +166,64 @@ class CoreStatusNotifier extends Notifier<CoreStatus> {
 
 final coreStatusProvider = NotifierProvider<CoreStatusNotifier, CoreStatus>(CoreStatusNotifier.new);
 
-/// The number of the open session; it changes only when a new session opens, so the data a
-/// view shows stays while the core restarts, and every query refetches once it is back.
-class SessionEpoch extends Notifier<int> {
+/// The open session; it changes only when a new session opens, so the data a view shows stays
+/// while the core restarts, and every query refetches once it is back. `null` before the first.
+class SessionEpochNotifier extends Notifier<SessionEpoch?> {
   @override
-  int build() {
+  SessionEpoch? build() {
     ref.listen(coreStatusProvider, (_, s) {
       if (s is CoreReady && s.session != state) state = s.session;
     });
-    final s = ref.read(coreStatusProvider);
-    return s is CoreReady ? s.session : 0;
+    return switch (ref.read(coreStatusProvider)) {
+      CoreReady(:final session) => session,
+      CoreStopped() || CoreStarting() || CoreRestarting() || CoreFailed() => null,
+    };
   }
 }
 
-final sessionEpochProvider = NotifierProvider<SessionEpoch, int>(SessionEpoch.new);
+final sessionEpochProvider = NotifierProvider<SessionEpochNotifier, SessionEpoch?>(
+  SessionEpochNotifier.new,
+);
 
 /// The latest projection revision the state layer holds (ADR-0012, "Revision-driven
-/// invalidation"). Query providers compare their page's revision against it and refetch when
-/// theirs is older; nothing patches a cached value from an event.
-class ProjectionRevision extends Notifier<Int64> {
+/// invalidation"); `null` until a session reports one. Query providers compare their page's
+/// revision against it and refetch when theirs is older; nothing patches a cached value from an
+/// event.
+class ProjectionRevision extends Notifier<Revision?> {
   @override
-  Int64 build() {
+  Revision? build() {
     ref.watch(sessionEpochProvider);
     final client = ref.watch(daemonClientProvider);
     final sub = client.events.listen((e) {
-      if (e.hasProjectionChanged() && e.projectionChanged.revision > state) {
-        state = e.projectionChanged.revision;
-      }
+      if (e.hasProjectionChanged()) observe(Revision(e.projectionChanged.revision));
     });
     ref.onDispose(sub.cancel);
-    final h = client.health;
-    return h is DaemonReady ? h.revision : Int64.ZERO;
+    return switch (client.health) {
+      DaemonReady(:final revision) => Revision(revision),
+      DaemonStopped() || DaemonStarting() || DaemonRestarting() || DaemonFailed() => null,
+    };
   }
 
-  /// A response showed a revision; the state holds the highest seen.
-  void observe(Int64 revision) {
-    if (revision > state) state = revision;
+  /// A response or an event showed a revision; the state holds the highest seen.
+  void observe(Revision revision) {
+    final held = state;
+    if (held == null || held.isBefore(revision)) state = revision;
   }
 }
 
-final projectionRevisionProvider = NotifierProvider<ProjectionRevision, Int64>(
+final projectionRevisionProvider = NotifierProvider<ProjectionRevision, Revision?>(
   ProjectionRevision.new,
 );
 
-/// A warning the daemon sent: something to show that changed no state.
-final class CoreWarning {
-  const CoreWarning(this.code, this.message);
+/// Whether a value valid at [revision] is older than what the state layer holds.
+bool isStale(Revision revision, Revision? held) => held != null && revision.isBefore(held);
 
-  final String code;
-  final String message;
+/// A warning the daemon sent: something to show that changed no state. Its kind is the
+/// generated `Warning.kind` case, which the views switch on.
+final class CoreWarning {
+  const CoreWarning(this.warning);
+
+  final pb.Warning warning;
 }
 
 class CoreWarnings extends Notifier<List<CoreWarning>> {
@@ -192,7 +231,7 @@ class CoreWarnings extends Notifier<List<CoreWarning>> {
   List<CoreWarning> build() {
     final client = ref.watch(daemonClientProvider);
     final sub = client.events.listen((e) {
-      if (e.hasWarning()) state = [...state, CoreWarning(e.warning.code, e.warning.message)];
+      if (e.hasWarning()) state = [...state, CoreWarning(e.warning)];
     });
     ref.onDispose(sub.cancel);
     return const [];

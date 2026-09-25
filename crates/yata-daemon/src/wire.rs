@@ -6,6 +6,7 @@
 //! [`crate::query::convert`], whose attribute and slot mappings this module reuses, so each enum
 //! is mapped in one place.
 
+use yata_core::fact::{AdmissionError, FoldError, ProfileId, Revision, Seq};
 use yata_core::scheme::code::{DiscardScheme, SchemeCode, StrengtheningPlan};
 use yata_core::scheme::selection::{
     LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
@@ -15,30 +16,199 @@ use yata_protocol::core as pb;
 
 use crate::qr::QrMatrix;
 use crate::query::convert::{wire_attribute, wire_slot};
+use crate::store::fact::FactError;
+use crate::store::{CommitError, IngestError, LoadError, OpenError};
 
-/// A failure the session reports to the client: a stable code and an English message
-/// (`core-protocol.md`, "Errors"). The code is the contract; the message is never parsed.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The stable dotted code of a failure (`core-protocol.md`, "Errors"): the failure oneof's field
+/// name with its first `_` read as `.`. Implemented for the three failure sets by generated code.
+pub trait Code {
+    fn code(&self) -> &'static str;
+}
+
+include!(concat!(env!("OUT_DIR"), "/core_codes.rs"));
+
+/// A request's failure as the session answers it: its kind, which is its code and the debug
+/// record of that code, and an English message for developers (`core-protocol.md`, "Errors").
+#[derive(Debug, Clone, PartialEq)]
 pub struct Failure {
-    pub code: &'static str,
+    pub kind: pb::error::Kind,
     pub message: String,
 }
 
 impl Failure {
-    pub fn new(code: &'static str, message: impl Into<String>) -> Failure {
+    pub fn new(kind: pb::error::Kind, message: impl Into<String>) -> Failure {
         Failure {
-            code,
+            kind,
             message: message.into(),
         }
+    }
+
+    /// The dotted code, for logs and tests.
+    pub fn code(&self) -> &'static str {
+        self.kind.code()
     }
 }
 
 pub fn error(f: &Failure) -> pb::Error {
     pb::Error {
-        code: f.code.to_owned(),
         message: f.message.clone(),
-        details: Vec::new(),
+        kind: Some(f.kind.clone()),
     }
+}
+
+/// A failure's debug record where the record is the typed failure rendered in English.
+fn problem(e: &impl std::fmt::Debug) -> String {
+    format!("{e:?}")
+}
+
+/// Why a store could not be opened, as its failure (`store.*`).
+pub fn open_failure(e: &OpenError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        OpenError::Missing { path } => Kind::StoreMissing(pb::StoreMissing {
+            path: path.display().to_string(),
+        }),
+        OpenError::NotADatabase => Kind::StoreNotADatabase(pb::StoreNotADatabase {}),
+        OpenError::Uninitialized => Kind::StoreUninitialized(pb::StoreUninitialized {}),
+        OpenError::Foreign {
+            application_id,
+            objects,
+        } => Kind::StoreForeign(pb::StoreForeign {
+            application_id: *application_id,
+            objects: *objects,
+        }),
+        OpenError::NewerFormat { .. } => Kind::StoreNewerFormat(pb::StoreNewerFormat {
+            problem: problem(e),
+        }),
+        OpenError::NoFormatVersion => Kind::StoreNoFormatVersion(pb::StoreNoFormatVersion {}),
+        OpenError::Damaged { problems } => Kind::StoreDamaged(pb::StoreDamaged {
+            problems: problems.clone(),
+        }),
+        OpenError::Failure(f) => Kind::StoreFailure(pb::StoreFailure {
+            problem: problem(f),
+        }),
+    }
+}
+
+/// Why a stored commit did not decode (`store.newer_format`, `store.malformed_commit`).
+pub fn fact_failure(e: &FactError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        FactError::NewerFormat { .. } => Kind::StoreNewerFormat(pb::StoreNewerFormat {
+            problem: problem(e),
+        }),
+        FactError::TooLarge { .. }
+        | FactError::Malformed { .. }
+        | FactError::SeqMismatch { .. } => Kind::StoreMalformedCommit(pb::StoreMalformedCommit {
+            problem: problem(e),
+        }),
+    }
+}
+
+/// Why the log could not be read or replayed.
+pub fn load_failure(e: &LoadError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        LoadError::Store(f) => Kind::StoreFailure(pb::StoreFailure {
+            problem: problem(f),
+        }),
+        LoadError::Fact(f) => fact_failure(f),
+        LoadError::Fold(f) => Kind::StoreInvalidLog(pb::StoreInvalidLog {
+            problem: problem(f),
+        }),
+    }
+}
+
+/// Why a write was refused.
+pub fn commit_failure(e: &CommitError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        CommitError::Refused(f @ FoldError::ProfileMismatch { .. }) => {
+            Kind::ImportProfileMismatch(pb::ImportProfileMismatch {
+                problem: problem(f),
+            })
+        }
+        CommitError::Refused(f) => Kind::CommandRefused(pb::CommandRefused {
+            problem: problem(f),
+        }),
+        CommitError::Encode(f) => Kind::CommandTooLarge(pb::CommandTooLarge {
+            problem: problem(f),
+        }),
+        CommitError::LogFull | CommitError::Store(_) => Kind::StoreFailure(pb::StoreFailure {
+            problem: problem(e),
+        }),
+    }
+}
+
+/// Why the fact log refused a reading. The core names the failure; its code is the wire's.
+pub fn admission_failure(e: &AdmissionError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        AdmissionError::UnestablishedIdentity { evidence } => {
+            Kind::ImportUnestablishedIdentity(pb::ImportUnestablishedIdentity {
+                evidence: problem(evidence),
+            })
+        }
+        AdmissionError::DuplicateSoul { soul } => {
+            Kind::ImportDuplicateSoul(pb::ImportDuplicateSoul {
+                soul_id: soul.as_str().to_owned(),
+            })
+        }
+        AdmissionError::MissingSoulId { .. }
+        | AdmissionError::EmptySoulId { .. }
+        | AdmissionError::EmptyAccount => {
+            Kind::ImportMalformedReading(pb::ImportMalformedReading {
+                problem: problem(e),
+            })
+        }
+    }
+}
+
+/// Why a reading could not be imported.
+pub fn ingest_failure(e: &IngestError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        IngestError::Convert(f) => Kind::ImportMalformedReading(pb::ImportMalformedReading {
+            problem: problem(f),
+        }),
+        IngestError::Refused(f) => admission_failure(f),
+        IngestError::Blob(f) => Kind::ImportReadingTooLarge(pb::ImportReadingTooLarge {
+            problem: problem(f),
+        }),
+        IngestError::Commit(f) => commit_failure(f),
+    }
+}
+
+/// A revision on the wire: the `seq` of the last commit, 0 for the empty log. That 0 is the
+/// empty log's own revision, not "none"; the wire has one encoding for each revision.
+pub fn revision(r: Revision) -> u64 {
+    r.last().map_or(0, Seq::get)
+}
+
+/// A wire revision as the domain's. Total: every `u64` names a revision.
+pub fn revision_of(n: u64) -> Revision {
+    Seq::new(n).map_or(Revision::EMPTY, Revision::at)
+}
+
+/// A profile id on the wire: its 16 bytes as 32 lowercase hex digits.
+pub fn profile_id(id: ProfileId) -> String {
+    id.0.iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// A wire profile id as the domain's; `None` for anything but 32 lowercase hex digits, so each
+/// id has one spelling.
+pub fn profile_id_of(text: &str) -> Option<ProfileId> {
+    let nibble = |c: u8| match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        _ => None,
+    };
+    let digits: [u8; 32] = text.as_bytes().try_into().ok()?;
+    let mut bytes = [0u8; 16];
+    for (b, pair) in bytes.iter_mut().zip(digits.chunks_exact(2)) {
+        *b = nibble(pair[0])? << 4 | nibble(pair[1])?;
+    }
+    Some(ProfileId(bytes))
 }
 
 fn attribute(a: yata_core::soul::SoulAttribute) -> i32 {
@@ -188,7 +358,7 @@ pub fn scheme_source(m: pb::DecodeSchemeCode) -> Result<SchemeSource, Failure> {
         Some(pb::decode_scheme_code::Source::Text(t)) => Ok(SchemeSource::Text(t)),
         Some(pb::decode_scheme_code::Source::Png(p)) => Ok(SchemeSource::Png(p)),
         None => Err(Failure::new(
-            "decode.no_input",
+            pb::error::Kind::DecodeNoInput(pb::DecodeNoInput {}),
             "DecodeSchemeCode carries neither text nor an image",
         )),
     }
@@ -239,5 +409,40 @@ mod tests {
             let id = yata_core::fact::GameSoulId::new("s-1").expect("non-empty");
             assert_eq!(back.get(&id), Some(&a_soul(kind)));
         }
+    }
+
+    #[test]
+    fn every_failure_set_names_its_cases_by_the_field_rule() {
+        let request = pb::error::Kind::QueryStaleRevision(pb::QueryStaleRevision::default());
+        assert_eq!(request.code(), "query.stale_revision");
+        let stream = pb::session_failed::Kind::InternalIo(pb::InternalIo::default());
+        assert_eq!(stream.code(), "internal.io");
+        let client =
+            pb::client_failure::Kind::ClientDaemonNotFound(pb::ClientDaemonNotFound::default());
+        assert_eq!(client.code(), "client.daemon_not_found");
+        let store = pb::error::Kind::StoreNotADatabase(pb::StoreNotADatabase::default());
+        assert_eq!(store.code(), "store.not_a_database");
+    }
+
+    #[test]
+    fn a_profile_id_has_one_spelling() {
+        let id = ProfileId(*b"yata-fixture-000");
+        let text = profile_id(id);
+        assert_eq!(text, "796174612d666978747572652d303030");
+        assert_eq!(profile_id_of(&text), Some(id));
+        assert_eq!(profile_id_of(&text.to_uppercase()), None);
+        assert_eq!(profile_id_of(&text[1..]), None);
+        assert_eq!(profile_id_of(&format!("{text}0")), None);
+        assert_eq!(profile_id_of(&format!("+{}", &text[1..])), None);
+        assert_eq!(profile_id_of(""), None);
+    }
+
+    #[test]
+    fn revision_zero_is_the_empty_log() {
+        assert_eq!(revision(Revision::EMPTY), 0);
+        assert_eq!(revision_of(0), Revision::EMPTY);
+        let first = revision_of(1);
+        assert_eq!(revision(first), 1);
+        assert_ne!(first, Revision::EMPTY);
     }
 }

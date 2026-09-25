@@ -45,9 +45,23 @@ String attributeValue(pb.SoulAttribute a, double value) {
 String setName(AppLocalizations l, int suitCode) => l.soulSet(suitCode);
 
 /// The slot number, 1 to 6, of a slot value; 0 for an unknown one.
-int slotNumber(pb.SoulSlot k) => k.value;
+/// The slot's number, 1 to 6; `null` for a value this build does not know, never 0.
+int? slotNumber(pb.SoulSlot k) => switch (k) {
+  pb.SoulSlot.SOUL_SLOT_1 => 1,
+  pb.SoulSlot.SOUL_SLOT_2 => 2,
+  pb.SoulSlot.SOUL_SLOT_3 => 3,
+  pb.SoulSlot.SOUL_SLOT_4 => 4,
+  pb.SoulSlot.SOUL_SLOT_5 => 5,
+  pb.SoulSlot.SOUL_SLOT_6 => 6,
+  // Generated enums are classes, so no switch over them is exhaustive; unspecified and any
+  // value of a newer daemon land here, as unknown.
+  _ => null,
+};
 
-String slotName(AppLocalizations l, pb.SoulSlot k) => l.soulSlot(slotNumber(k));
+String slotName(AppLocalizations l, pb.SoulSlot k) => switch (slotNumber(k)) {
+  final n? => l.soulSlot(n),
+  null => l.valueUnknown,
+};
 
 String levelBandName(AppLocalizations l, pb.LevelBand b) => switch (b) {
   pb.LevelBand.LEVEL_BAND_0_TO_2 => l.levelBand0to2,

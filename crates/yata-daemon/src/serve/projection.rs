@@ -7,20 +7,20 @@
 
 use std::collections::BTreeMap;
 
-use yata_core::fact::GameSoulId;
+use yata_core::fact::{GameSoulId, ProfileId, Revision};
 use yata_core::soul::Soul;
 
 /// The projection a session serves.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Projection {
-    pub revision: u64,
-    pub profiles: Vec<ProfileEntry>,
+    pub revision: Revision,
+    /// Keyed by profile id, so a profile is found by its key and listed in one order.
+    pub profiles: BTreeMap<ProfileId, ProfileEntry>,
 }
 
 /// One game account and its souls, keyed by soul id, the row identity.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProfileEntry {
-    pub id: String,
     pub name: String,
     pub souls: BTreeMap<GameSoulId, Soul>,
 }
@@ -29,13 +29,9 @@ impl Projection {
     /// A first run: no profile, nothing imported.
     pub fn empty() -> Projection {
         Projection {
-            revision: 0,
-            profiles: Vec::new(),
+            revision: Revision::EMPTY,
+            profiles: BTreeMap::new(),
         }
-    }
-
-    pub fn profile(&self, id: &str) -> Option<&ProfileEntry> {
-        self.profiles.iter().find(|p| p.id == id)
     }
 }
 
@@ -46,13 +42,14 @@ impl Projection {
 pub mod fixture {
     use std::collections::BTreeMap;
 
-    use yata_core::fact::GameSoulId;
+    use yata_core::fact::{GameSoulId, ProfileId, Revision, Seq};
     use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
 
     use super::{ProfileEntry, Projection};
 
-    pub const PROFILE_ID: &str = "fixture";
-    pub const EMPTY_PROFILE_ID: &str = "fixture-empty";
+    /// The fixture's profiles: their ids spell what they are, so a reader of a wire dump knows.
+    pub const PROFILE_ID: ProfileId = ProfileId(*b"yata-fixture-000");
+    pub const EMPTY_PROFILE_ID: ProfileId = ProfileId(*b"yata-fixture-nil");
 
     type Row = (
         &'static str,
@@ -118,19 +115,23 @@ pub mod fixture {
     /// a filled and an empty inventory.
     pub fn projection() -> Projection {
         Projection {
-            revision: 1,
-            profiles: vec![
-                ProfileEntry {
-                    id: PROFILE_ID.to_owned(),
-                    name: "Fixture".to_owned(),
-                    souls: souls(),
-                },
-                ProfileEntry {
-                    id: EMPTY_PROFILE_ID.to_owned(),
-                    name: "Fixture (empty)".to_owned(),
-                    souls: BTreeMap::new(),
-                },
-            ],
+            revision: Revision::at(Seq::FIRST),
+            profiles: BTreeMap::from([
+                (
+                    PROFILE_ID,
+                    ProfileEntry {
+                        name: "Fixture".to_owned(),
+                        souls: souls(),
+                    },
+                ),
+                (
+                    EMPTY_PROFILE_ID,
+                    ProfileEntry {
+                        name: "Fixture (empty)".to_owned(),
+                        souls: BTreeMap::new(),
+                    },
+                ),
+            ]),
         }
     }
 }

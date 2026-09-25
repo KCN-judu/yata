@@ -7,19 +7,19 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yata/daemon/connection.dart';
-import 'package:yata/daemon/daemon_error.dart';
 import 'package:yata/daemon/frame_codec.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
+import 'package:yata/state/core.dart';
 import 'package:yata/state/inventory.dart';
 
 import '../support/memory_transport.dart';
 import '../support/recorded.dart';
 
 void main() {
-  test('the client speaks the protocol version the daemon was recorded with', () {
-    for (final r in recordedRequests()) {
-      expect(r.protocolVersion.writeToBuffer(), clientProtocolVersion.writeToBuffer());
-    }
+  test('the client opens with the protocol version the daemon was recorded with', () {
+    final open = recordedRequests().first;
+    expect(open.hasOpenSession(), isTrue);
+    expect(open.openSession.clientVersion.writeToBuffer(), clientProtocolVersion.writeToBuffer());
   });
 
   test('re-encoding every recorded request gives the recorded bytes', () {
@@ -28,14 +28,14 @@ void main() {
   });
 
   test('the soul query the state layer builds is the one the Rust test sent', () {
-    final first = soulQuery(const SoulQuerySpec(profileId: 'fixture', rowBudget: 8));
-    expect(first.writeToBuffer(), recordedRequests()[3].query.writeToBuffer());
+    const spec = SoulQuerySpec(profileId: fixtureProfile, rowBudget: 8);
+    final first = soulQuery(spec, const FirstPosition());
+    expect(first.writeToBuffer(), recordedRequests()[3].sessionQuery.writeToBuffer());
     final second = soulQuery(
-      const SoulQuerySpec(profileId: 'fixture', rowBudget: 8),
-      cursor: recordedFirstPage().nextCursor,
-      scan: Int64.ONE,
+      spec,
+      NextPosition(recordedFirstPage().nextCursor, Revision(Int64.ONE)),
     );
-    expect(second.writeToBuffer(), recordedRequests()[4].query.writeToBuffer());
+    expect(second.writeToBuffer(), recordedRequests()[4].sessionQuery.writeToBuffer());
   });
 
   test('every daemon frame decodes, one response per request and one event', () {
@@ -47,7 +47,7 @@ void main() {
   });
 
   test('the recorded values arrive typed', () {
-    expect(recordedProfiles().profiles.map((p) => p.id), ['fixture', 'fixture-empty']);
+    expect(recordedProfiles().profiles.map((p) => p.id), [fixtureProfile.hex, emptyProfile.hex]);
     final first = recordedFirstPage();
     expect(first.total, Int64(12));
     expect(first.hasNextCursor(), isTrue);
@@ -55,15 +55,15 @@ void main() {
     expect(first.revision, Int64.ONE);
     final soul = first.rows.first.soul;
     expect(soul.soulId, 'fixture-01');
-    expect(first.rows.first.whichVerdict(), pb.QueryRow_Verdict.exact);
+    expect(first.rows.first.whichVerdict(), pb.SessionRow_Verdict.exact);
     expect(soul.whichKind(), pb.Soul_Kind.ordinary);
     expect(soul.slot, pb.SoulSlot.SOUL_SLOT_2);
     expect(soul.main, pb.SoulAttribute.SOUL_ATTRIBUTE_SPD);
     expect(soul.subs.first.hasEnhancementCount(), isFalse);
     final second = recordedSecondPage();
     expect(second.hasNextCursor(), isFalse);
-    expect(second.rows.map((r) => r.soulId).first, 'fixture-09');
-    expect(recordedUnknownProfile().code, 'query.unknown_profile');
+    expect(second.rows.first.soul.soulId, 'fixture-09');
+    expect(recordedUnknownProfile().whichKind(), pb.Error_Kind.queryUnknownProfile);
     final scheme = recordedScheme();
     expect(scheme.kind, pb.SchemeKind.SCHEME_KIND_STRENGTHENING);
     expect(scheme.entries.map((e) => e.name), ['spd', 'six']);
@@ -85,12 +85,12 @@ void main() {
     expect(opened.revision, Int64.ONE);
     await connection.subscribe(Int64.ZERO);
     expect((await connection.listProfiles()).profiles, hasLength(2));
-    final page = await connection.query(recordedRequests()[3].query);
+    final page = await connection.query(recordedRequests()[3].sessionQuery);
     expect(page.rows, hasLength(8));
-    await connection.query(recordedRequests()[4].query);
+    await connection.query(recordedRequests()[4].sessionQuery);
     await expectLater(
-      connection.query(recordedRequests()[5].query),
-      throwsA(isA<DaemonException>().having((e) => e.code, 'code', 'query.unknown_profile')),
+      connection.query(recordedRequests()[5].sessionQuery),
+      throwsA(isA<RequestFailure>().having((e) => e.code, 'code', 'query.unknown_profile')),
     );
     final decoded = await connection.decodeSchemeCode(recordedRequests()[6].decodeSchemeCode);
     expect(decoded.entries, hasLength(2));

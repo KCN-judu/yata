@@ -19,6 +19,7 @@ use yata_daemon::scheme::{
 use yata_daemon::serve::projection::{Projection, fixture};
 use yata_daemon::serve::session::Session;
 use yata_daemon::store::{OpenError, Store, format_commit, read_commits};
+use yata_daemon::wire::{self, Code as _};
 use yata_store::Check;
 
 const USAGE: &str = "usage: yata-daemon <command> ...
@@ -261,7 +262,7 @@ fn dump_log(path: &Path) -> ExitCode {
             ExitCode::SUCCESS
         }
         Err(e) => {
-            eprintln!("{}: {e:?}", e.code());
+            eprintln!("{}: {e:?}", wire::load_failure(&e).code());
             ExitCode::FAILURE
         }
     }
@@ -278,25 +279,7 @@ fn serve_queries() -> ExitCode {
     }
 }
 
-/// The developer-facing text for an open failure: a stable code, then the fields.
+/// The developer-facing text for an open failure: its code, then the typed failure.
 fn describe(e: &OpenError) -> String {
-    match e {
-        OpenError::Missing { path } => format!("store.missing: {}", path.display()),
-        OpenError::NotADatabase => "store.not_a_database".to_owned(),
-        OpenError::Uninitialized => "store.uninitialized: the file is empty".to_owned(),
-        OpenError::Foreign {
-            application_id,
-            objects,
-        } => format!(
-            "store.foreign: not a Yata store (application_id {application_id}, {objects} objects)"
-        ),
-        OpenError::NewerFormat { found, known } => {
-            format!("store.newer_format: format {found}, this build knows {known}")
-        }
-        OpenError::NoFormatVersion => "store.no_format_version".to_owned(),
-        OpenError::Damaged { problems } => {
-            format!("store.damaged: {}", problems.join("; "))
-        }
-        OpenError::Failure(f) => format!("store.failure: {f:?}"),
-    }
+    format!("{}: {e:?}", wire::open_failure(e).code())
 }

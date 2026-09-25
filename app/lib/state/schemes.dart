@@ -37,12 +37,12 @@ final class ImportRunning extends ImportStatus {
 
 /// The last import failed; the next attempt clears it.
 final class ImportFailed extends ImportStatus {
-  const ImportFailed(this.error);
+  const ImportFailed(this.failure);
 
-  final CoreError error;
+  final CoreFailure failure;
 }
 
-/// Which imported scheme the detail pane shows. A selection always names an entry of the list.
+/// Which imported scheme the detail pane shows.
 sealed class SchemeSelection {
   const SchemeSelection();
 }
@@ -58,26 +58,32 @@ final class SchemeSelected extends SchemeSelection {
 }
 
 final class SchemeLibraryState {
-  const SchemeLibraryState({
-    this.imported = const [],
-    this.selection = const NoSchemeSelected(),
-    this.status = const ImportIdle(),
-  });
+  const SchemeLibraryState() : this._(const [], const NoSchemeSelected(), const ImportIdle());
+
+  const SchemeLibraryState._(this.imported, this.selection, this.status);
+
+  /// The list and its selection, changed together: a selection that names no entry of [imported]
+  /// becomes [NoSchemeSelected], so a selection never dangles.
+  factory SchemeLibraryState._listed(
+    List<ImportedScheme> imported,
+    SchemeSelection selection,
+    ImportStatus status,
+  ) => SchemeLibraryState._(List.unmodifiable(imported), switch (selection) {
+    SchemeSelected(:final key) when imported.any((s) => s.key == key) => selection,
+    SchemeSelected() || NoSchemeSelected() => const NoSchemeSelected(),
+  }, status);
 
   final List<ImportedScheme> imported;
   final SchemeSelection selection;
   final ImportStatus status;
 
-  /// Every field this call does not name is kept as it is, so no transition resets another.
-  SchemeLibraryState copyWith({
-    List<ImportedScheme>? imported,
-    SchemeSelection? selection,
-    ImportStatus? status,
-  }) => SchemeLibraryState(
-    imported: imported ?? this.imported,
-    selection: selection ?? this.selection,
-    status: status ?? this.status,
-  );
+  /// The same list and selection with another import status.
+  SchemeLibraryState withStatus(ImportStatus status) =>
+      SchemeLibraryState._(imported, selection, status);
+
+  /// Another list and selection, with the status kept.
+  SchemeLibraryState withList(List<ImportedScheme> imported, SchemeSelection selection) =>
+      SchemeLibraryState._listed(imported, selection, status);
 
   ImportedScheme? get selected => switch (selection) {
     SchemeSelected(:final key) => imported.where((s) => s.key == key).firstOrNull,
@@ -102,9 +108,14 @@ final class AlreadyImporting extends ImportOutcome {
 }
 
 final class ImportRejected extends ImportOutcome {
-  const ImportRejected(this.error);
+  const ImportRejected(this.failure);
 
-  final CoreError error;
+  final CoreFailure failure;
+}
+
+/// The library was disposed while the import ran; nothing was added.
+final class ImportAbandoned extends ImportOutcome {
+  const ImportAbandoned();
 }
 
 class SchemeLibrary extends Notifier<SchemeLibraryState> {
@@ -121,41 +132,36 @@ class SchemeLibrary extends Notifier<SchemeLibraryState> {
 
   Future<ImportOutcome> _import(pb.DecodeSchemeCode request) async {
     if (state.status is ImportRunning) return const AlreadyImporting();
-    state = state.copyWith(status: const ImportRunning());
+    state = state.withStatus(const ImportRunning());
     try {
-      final decoded = await coreCall(ref.read(daemonClientProvider).decodeSchemeCode(request));
+      final decoded = await coreCall(
+        () => ref.read(daemonClientProvider).decodeSchemeCode(request),
+      );
+      if (!ref.mounted) return const ImportAbandoned();
       final entry = ImportedScheme(key: _nextKey++, decoded: decoded);
-      if (ref.mounted) {
-        state = state.copyWith(
-          imported: [...state.imported, entry],
-          selection: SchemeSelected(entry.key),
-          status: const ImportIdle(),
-        );
-      }
+      state = state
+          .withList([...state.imported, entry], SchemeSelected(entry.key))
+          .withStatus(const ImportIdle());
       return Imported(entry.key);
-    } on CoreError catch (e) {
-      if (ref.mounted) state = state.copyWith(status: ImportFailed(e));
+    } on CoreFailure catch (e) {
+      if (!ref.mounted) return const ImportAbandoned();
+      state = state.withStatus(ImportFailed(e));
       return ImportRejected(e);
+    } finally {
+      // Whatever ended the import, it no longer runs: no path leaves the controls disabled.
+      if (ref.mounted && state.status is ImportRunning) {
+        state = state.withStatus(const ImportIdle());
+      }
     }
   }
 
-  /// Show [key]; a key that is not in the list is refused, so the selection never dangles.
-  void select(int key) {
-    if (state.imported.any((s) => s.key == key)) {
-      state = state.copyWith(selection: SchemeSelected(key));
-    }
-  }
+  /// Show [key]; a key that is not in the list selects nothing.
+  void select(int key) => state = state.withList(state.imported, SchemeSelected(key));
 
-  void remove(int key) => state = state.copyWith(
-    imported: [
-      for (final s in state.imported)
-        if (s.key != key) s,
-    ],
-    selection: switch (state.selection) {
-      SchemeSelected(key: final k) when k == key => const NoSchemeSelected(),
-      final other => other,
-    },
-  );
+  void remove(int key) => state = state.withList([
+    for (final s in state.imported)
+      if (s.key != key) s,
+  ], state.selection);
 }
 
 final schemeLibraryProvider = NotifierProvider<SchemeLibrary, SchemeLibraryState>(
@@ -163,15 +169,20 @@ final schemeLibraryProvider = NotifierProvider<SchemeLibrary, SchemeLibraryState
 );
 
 /// Schemes the application proposes from the inventory: the discard and strengthen
-/// recommendations of `feature-scope.md`. They are produced by the daemon from the scores, which
-/// do not exist yet, so the source reports itself unavailable rather than empty.
-final class GeneratedSchemes {
-  const GeneratedSchemes.unavailable() : available = false, schemes = const [];
+/// recommendations of `feature-scope.md`. The daemon produces them from the scores, which do not
+/// exist yet, so the source is unavailable, which is not the same as available and empty.
+sealed class GeneratedSchemes {
+  const GeneratedSchemes();
+}
 
-  final bool available;
+final class GeneratedUnavailable extends GeneratedSchemes {
+  const GeneratedUnavailable();
+}
+
+final class GeneratedAvailable extends GeneratedSchemes {
+  const GeneratedAvailable(this.schemes);
+
   final List<pb.SchemeCodeDecoded> schemes;
 }
 
-final generatedSchemesProvider = Provider<GeneratedSchemes>(
-  (ref) => const GeneratedSchemes.unavailable(),
-);
+final generatedSchemesProvider = Provider<GeneratedSchemes>((ref) => const GeneratedUnavailable());

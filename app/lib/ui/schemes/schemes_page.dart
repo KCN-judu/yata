@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../gen/l10n/app_localizations.dart';
 import '../../state/core.dart';
 import '../../state/schemes.dart';
-import '../common/error_text.dart';
+import '../common/explanation.dart';
 import '../common/labels.dart';
 import 'scheme_detail.dart';
 
@@ -71,14 +71,17 @@ class SchemesPage extends ConsumerWidget {
                       ),
                     const SizedBox(height: 16),
                     Text(l.schemesGenerated, style: theme.textTheme.titleSmall),
-                    if (!generated.available)
-                      Padding(
+                    switch (generated) {
+                      GeneratedUnavailable() => Padding(
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         child: Text(
                           l.schemesGeneratedUnavailable,
                           style: theme.textTheme.bodyMedium,
                         ),
                       ),
+                      // No producer exists yet; the list view comes with the recommendations.
+                      GeneratedAvailable() => const SizedBox.shrink(),
+                    },
                   ],
                 ),
               ),
@@ -135,8 +138,8 @@ class _SchemeImportBoxState extends ConsumerState<SchemeImportBox> {
     final theme = Theme.of(context);
     final library = ref.watch(schemeLibraryProvider);
     final importing = library.status is ImportRunning;
-    final error = switch (library.status) {
-      ImportFailed(:final error) => error,
+    final failure = switch (library.status) {
+      ImportFailed(:final failure) => failure,
       ImportIdle() || ImportRunning() => null,
     };
     return Column(
@@ -167,12 +170,20 @@ class _SchemeImportBoxState extends ConsumerState<SchemeImportBox> {
           ],
         ),
         if (importing) Padding(padding: const EdgeInsets.only(top: 8), child: Text(l.importing)),
-        if (error != null)
+        if (failure != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              mappedErrorText(l, error.code) ?? '${l.errorUnknown} ${l.labelErrorCode(error.code)}',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  explain(l, failure).cause,
+                  style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.error),
+                ),
+                Text(explain(l, failure).remedy, style: theme.textTheme.bodySmall),
+                if (!isKnown(failure))
+                  SelectableText(l.labelErrorCode(failure.code), style: theme.textTheme.bodySmall),
+              ],
             ),
           ),
       ],

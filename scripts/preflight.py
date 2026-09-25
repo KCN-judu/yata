@@ -65,16 +65,15 @@ QUALITY_DOCS = (
 # ADR-0011: private keys and certificates are never tracked, whatever their name.
 SIGNING_MATERIAL = (".key", ".pem", ".p8", ".p12", ".pfx", ".snk", ".keystore", ".jks")
 
-# ADR-0012: every error code the daemon's session or the client raises has Chinese text in the app.
-ERROR_CODE_SOURCES = (
-    "crates/yata-daemon/src/serve/",
-    "crates/yata-daemon/src/wire.rs",
-    "crates/yata-daemon/src/query/",
-    "app/lib/daemon/",
-    "app/lib/state/",
-)
-ERROR_TEXT = "app/lib/ui/common/error_text.dart"
-ERROR_CODE = re.compile(r"""["'](session|query|command|job|decode|import|store|client)\.([a-z_]+)["']""")
+# ADR-0012: the error codes are the oneof cases of core.proto, and nothing else spells one.
+CORE_PROTO = "crates/yata-protocol/proto/core.proto"
+CODE_NAMESPACES = ("session", "query", "command", "job", "decode", "import", "store", "client", "internal")
+CODE_LITERAL = re.compile(rf"""["']({"|".join(CODE_NAMESPACES)})\.([a-z_]+)["']""")
+# Where Rust and Dart are searched for spelled-out codes, and the one file allowed to spell them.
+CODE_SCAN = ("crates/", "app/lib/")
+CODE_LITERAL_HOMES = (CORE_PROTO,)
+# The messages whose `oneof kind` cases are the error codes: per request, per stream, client only.
+CODE_MESSAGES = ("Error", "SessionFailed", "ClientFailure")
 
 # ADR-0017: the SVG profile of committed icons.
 ICON_ROOT = "app/assets/icons/"
@@ -503,22 +502,73 @@ def dart_bindings() -> Result:
     return Result(proc.returncode in (0, 3), out, skipped=proc.returncode == 3)
 
 
+def _without_tests(path: str, text: str) -> str:
+    """The text before a Rust file's `#[cfg(test)]`: by convention its test module closes the file."""
+    return text.split("#[cfg(test)]", 1)[0] if path.endswith(".rs") else text
+
+
+def _proto_message(proto: str, name: str) -> str | None:
+    """The body of top-level `message <name>`, braces balanced; None when there is none."""
+    m = re.search(rf"^message {name}\s*\{{", proto, re.M)
+    if m is None:
+        return None
+    depth, i = 1, m.end()
+    while depth and i < len(proto):
+        depth += {"{": 1, "}": -1}.get(proto[i], 0)
+        i += 1
+    return proto[m.end() : i - 1]
+
+
+def _oneof_kind(body: str | None) -> list[str] | None:
+    """The field names of `oneof kind` in a message body; None when the body has no such oneof."""
+    block = re.search(r"\boneof kind\s*\{([^{}]*)\}", body or "")
+    if block is None:
+        return None
+    return re.findall(r"^\s*[\w.]+\s+([a-z][a-z0-9_]*)\s*=\s*\d+\s*;", block.group(1), re.M)
+
+
+def core_code_problems(proto: str, sources: dict[str, str]) -> list[str]:
+    """The error codes are the cases of `oneof kind` in core.proto's `Error`, `SessionFailed` and
+    `ClientFailure` (ADR-0012): the case is the code, and its message is the code's debug record.
+    Every case names a known namespace, no code is a case of two of them, and no source outside
+    core.proto spells a code as a literal. That each code has a cause and a remedy is proved by the
+    app's exhaustive switch, not here."""
+    bad: list[str] = []
+    seen: dict[str, str] = {}
+    for message in CODE_MESSAGES:
+        fields = _oneof_kind(_proto_message(proto, message))
+        if fields is None:
+            bad.append(f"{CORE_PROTO}: message {message} has no oneof kind")
+            continue
+        for field in fields:
+            code = field.replace("_", ".", 1)
+            if code.split(".", 1)[0] not in CODE_NAMESPACES or "." not in code:
+                bad.append(f"{message}.{field}: outside the namespaces {', '.join(CODE_NAMESPACES)}")
+            if code in seen:
+                bad.append(f"{code}: a case of both {seen[code]} and {message}; a code has one home")
+            seen.setdefault(code, message)
+    for path, text in sorted(sources.items()):
+        for m in CODE_LITERAL.finditer(_without_tests(path, text)):
+            line = text.count("\n", 0, m.start()) + 1
+            bad.append(f"{path}:{line}: '{m.group(1)}.{m.group(2)}' spelled out; derive it from the oneof case")
+    return bad
+
+
 def error_codes() -> Result:
-    """Every code a view can meet maps to Chinese text; `internal.*` is a bug and stays generic."""
+    """The codes are the schema's oneof cases, and no source spells one out."""
     if not _has_app():
         return Result(True, "no app/ yet", na=True)
-    raised: dict[str, str] = {}
-    for f in tracked_files():
-        if f.startswith(ERROR_CODE_SOURCES) and f.endswith((".rs", ".dart")) and "/gen/" not in f:
-            for m in ERROR_CODE.finditer(_read(f)):
-                raised.setdefault(f"{m.group(1)}.{m.group(2)}", f)
-    mapped = {f"{m.group(1)}.{m.group(2)}" for m in ERROR_CODE.finditer(_read(ERROR_TEXT))}
-    bad = [
-        f"{code} (raised in {src}): no text in {ERROR_TEXT}"
-        for code, src in sorted(raised.items())
-        if code not in mapped
-    ]
-    return Result(not bad, "\n".join(bad))
+    sources = {
+        f: _read(f)
+        for f in tracked_files()
+        if f.startswith(CODE_SCAN)
+        and f.endswith((".rs", ".dart"))
+        and not any(g in f for g in GENERATED)
+        and "/tests/" not in f
+        and f not in CODE_LITERAL_HOMES
+    }
+    found = core_code_problems(_read(CORE_PROTO), sources)
+    return Result(not found, "\n".join(found))
 
 
 def icon_profile() -> Result:
@@ -580,7 +630,7 @@ CHECKS = [
     Check("flutter-test", "Flutter tests pass", flutter_test, (), "cd app; flutter test"),
     Check("dart-layers", "app/lib/ui never imports app/lib/daemon", dart_layers, (), "go through state/ (ADR-0012)"),
     Check("icon-profile", "committed icons follow the SVG profile and layout", icon_profile, (), "ADR-0017"),
-    Check("error-codes", "every raised error code has text in the app", error_codes, (), "add it to error_text.dart"),
+    Check("error-codes", "codes are core.proto oneof cases, spelled nowhere else", error_codes, (), "ADR-0012"),
     Check(
         "dart-bindings",
         "the committed Dart bindings match the schema",

@@ -1,13 +1,10 @@
 {
   "@@locale": "zh",
-
   "appTitle": "八咫镜",
-
   "navInventory": "御魂库",
   "navSchemes": "方案",
   "navShikigami": "式神录",
   "navSettings": "设置",
-
   "actionRetry": "重试",
   "actionRestartCore": "重新启动核心",
   "actionShowDetails": "详情",
@@ -15,7 +12,6 @@
   "actionPreviousPage": "上一页",
   "actionNextPage": "下一页",
   "actionDismiss": "关闭",
-
   "statusCoreStarting": "正在启动核心…",
   "statusCoreRestarting": "核心已退出，正在重启…",
   "statusCoreReady": "核心已连接",
@@ -24,53 +20,146 @@
   "statusFixture": "开发样例数据",
   "statusLocalOnly": "数据仅存本机",
   "statusNoProfile": "没有档案",
-
   "bannerCoreRestarting": "核心已退出，正在重启。重启完成前，这里的数据只读。",
   "bannerCoreRestarted": "核心曾意外退出，已重新启动，数据已重新读取。",
   "bannerCoreFailed": "核心无法运行",
   "labelErrorCode": "错误代码：{code}",
-  "@labelErrorCode": { "placeholders": { "code": { "type": "String" } } },
+  "@labelErrorCode": {
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
+  },
   "labelErrorMessage": "技术信息：{message}",
-  "@labelErrorMessage": { "placeholders": { "message": { "type": "String" } } },
+  "@labelErrorMessage": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
   "labelCoreLog": "核心日志",
-
-  "errorUnknown": "发生了未预料的错误。",
-  "errorUnexpected": "应用内部出错。",
-  "errorDaemonNotFound": "找不到核心程序 yata-daemon。请重新安装；开发时请先构建它。",
-  "errorDaemonStartFailed": "无法启动核心程序。",
-  "errorDaemonExited": "核心程序意外退出。",
-  "errorTimeout": "核心程序没有及时响应。",
-  "errorProtocol": "与核心程序的通信出错。",
-  "errorNotConnected": "核心程序未运行。",
-  "errorProtocolUnsupported": "核心程序与本应用的版本不匹配，请重新安装。",
-  "errorSessionBroken": "核心程序拒绝了本应用的请求。",
-  "errorUnknownProfile": "这个档案已不存在。",
-  "errorStaleRevision": "数据已更新，已重新读取。",
-  "errorMalformedCursor": "翻页失败，请从第一页重新浏览。",
-  "errorQueryMalformed": "查询条件有误，核心程序无法执行。",
-  "errorQueryUnknownField": "查询用到了核心程序不认识的字段。",
-  "errorQueryTooComplex": "查询条件太复杂，请减少条件。",
-  "errorQueryTypeMismatch": "查询条件与字段的类型不符。",
-  "errorQueryParamSetRequired": "按评分查询需要先选择评分参数。",
-  "errorQueryFieldUnavailable": "这项数据暂时还不能用于查询。",
-  "errorQueryUnknownScheme": "查询引用的方案不存在或无法解析。",
-  "errorDecodeNoInput": "没有可解析的方案码。",
-  "errorDecodeMalformedText": "这段文字不是有效的方案码。",
-  "errorDecodeUnknownFormat": "这不是游戏的方案码。",
-  "errorDecodeMalformed": "方案码的内容已损坏，无法读取。",
-  "errorDecodeNoQrCode": "图片里没有找到二维码。",
-  "errorDecodeSeveralQrCodes": "图片里有多个二维码，请只保留一个。",
-  "errorDecodeQrUnreadable": "图片里的二维码无法识别。",
-  "errorDecodeImageInvalid": "无法读取这张图片，请使用 PNG 图片。",
-
+  "labelCause": "原因",
+  "labelRemedy": "解决办法",
+  "bannerChangesUnavailable": "核心程序的数据变更通知不可用，列表可能不会自动更新。",
+  "schemeConditionsUnshowable": "条件无法显示（包含本软件尚未识别的御魂）",
+  "subUnknownMode": "{attribute}（未知条件）",
+  "@subUnknownMode": {
+    "placeholders": {
+      "attribute": {
+        "type": "String"
+      }
+    }
+  },
+  "causeProtocolUnsupported": "核心程序与本应用的协议版本不兼容。",
+  "remedyProtocolUnsupported": "请安装版本一致的八咫镜；重新安装应用即可。",
+  "causeRequestRefused": "本应用向核心程序发出了它不接受的请求。",
+  "remedyRequestRefused": "请重新启动核心程序；如果反复出现，请带上错误代码反馈。",
+  "causeUnknownProfile": "这个档案在核心程序中不存在，可能已被删除。",
+  "remedyUnknownProfile": "请在状态栏重新选择档案。",
+  "causeStaleRevision": "读取期间数据发生了变化。",
+  "remedyStaleRevision": "列表会自动从第一页重新读取，无需操作。",
+  "causeQueryMalformed": "本应用构造的查询核心程序无法理解。",
+  "remedyQueryMalformed": "请更新应用；如果反复出现，请带上错误代码反馈。",
+  "causeQueryUnknownField": "查询用到了核心程序不认识的字段，通常是应用与核心程序的版本不一致。",
+  "remedyQueryUnknownField": "请安装版本一致的八咫镜。",
+  "causeQueryTooComplex": "筛选或排序条件超过了核心程序允许的数量。",
+  "remedyQueryTooComplex": "请减少筛选或排序条件。",
+  "causeQueryTypeMismatch": "某个筛选条件与它所筛选的数据类型不符。",
+  "remedyQueryTypeMismatch": "请检查并修改这个筛选条件。",
+  "causeQueryParamSetRequired": "按评分筛选或排序需要先指定评分参数。",
+  "remedyQueryParamSetRequired": "请先选择一套评分参数。",
+  "causeQueryFieldUnavailable": "这项数据在当前版本中还不能用于筛选或排序。",
+  "remedyQueryFieldUnavailable": "请去掉这个条件。",
+  "causeQueryUnknownScheme": "查询引用的方案码无法解析，或其中没有所选的方案。",
+  "remedyQueryUnknownScheme": "请重新导入这个方案码，或改选其中存在的方案。",
+  "causeMalformedCursor": "翻页位置已经失效。",
+  "remedyMalformedCursor": "请从第一页重新浏览。",
+  "causeDecodeNoInput": "没有提供方案码。",
+  "remedyDecodeNoInput": "请粘贴方案码文字，或选择一张二维码图片。",
+  "causeDecodeMalformedText": "这段文字不是完整的方案码，可能复制时缺了字符。",
+  "remedyDecodeMalformedText": "请在游戏中重新复制完整的方案码。",
+  "causeDecodeUnknownFormat": "这段内容不是游戏的方案码。",
+  "remedyDecodeUnknownFormat": "请确认复制的是游戏导出的方案码。",
+  "causeDecodeMalformed": "方案码的内容已损坏，或来自本软件尚不支持的游戏版本。",
+  "remedyDecodeMalformed": "请在游戏中重新导出方案码；如果仍然失败，请带上错误代码反馈。",
+  "causeDecodeImageInvalid": "无法读取这张图片。",
+  "remedyDecodeImageInvalid": "请选择一张 PNG 格式的截图。",
+  "causeDecodeNoQrCode": "图片中没有找到二维码。",
+  "remedyDecodeNoQrCode": "请截取包含完整二维码的区域。",
+  "causeDecodeSeveralQrCodes": "图片中有多个二维码，无法确定要读哪一个。",
+  "remedyDecodeSeveralQrCodes": "请只截取一个二维码。",
+  "causeDecodeQrUnreadable": "找到了二维码，但无法识别其中的内容。",
+  "remedyDecodeQrUnreadable": "请用更清晰、更大的截图再试一次。",
+  "causeImportProfileMismatch": "读取到的数据属于另一个游戏账号。",
+  "remedyImportProfileMismatch": "请切换到对应的档案后再导入。",
+  "causeImportMalformedReading": "读取到的数据不完整或格式有误。",
+  "remedyImportMalformedReading": "请重新读取；如果反复出现，请带上错误代码反馈。",
+  "causeImportReadingTooLarge": "一次读取的数据超过了允许的大小。",
+  "remedyImportReadingTooLarge": "请带上错误代码反馈。",
+  "causeImportUnestablishedIdentity": "暂时无法确认每枚御魂的身份，读取结果不能入库。",
+  "remedyImportUnestablishedIdentity": "请等待读取器更新后再导入。",
+  "causeImportDuplicateSoul": "读取到的数据中同一枚御魂出现了两次。",
+  "remedyImportDuplicateSoul": "请重新读取。",
+  "causeCommandRefused": "核心程序拒绝了这次修改。",
+  "remedyCommandRefused": "请刷新后再试一次。",
+  "causeCommandTooLarge": "这次修改的数据过多。",
+  "remedyCommandTooLarge": "请分几次完成。",
+  "causeStoreFailure": "读写本机数据时出错。",
+  "remedyStoreFailure": "请检查磁盘空间和文件权限，然后重启应用。",
+  "causeStoreDamaged": "本机数据已损坏。",
+  "remedyStoreDamaged": "请从备份恢复数据；没有备份时，请带上错误代码反馈。",
+  "causeStoreNewerFormat": "本机数据由更新版本的八咫镜写入。",
+  "remedyStoreNewerFormat": "请把应用更新到最新版本。",
+  "causeStoreMissing": "找不到本机数据文件。",
+  "remedyStoreMissing": "请确认数据目录没有被移动或删除。",
+  "causeStoreNotOurs": "数据文件不是八咫镜的数据。",
+  "remedyStoreNotOurs": "请确认数据目录中的文件没有被替换。",
+  "causeInternal": "核心程序内部出错。",
+  "remedyInternal": "请重新启动核心程序，并带上错误代码反馈。",
+  "causeStreamBroken": "与核心程序通信的数据损坏。",
+  "remedyStreamBroken": "请重新启动核心程序；如果反复出现，请带上错误代码反馈。",
+  "causeStreamIo": "核心程序无法读写通信管道。",
+  "remedyStreamIo": "请重新启动核心程序。",
+  "causeDaemonNotFound": "找不到核心程序 yata-daemon。",
+  "remedyDaemonNotFound": "请重新安装应用；开发时请先构建核心程序。",
+  "causeDaemonStartFailed": "系统无法启动核心程序。",
+  "remedyDaemonStartFailed": "请检查安全软件是否拦截了它，然后再试一次。",
+  "causeDaemonExited": "核心程序意外退出。",
+  "remedyDaemonExited": "应用会自动重启核心程序；如果反复退出，请带上核心日志反馈。",
+  "causeTimeout": "核心程序没有及时响应。",
+  "remedyTimeout": "请稍后再试；如果一直没有响应，请重新启动核心程序。",
+  "causeProtocolError": "核心程序发来的数据不符合协议。",
+  "remedyProtocolError": "请重新启动核心程序，并带上错误代码反馈。",
+  "causeNotConnected": "核心程序没有在运行。",
+  "remedyNotConnected": "请重新启动核心程序。",
+  "causeUnexpected": "应用内部出错。",
+  "remedyUnexpected": "请重新启动应用，并带上错误代码反馈。",
+  "causeUnknown": "核心程序报告了本应用不认识的错误。",
+  "remedyUnknown": "请更新应用；如果仍然出现，请带上错误代码反馈。",
   "warningClientOutdated": "本应用比核心程序旧，部分功能可能不可用。",
   "warningUnknown": "核心程序发出了一条提示。",
-
   "inventoryTitle": "御魂库",
   "inventoryCount": "共 {total} 枚",
-  "@inventoryCount": { "placeholders": { "total": { "type": "String" } } },
+  "@inventoryCount": {
+    "placeholders": {
+      "total": {
+        "type": "String"
+      }
+    }
+  },
   "inventoryPageRange": "第 {first}–{last} 枚",
-  "@inventoryPageRange": { "placeholders": { "first": { "type": "int" }, "last": { "type": "int" } } },
+  "@inventoryPageRange": {
+    "placeholders": {
+      "first": {
+        "type": "int"
+      },
+      "last": {
+        "type": "int"
+      }
+    }
+  },
   "inventoryLoading": "正在读取御魂…",
   "inventoryEmptyTitle": "还没有御魂",
   "inventoryEmptyBody": "从游戏读取御魂后，它们会显示在这里。",
@@ -81,7 +170,6 @@
   "filterTitle": "筛选",
   "filterPending": "筛选条件将在这里设置，由核心程序执行。",
   "profileLabel": "档案",
-
   "labelSet": "套装",
   "labelSlot": "号位",
   "labelStar": "星级",
@@ -90,20 +178,64 @@
   "labelSubs": "副属性",
   "labelInnate": "固有属性",
   "labelNone": "无",
-
   "soulSet": "套装 {suitCode}",
-  "@soulSet": { "description": "A soul set by its suit code, until the core supplies set names.", "placeholders": { "suitCode": { "type": "int" } } },
+  "@soulSet": {
+    "description": "A soul set by its suit code, until the core supplies set names.",
+    "placeholders": {
+      "suitCode": {
+        "type": "int"
+      }
+    }
+  },
   "soulSlot": "{slot} 号位",
-  "@soulSlot": { "placeholders": { "slot": { "type": "int" } } },
+  "@soulSlot": {
+    "placeholders": {
+      "slot": {
+        "type": "int"
+      }
+    }
+  },
   "soulStar": "{star} 星",
-  "@soulStar": { "placeholders": { "star": { "type": "int" } } },
+  "@soulStar": {
+    "placeholders": {
+      "star": {
+        "type": "int"
+      }
+    }
+  },
   "soulLevel": "+{level}",
-  "@soulLevel": { "placeholders": { "level": { "type": "int" } } },
+  "@soulLevel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
   "soulAccessibleName": "{set}，{slot}，{star}，强化 +{level}",
-  "@soulAccessibleName": { "placeholders": { "set": { "type": "String" }, "slot": { "type": "String" }, "star": { "type": "String" }, "level": { "type": "int" } } },
+  "@soulAccessibleName": {
+    "placeholders": {
+      "set": {
+        "type": "String"
+      },
+      "slot": {
+        "type": "String"
+      },
+      "star": {
+        "type": "String"
+      },
+      "level": {
+        "type": "int"
+      }
+    }
+  },
   "soulEnhancements": "强化 {count} 次",
-  "@soulEnhancements": { "placeholders": { "count": { "type": "int" } } },
-
+  "@soulEnhancements": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "attrAtkFlat": "攻击力",
   "attrAtkPercent": "攻击力加成",
   "attrDefFlat": "防御力",
@@ -116,7 +248,6 @@
   "attrCrit": "暴击",
   "attrCritDmg": "暴击伤害",
   "attrUnknown": "未知属性",
-
   "schemesTitle": "方案",
   "schemesImported": "已导入",
   "schemesImportedEmpty": "还没有导入方案码。粘贴方案码文字，或选择一张二维码图片。",
@@ -134,12 +265,17 @@
   "schemeKindStrengthening": "强化方案",
   "schemeKindDiscard": "弃置方案",
   "schemeEntryCount": "{count} 个方案",
-  "@schemeEntryCount": { "placeholders": { "count": { "type": "int" } } },
+  "@schemeEntryCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "schemeUnknownConditions": "包含本软件尚未解析的条件，预览结果可能多于游戏",
   "schemeQrTitle": "方案码",
   "schemeQrUnavailable": "这段方案码太长，无法显示为二维码。",
   "schemeQrLabel": "方案码二维码",
-
   "groupSets": "类型",
   "groupSlots": "位置",
   "groupStars": "星级",
@@ -151,9 +287,21 @@
   "groupAny": "不限",
   "anySet": "全部御魂",
   "subInclude": "包含 {attribute}",
-  "@subInclude": { "placeholders": { "attribute": { "type": "String" } } },
+  "@subInclude": {
+    "placeholders": {
+      "attribute": {
+        "type": "String"
+      }
+    }
+  },
   "subExclude": "排除 {attribute}",
-  "@subExclude": { "placeholders": { "attribute": { "type": "String" } } },
+  "@subExclude": {
+    "placeholders": {
+      "attribute": {
+        "type": "String"
+      }
+    }
+  },
   "levelBand0to2": "0–2",
   "levelBand3to5": "3–5",
   "levelBand6to8": "6–8",
@@ -165,11 +313,9 @@
   "subCountThree": "3条",
   "subCountFour": "4条",
   "valueUnknown": "未知",
-
   "shikigamiTitle": "式神录",
   "shikigamiUnavailableTitle": "式神数据尚未接入",
   "shikigamiUnavailableBody": "读取游戏数据后，这里会显示你拥有的式神和它们装备的御魂。",
-
   "settingsTitle": "设置",
   "settingsAppearance": "外观",
   "themeSystem": "跟随系统",
@@ -177,7 +323,13 @@
   "themeDark": "深色",
   "settingsCore": "核心程序",
   "coreProtocol": "协议版本 {version}",
-  "@coreProtocol": { "placeholders": { "version": { "type": "String" } } },
+  "@coreProtocol": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
   "coreDataSource": "数据来源",
   "coreDataFixture": "开发样例（YATA_FIXTURE）",
   "coreDataStore": "本机数据"

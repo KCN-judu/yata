@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../gen/l10n/app_localizations.dart';
 import '../../state/core.dart';
-import '../common/error_text.dart';
+import '../common/explanation.dart';
 import '../common/state_views.dart';
 
 class CoreBanner extends ConsumerWidget {
@@ -23,24 +23,33 @@ class CoreBanner extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         switch (status) {
-          CoreStarting(cause: final cause?) => _Strip(
+          CoreRestarting(:final cause) => _Strip(
             icon: Icons.sync,
-            text: '${l.bannerCoreRestarting} ${errorText(l, cause.code)}',
+            text: '${l.bannerCoreRestarting} ${explain(l, cause).cause}',
+          ),
+          CoreReady(changes: ChangesUnavailable()) => _Strip(
+            icon: Icons.sync_problem,
+            text: l.bannerChangesUnavailable,
           ),
           CoreReady(restarted: true) => _Strip(
             icon: Icons.info_outline,
             text: l.bannerCoreRestarted,
           ),
-          CoreFailed(:final error, :final log) => SizedBox(
-            height: 280,
-            child: ErrorView(error: error, title: l.bannerCoreFailed, onRetry: restart, log: log),
+          CoreFailed(:final failure, :final log) => SizedBox(
+            height: 300,
+            child: ErrorView(
+              failure: failure,
+              title: l.bannerCoreFailed,
+              onRetry: restart,
+              log: log,
+            ),
           ),
-          _ => const SizedBox.shrink(),
+          CoreReady() || CoreStarting() || CoreStopped() => const SizedBox.shrink(),
         },
         for (final w in warnings)
           _Strip(
             icon: Icons.warning_amber_outlined,
-            text: warningText(l, w.code),
+            text: warningText(l, w.warning),
             onDismiss: () => ref.read(coreWarningsProvider.notifier).dismiss(w),
           ),
       ],

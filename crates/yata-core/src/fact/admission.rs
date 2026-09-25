@@ -96,19 +96,6 @@ pub enum AdmissionError {
     DuplicateSoul { soul: GameSoulId },
 }
 
-impl AdmissionError {
-    /// The stable error code (`core-protocol.md`, § Errors).
-    pub fn code(&self) -> &'static str {
-        match self {
-            AdmissionError::UnestablishedIdentity { .. } => "import.unestablished_identity",
-            AdmissionError::DuplicateSoul { .. } => "import.duplicate_soul",
-            AdmissionError::MissingSoulId { .. }
-            | AdmissionError::EmptySoulId { .. }
-            | AdmissionError::EmptyAccount => "import.malformed_reading",
-        }
-    }
-}
-
 /// Admit a reading: refuse it whole, or split it into rows and defects.
 pub fn admit_reading(reading: &SoulReading) -> Result<Admitted, AdmissionError> {
     match reading
@@ -376,7 +363,6 @@ pub(crate) mod tests {
                 evidence: NotEstablished::Inherited
             }
         );
-        assert_eq!(e.code(), "import.unestablished_identity");
         // What the reader sends today: no typed field at all, only observed records.
         let unmapped = with_mappings(SoulMappings::default(), vec![RawSoul::default()]);
         assert_eq!(
@@ -391,7 +377,7 @@ pub(crate) mod tests {
     fn a_reading_with_one_soul_twice_is_refused() {
         let e = admit_reading(&complete(vec![soul("a", 15), soul("b", 15), soul("a", 12)]))
             .expect_err("duplicate");
-        assert_eq!(e.code(), "import.duplicate_soul");
+        assert!(matches!(e, AdmissionError::DuplicateSoul { .. }), "{e:?}");
     }
 
     #[test]

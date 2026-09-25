@@ -29,12 +29,13 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final places = [
-      (Place.inventory, Icons.grid_view_outlined, Icons.grid_view, l.navInventory),
-      (Place.schemes, Icons.qr_code_2_outlined, Icons.qr_code_2, l.navSchemes),
-      (Place.shikigami, Icons.people_outline, Icons.people, l.navShikigami),
-      (Place.settings, Icons.settings_outlined, Icons.settings, l.navSettings),
-    ];
+    // Each place's rail entry, by an exhaustive switch: a new place has to name its own.
+    (IconData, IconData, String) entry(Place p) => switch (p) {
+      Place.inventory => (Icons.grid_view_outlined, Icons.grid_view, l.navInventory),
+      Place.schemes => (Icons.qr_code_2_outlined, Icons.qr_code_2, l.navSchemes),
+      Place.shikigami => (Icons.people_outline, Icons.people, l.navShikigami),
+      Place.settings => (Icons.settings_outlined, Icons.settings, l.navSettings),
+    };
     return Scaffold(
       body: Column(
         children: [
@@ -47,7 +48,7 @@ class _AppShellState extends State<AppShell> {
                   minWidth: 64,
                   onDestinationSelected: (i) => setState(() => _place = Place.values[i]),
                   destinations: [
-                    for (final (_, icon, selected, label) in places)
+                    for (final (icon, selected, label) in Place.values.map(entry))
                       NavigationRailDestination(
                         icon: Icon(icon),
                         selectedIcon: Icon(selected),

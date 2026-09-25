@@ -4,23 +4,50 @@
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yata/daemon/connection.dart';
-import 'package:yata/daemon/daemon_error.dart';
+import 'package:yata/daemon/failure.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
 
 import '../support/memory_transport.dart';
 
-Matcher failsWith(String code) =>
-    throwsA(isA<DaemonException>().having((e) => e.code, 'code', code));
+Matcher failsWith(String code) => throwsA(isA<CoreFailure>().having((e) => e.code, 'code', code));
+
+/// The client failure's case, which is its code.
+Matcher raised(pb.ClientFailure_Kind kind) =>
+    throwsA(isA<RaisedFailure>().having((e) => e.failure.whichKind(), 'kind', kind));
 
 void main() {
-  test('a daemon error arrives as its code, message and details', () async {
+  test('a daemon error arrives as its case, message and debug record', () async {
     final t = MemoryTransport(
-      daemonThat(answer: (r) => [errorResponse(r, 'query.unknown_profile')]),
+      daemonThat(
+        answer: (r) => [
+          errorResponse(
+            r,
+            pb.Error(
+              queryStaleRevision: pb.QueryStaleRevision(scan: Int64(3), current: Int64(4)),
+            ),
+          ),
+        ],
+      ),
     );
     final c = DaemonConnection(t);
     await c.open();
-    await expectLater(c.listProfiles(), failsWith('query.unknown_profile'));
+    final failure = await c.listProfiles().then<Object?>((_) => null, onError: (Object e) => e);
+    expect(failure, isA<RequestFailure>());
+    final f = failure! as RequestFailure;
+    expect(f.error.whichKind(), pb.Error_Kind.queryStaleRevision);
+    expect(f.code, 'query.stale_revision');
+    expect(f.message, 'test refusal');
+    expect(f.debugRecord, contains('current: 4'));
     expect(c.isClosed, isFalse);
+  });
+
+  test('a code this build does not know keeps its tag', () async {
+    // Field 999 of Error: a oneof case from a newer daemon.
+    final unknown = pb.Error.fromBuffer([0xba, 0x3e, 0x00]);
+    final t = MemoryTransport(daemonThat(answer: (r) => [errorResponse(r, unknown)]));
+    final c = DaemonConnection(t);
+    await c.open();
+    await expectLater(c.listProfiles(), failsWith('unknown (tag 999)'));
   });
 
   test('responses are matched by id, in whatever order they arrive', () async {
@@ -53,9 +80,11 @@ void main() {
     await c.open();
     final pending = c.listProfiles();
     t.exit(101);
-    await expectLater(pending, failsWith(ClientErrorCode.daemonExited));
-    expect((await c.closed).code, ClientErrorCode.daemonExited);
-    await expectLater(c.listProfiles(), failsWith(ClientErrorCode.notConnected));
+    await expectLater(pending, raised(pb.ClientFailure_Kind.clientDaemonExited));
+    final closed = await c.closed;
+    expect(closed, isA<RaisedFailure>());
+    expect((closed as RaisedFailure).failure.clientDaemonExited.exitCode, 101);
+    await expectLater(c.listProfiles(), raised(pb.ClientFailure_Kind.clientNotConnected));
   });
 
   test('a response to a request never sent breaks the session', () async {
@@ -68,7 +97,7 @@ void main() {
         response: pb.Response(id: Int64(99), shutdownAccepted: pb.ShutdownAccepted()),
       ),
     );
-    await expectLater(pending, failsWith(ClientErrorCode.protocolError));
+    await expectLater(pending, raised(pb.ClientFailure_Kind.clientProtocolError));
     expect(t.killed, isTrue);
   });
 
@@ -77,22 +106,27 @@ void main() {
     final c = DaemonConnection(t);
     await c.open();
     t.emitBytes([0, 0, 0, 0]);
-    expect((await c.closed).code, ClientErrorCode.protocolError);
+    expect((await c.closed).code, 'client.protocol_error');
     expect(t.killed, isTrue);
   });
 
-  test('a session_failed event carries the daemon code and ends the session', () async {
+  test('a session failure event carries the daemon code and ends the session', () async {
     final t = MemoryTransport(daemonThat());
     final c = DaemonConnection(t);
     await c.open();
     t.emit(
       pb.ServerMessage(
         event: pb.Event(
-          sessionFailed: pb.Error(code: 'session.malformed_frame', message: 'x'),
+          sessionFailure: pb.SessionFailed(
+            message: 'x',
+            sessionMalformedFrame: pb.SessionMalformedFrame(),
+          ),
         ),
       ),
     );
-    expect((await c.closed).code, 'session.malformed_frame');
+    final closed = await c.closed;
+    expect(closed, isA<SessionFailure>());
+    expect(closed.code, 'session.malformed_frame');
   });
 
   test('a request with no answer times out and a late answer is dropped', () async {
@@ -107,13 +141,13 @@ void main() {
     );
     final c = DaemonConnection(t, requestTimeout: const Duration(milliseconds: 20));
     await c.open();
-    await expectLater(c.listProfiles(), failsWith(ClientErrorCode.timeout));
+    await expectLater(c.listProfiles(), raised(pb.ClientFailure_Kind.clientTimeout));
     t.emit(response(unanswered.single, pb.Response(profileList: pb.ProfileList())));
     await Future<void>.delayed(Duration.zero);
     expect(c.isClosed, isFalse);
   });
 
-  test('events other than session_failed reach the stream', () async {
+  test('events other than a session failure reach the stream', () async {
     final t = MemoryTransport(daemonThat());
     final c = DaemonConnection(t);
     await c.open();

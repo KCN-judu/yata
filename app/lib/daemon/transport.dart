@@ -8,7 +8,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'daemon_error.dart';
+import 'failure.dart';
 
 abstract interface class DaemonTransport {
   /// The daemon's stdout: frames and nothing else. Listened to once.
@@ -30,16 +30,17 @@ abstract interface class DaemonTransport {
   List<String> get recentLog;
 }
 
-/// Starts a daemon process and returns its transport, or throws a [DaemonException].
+/// Starts a daemon process and returns its transport, or throws a [RaisedFailure].
 typedef DaemonLauncher = Future<DaemonTransport> Function();
 
 /// A daemon child process on its stdio pipes (ADR-0004).
 class ProcessTransport implements DaemonTransport {
   ProcessTransport._(this._process) {
+    // A malformed byte in the log is shown as a replacement character, not a silenced log.
     _process.stderr
-        .transform(utf8.decoder)
+        .transform(const Utf8Decoder(allowMalformed: true))
         .transform(const LineSplitter())
-        .listen(_log, onError: (Object _) {});
+        .listen(_log);
   }
 
   /// How many stderr lines are kept.
@@ -53,7 +54,7 @@ class ProcessTransport implements DaemonTransport {
       final process = await Process.start(executable, arguments);
       return ProcessTransport._(process);
     } on ProcessException catch (e) {
-      throw DaemonException(ClientErrorCode.daemonStartFailed, '$executable: ${e.message}');
+      throw RaisedFailure.daemonStartFailed(executable, e.message);
     }
   }
 

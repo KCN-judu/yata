@@ -7,46 +7,69 @@ library;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../platform/platform_services.dart';
 import 'core.dart';
 
-enum IconKind {
-  soulSet('soul-set'),
-  shikigami('shikigami');
+export '../platform/platform_services.dart' show IconKind, IconRole;
 
-  const IconKind(this.path);
+/// What an icon shows, with the game identifier of that kind: the id's meaning is its case.
+sealed class IconSubject {
+  const IconSubject();
 
-  final String path;
+  IconKind get kind;
+  int get id;
 }
 
-enum IconRole {
-  /// Beside text: tables, lists, filters.
-  emblem('emblem'),
+final class SoulSetIcon extends IconSubject {
+  const SoulSetIcon(this.suitCode);
 
-  /// Large: the inspector and detail views.
-  portrait('portrait');
+  final int suitCode;
 
-  const IconRole(this.path);
+  @override
+  IconKind get kind => IconKind.soulSet;
 
-  final String path;
+  @override
+  int get id => suitCode;
+
+  @override
+  bool operator ==(Object other) => other is SoulSetIcon && other.suitCode == suitCode;
+
+  @override
+  int get hashCode => suitCode.hashCode;
+}
+
+final class ShikigamiIcon extends IconSubject {
+  const ShikigamiIcon(this.shikigamiId);
+
+  final int shikigamiId;
+
+  @override
+  IconKind get kind => IconKind.shikigami;
+
+  @override
+  int get id => shikigamiId;
+
+  @override
+  bool operator ==(Object other) => other is ShikigamiIcon && other.shikigamiId == shikigamiId;
+
+  @override
+  int get hashCode => Object.hash(IconKind.shikigami, shikigamiId);
 }
 
 final class IconKey {
-  const IconKey(this.kind, this.role, this.id);
+  const IconKey(this.subject, this.role);
 
-  final IconKind kind;
+  final IconSubject subject;
   final IconRole role;
 
-  /// The suit code of a soul set, or the game's Shikigami id.
-  final int id;
-
-  String get assetPath => 'assets/icons/${kind.path}/${role.path}/$id.svg';
+  String get assetPath => 'assets/icons/${subject.kind.folder}/${role.folder}/${subject.id}.svg';
 
   @override
   bool operator ==(Object other) =>
-      other is IconKey && other.kind == kind && other.role == role && other.id == id;
+      other is IconKey && other.subject == subject && other.role == role;
 
   @override
-  int get hashCode => Object.hash(kind, role, id);
+  int get hashCode => Object.hash(subject, role);
 }
 
 sealed class IconSource {
@@ -81,7 +104,7 @@ final iconSourceProvider = Provider.family<IconSource, IconKey>((ref, key) {
   if (bundled.contains(key.assetPath)) return ProjectSvgIcon(key.assetPath);
   final local = ref
       .watch(platformServicesProvider)
-      .localIconPath(key.kind.path, key.role.path, key.id);
+      .localIconPath(key.subject.kind, key.role, key.subject.id);
   if (local != null) return LocalRasterIcon(local);
   return const TextMarkIcon();
 });

@@ -15,13 +15,14 @@ use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use prost::Message;
-use yata_core::fact::GameSoulId;
+use yata_core::fact::{GameSoulId, Revision};
 use yata_core::query::{CompiledQuery, Page, PageRequest, QueryError, RowVerdict, compile};
 use yata_core::scheme::evaluate::OpenRule;
 use yata_core::soul::Soul;
 use yata_protocol::core as wire;
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
 
+use crate::wire::Code as _;
 pub use convert::MAX_SOUL_ID_BYTES;
 
 /// Rows per page when a request names no budget.
@@ -37,7 +38,9 @@ pub enum RequestError {
     /// The payload is not an `EvaluateQuery` (`query.malformed`).
     Undecodable { reason: String },
     /// `session.protocol_unsupported`: built against a newer major version, or against none.
-    ProtocolUnsupported { major: Option<u32> },
+    ProtocolUnsupported {
+        client: Option<wire::ProtocolVersion>,
+    },
     /// `query.unknown_field`: a field number this build does not know.
     UnknownField { value: i32 },
     /// `query.malformed`: a value the schema can carry and the domain cannot.
@@ -84,45 +87,80 @@ pub enum WireProblem {
 }
 
 impl RequestError {
-    /// The stable code of `core-protocol.md`, "Errors".
-    pub fn code(&self) -> &'static str {
+    /// The failure this is on the wire (`core-protocol.md`, "Errors"), with its debug record.
+    pub fn kind(&self) -> wire::error::Kind {
+        use wire::error::Kind;
+        let problem = || format!("{self:?}");
+        let field = |f: &dyn std::fmt::Debug| format!("{f:?}");
         match self {
             RequestError::Undecodable { .. }
             | RequestError::Wire(_)
             | RequestError::BadSoul { .. }
             | RequestError::RepeatedSoulId { .. }
-            | RequestError::RowBudgetZero => "query.malformed",
-            RequestError::ProtocolUnsupported { .. } => "session.protocol_unsupported",
-            RequestError::UnknownField { .. } => "query.unknown_field",
-            RequestError::InventoryTooLarge { .. } | RequestError::RowBudgetTooLarge { .. } => {
-                "query.too_complex"
+            | RequestError::RowBudgetZero
+            | RequestError::Query(QueryError::Malformed(_)) => {
+                Kind::QueryMalformed(wire::QueryMalformed { problem: problem() })
             }
-            RequestError::Query(e) => match e {
-                QueryError::TypeMismatch { .. } | QueryError::NotSortable { .. } => {
-                    "query.type_mismatch"
-                }
-                QueryError::ParamSetRequired { .. } => "query.param_set_required",
-                QueryError::FieldUnavailable { .. } => "query.field_unavailable",
-                QueryError::UnknownScheme(_) => "query.unknown_scheme",
-                QueryError::TooComplex { .. } => "query.too_complex",
-                QueryError::Malformed(_) => "query.malformed",
-                QueryError::MalformedCursor => "query.malformed_cursor",
-            },
-            RequestError::Panicked => "internal.panic",
+            RequestError::ProtocolUnsupported { client } => {
+                Kind::SessionProtocolUnsupported(wire::SessionProtocolUnsupported {
+                    client: *client,
+                    daemon: Some(wire::VERSION),
+                })
+            }
+            RequestError::UnknownField { value } => {
+                Kind::QueryUnknownField(wire::QueryUnknownField { value: *value })
+            }
+            RequestError::InventoryTooLarge { souls } => {
+                too_complex("inventory souls", *souls, MAX_INVENTORY_SOULS)
+            }
+            RequestError::RowBudgetTooLarge { budget } => {
+                too_complex("row budget", *budget as usize, MAX_ROW_BUDGET as usize)
+            }
+            RequestError::Query(QueryError::TooComplex { limit, actual }) => {
+                too_complex(&format!("{limit:?}"), *actual, limit.max())
+            }
+            RequestError::Query(
+                QueryError::TypeMismatch { .. } | QueryError::NotSortable { .. },
+            ) => Kind::QueryTypeMismatch(wire::QueryTypeMismatch { problem: problem() }),
+            RequestError::Query(QueryError::ParamSetRequired { field: f }) => {
+                Kind::QueryParamSetRequired(wire::QueryParamSetRequired { field: field(f) })
+            }
+            RequestError::Query(QueryError::FieldUnavailable { field: f }) => {
+                Kind::QueryFieldUnavailable(wire::QueryFieldUnavailable { field: field(f) })
+            }
+            RequestError::Query(QueryError::UnknownScheme(_)) => {
+                Kind::QueryUnknownScheme(wire::QueryUnknownScheme { problem: problem() })
+            }
+            RequestError::Query(QueryError::MalformedCursor) => {
+                Kind::QueryMalformedCursor(wire::QueryMalformedCursor {})
+            }
+            RequestError::Panicked => Kind::InternalPanic(wire::InternalPanic {}),
         }
     }
 
-    fn to_wire(&self) -> wire::Error {
+    /// The dotted code, for logs and tests.
+    pub fn code(&self) -> &'static str {
+        self.kind().code()
+    }
+
+    pub fn to_wire(&self) -> wire::Error {
         let message = match self {
             RequestError::Panicked => "the query handler panicked; see stderr".to_owned(),
             e => format!("{e:?}"),
         };
         wire::Error {
-            code: self.code().to_owned(),
             message,
-            details: Vec::new(),
+            kind: Some(self.kind()),
         }
     }
+}
+
+fn too_complex(limit: &str, found: usize, max: usize) -> wire::error::Kind {
+    wire::error::Kind::QueryTooComplex(wire::QueryTooComplex {
+        limit: limit.to_owned(),
+        found: found as u64,
+        max: max as u64,
+    })
 }
 
 /// The answer to one request payload. Total: every payload gets exactly one result.
@@ -156,18 +194,21 @@ pub fn handle(payload: &[u8]) -> wire::EvaluateQueryResult {
 fn evaluate(request: wire::EvaluateQuery) -> Result<wire::QueryPage, RequestError> {
     match request.protocol_version {
         Some(v) if v.major <= wire::VERSION.major => {}
-        v => {
-            return Err(RequestError::ProtocolUnsupported {
-                major: v.map(|v| v.major),
-            });
-        }
+        client => return Err(RequestError::ProtocolUnsupported { client }),
     }
     let query = request
         .query
         .ok_or(RequestError::Wire(WireProblem::Missing(
             "EvaluateQuery.query",
         )))?;
-    let prepared = prepare(query)?;
+    let page = request.page.unwrap_or_default();
+    let prepared = prepare(
+        query,
+        Paging {
+            row_budget: page.row_budget,
+            cursor: page.cursor.as_deref(),
+        },
+    )?;
     let souls = convert::inventory(request.inventory)?;
     run(&prepared, &souls).map(render_headless)
 }
@@ -178,18 +219,26 @@ pub struct Prepared {
     request: PageRequest<GameSoulId>,
 }
 
-/// Check and compile a wire query. The headless endpoint and the session both start here, so a
-/// query means the same whichever way it arrives.
-pub fn prepare(query: wire::Query) -> Result<Prepared, RequestError> {
-    let page = query.page.clone().unwrap_or_default();
-    let budget = page.row_budget.unwrap_or(DEFAULT_ROW_BUDGET);
+/// Which page a request asks for, from whichever message carries it: `EvaluateQuery.page`, or
+/// the session's `SessionQuery`. A shared `Query` carries no page.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Paging<'a> {
+    /// Absent: [`DEFAULT_ROW_BUDGET`].
+    pub row_budget: Option<u32>,
+    /// Absent: the first page.
+    pub cursor: Option<&'a [u8]>,
+}
+
+/// Check and compile a wire query with its page. The headless endpoint and the session both start
+/// here, so a query means the same whichever way it arrives.
+pub fn prepare(query: wire::Query, paging: Paging<'_>) -> Result<Prepared, RequestError> {
+    let budget = paging.row_budget.unwrap_or(DEFAULT_ROW_BUDGET);
     if budget > MAX_ROW_BUDGET {
         return Err(RequestError::RowBudgetTooLarge { budget });
     }
     let row_budget = NonZeroUsize::new(budget as usize).ok_or(RequestError::RowBudgetZero)?;
-    let cursor = page
+    let cursor = paging
         .cursor
-        .as_deref()
         .map(|bytes| cursor::decode(bytes).ok_or(RequestError::Query(QueryError::MalformedCursor)))
         .transpose()?;
     let compiled = compile(convert::query(query)?).map_err(RequestError::Query)?;
@@ -214,20 +263,15 @@ pub fn run(
 /// supplied the souls) and no revision (it has no projection).
 pub fn render_headless(page: Page<GameSoulId>) -> wire::QueryPage {
     use wire::query_row::Verdict;
-    let rule = |r: OpenRule| match r {
-        OpenRule::Innate => wire::OpenRule::Innate as i32,
-        OpenRule::UnknownConditions => wire::OpenRule::UnknownConditions as i32,
-    };
     let rows = page
         .rows
         .into_iter()
         .map(|row| wire::QueryRow {
-            soul: None,
             soul_id: row.id.as_str().to_owned(),
             verdict: Some(match row.verdict {
                 RowVerdict::Exact => Verdict::Exact(wire::ExactVerdict {}),
                 RowVerdict::Open(rules) => Verdict::Open(wire::OpenVerdict {
-                    rules: rules.iter().map(rule).collect(),
+                    rules: rules.iter().map(open_rule).collect(),
                 }),
             }),
         })
@@ -235,8 +279,54 @@ pub fn render_headless(page: Page<GameSoulId>) -> wire::QueryPage {
     wire::QueryPage {
         rows,
         next_cursor: page.next.as_ref().map(cursor::encode),
-        revision: 0,
         total: page.total as u64,
+    }
+}
+
+/// A page as the session answers it: each row with its soul's values, the page's revision, and
+/// the total. Every row's id was selected from `souls`, so a row without one is a daemon bug,
+/// reported as `internal.page_without_soul` rather than dropped.
+pub fn render_session(
+    page: Page<GameSoulId>,
+    revision: Revision,
+    souls: &BTreeMap<GameSoulId, Soul>,
+) -> Result<wire::SessionQueryPage, crate::wire::Failure> {
+    use wire::session_row::Verdict;
+    let rows = page
+        .rows
+        .into_iter()
+        .map(|row| {
+            let soul = souls.get(&row.id).ok_or_else(|| {
+                crate::wire::Failure::new(
+                    wire::error::Kind::InternalPageWithoutSoul(wire::InternalPageWithoutSoul {
+                        soul_id: row.id.as_str().to_owned(),
+                    }),
+                    "a page row is not among the souls it was selected from",
+                )
+            })?;
+            Ok(wire::SessionRow {
+                soul: Some(crate::wire::soul(row.id.as_str(), soul)),
+                verdict: Some(match row.verdict {
+                    RowVerdict::Exact => Verdict::Exact(wire::ExactVerdict {}),
+                    RowVerdict::Open(rules) => Verdict::Open(wire::OpenVerdict {
+                        rules: rules.iter().map(open_rule).collect(),
+                    }),
+                }),
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(wire::SessionQueryPage {
+        rows,
+        next_cursor: page.next.as_ref().map(cursor::encode),
+        total: page.total as u64,
+        revision: crate::wire::revision(revision),
+    })
+}
+
+fn open_rule(r: OpenRule) -> i32 {
+    match r {
+        OpenRule::Innate => wire::OpenRule::Innate as i32,
+        OpenRule::UnknownConditions => wire::OpenRule::UnknownConditions as i32,
     }
 }
 
@@ -284,9 +374,12 @@ fn too_large(subject: Option<wire::evaluate_query_result::Subject>) -> Vec<u8> {
     let payload = wire::EvaluateQueryResult {
         subject,
         outcome: Some(wire::evaluate_query_result::Outcome::Error(wire::Error {
-            code: "internal.response_too_large".to_owned(),
             message: "the page does not fit a frame".to_owned(),
-            details: Vec::new(),
+            kind: Some(wire::error::Kind::InternalResponseTooLarge(
+                wire::InternalResponseTooLarge {
+                    problem: "the page does not fit a frame".to_owned(),
+                },
+            )),
         })),
     }
     .encode_to_vec();

@@ -13,8 +13,10 @@ class _Pack extends FakePlatform {
   const _Pack();
 
   @override
-  String? localIconPath(String kind, String role, int id) =>
-      kind == 'soul-set' && role == 'emblem' && id == 30 ? '/pack/soul-set/emblem/30.png' : null;
+  String? localIconPath(IconKind kind, IconRole role, int id) =>
+      kind == IconKind.soulSet && role == IconRole.emblem && id == 30
+      ? '/pack/soul-set/emblem/30.png'
+      : null;
 }
 
 void main() {
@@ -25,13 +27,13 @@ void main() {
       overrides: [platformServicesProvider.overrideWithValue(const _Pack() as PlatformServices)],
     );
     await c.read(projectIconsProvider.future);
-    const emblem30 = IconKey(IconKind.soulSet, IconRole.emblem, 30);
+    const emblem30 = IconKey(SoulSetIcon(30), IconRole.emblem);
     expect(
       c.read(iconSourceProvider(emblem30)),
       isA<LocalRasterIcon>().having((i) => i.filePath, 'path', '/pack/soul-set/emblem/30.png'),
     );
     expect(
-      c.read(iconSourceProvider(const IconKey(IconKind.soulSet, IconRole.portrait, 30))),
+      c.read(iconSourceProvider(const IconKey(SoulSetIcon(30), IconRole.portrait))),
       isA<TextMarkIcon>(),
     );
     expect(emblem30.assetPath, 'assets/icons/soul-set/emblem/30.svg');

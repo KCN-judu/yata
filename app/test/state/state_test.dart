@@ -1,4 +1,4 @@
-// The state layer over a fake daemon client: loading, data, and error by code; paging by cursor;
+// The state layer over a fake daemon client: loading, data, and failure by case; paging by cursor;
 // a stale scan restarting; revision-driven refetch; a new session refetching; core status.
 
 import 'dart:async';
@@ -7,7 +7,6 @@ import 'package:fixnum/fixnum.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yata/daemon/daemon_client.dart';
-import 'package:yata/daemon/daemon_error.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
 import 'package:yata/state/core.dart';
 import 'package:yata/state/inventory.dart';
@@ -20,26 +19,48 @@ import '../support/recorded.dart';
 ProviderContainer containerFor(FakeDaemonClient client) =>
     ProviderContainer.test(overrides: fakeOverrides(client), retry: (_, _) => null);
 
-const spec = SoulQuerySpec(profileId: 'fixture', rowBudget: 8);
+const spec = SoulQuerySpec(profileId: fixtureProfile, rowBudget: 8);
+
+/// A client failure of [kind]: its case is its code.
+Matcher raised(pb.ClientFailure_Kind kind) =>
+    isA<RaisedFailure>().having((e) => e.failure.whichKind(), 'kind', kind);
 
 void main() {
   test('profiles load, and the first becomes the selection', () async {
     final c = containerFor(FakeDaemonClient());
     expect(c.read(profilesProvider), isA<AsyncLoading<List<pb.Profile>>>());
     await c.read(profilesProvider.future);
-    expect(c.read(selectedProfileProvider), 'fixture');
-    c.read(selectedProfileProvider.notifier).select('fixture-empty');
-    expect(c.read(soulQuerySpecProvider)?.profileId, 'fixture-empty');
+    expect(c.read(selectedProfileProvider), fixtureProfile);
+    c.read(selectedProfileProvider.notifier).select(emptyProfile);
+    expect(c.read(soulQuerySpecProvider)?.profileId, emptyProfile);
   });
 
-  test('a failed call surfaces as a CoreError carrying the code', () async {
+  test('a failed call surfaces as the typed failure the daemon sent', () async {
     final client = FakeDaemonClient()
-      ..onListProfiles = () async => throw daemonError('query.unknown_profile');
+      ..onListProfiles = () async =>
+          throw refused(pb.Error(queryUnknownProfile: pb.QueryUnknownProfile()));
     final c = containerFor(client);
     c.listen(profilesProvider, (_, _) {});
-    await expectLater(c.read(profilesProvider.future), throwsA(isA<CoreError>()));
+    await expectLater(c.read(profilesProvider.future), throwsA(isA<RequestFailure>()));
     final error = c.read(profilesProvider).error;
-    expect(error, isA<CoreError>().having((e) => e.code, 'code', 'query.unknown_profile'));
+    expect(
+      error,
+      isA<RequestFailure>().having(
+        (e) => e.error.whichKind(),
+        'kind',
+        pb.Error_Kind.queryUnknownProfile,
+      ),
+    );
+  });
+
+  test('anything else thrown becomes client.unexpected, never a raw exception', () async {
+    final client = FakeDaemonClient()..onListProfiles = () async => throw StateError('boom');
+    final c = containerFor(client);
+    c.listen(profilesProvider, (_, _) {});
+    await expectLater(
+      c.read(profilesProvider.future),
+      throwsA(raised(pb.ClientFailure_Kind.clientUnexpected)),
+    );
   });
 
   test('a page loads, turns forward by cursor, and back', () async {
@@ -52,11 +73,11 @@ void main() {
     await c.read(soulPagesProvider(spec).notifier).next();
     final second = c.read(soulPagesProvider(spec)).requireValue;
     expect((second.index, second.firstRow, second.hasMore), (1, 8, false));
-    expect(client.queries.last.page.cursor, recordedFirstPage().nextCursor);
-    expect(client.queries.last.scanRevision, first.revision);
+    expect(client.queries.last.next.cursor, recordedFirstPage().nextCursor);
+    expect(Revision(client.queries.last.next.scan), first.revision);
     await c.read(soulPagesProvider(spec).notifier).previous();
     expect(c.read(soulPagesProvider(spec)).requireValue.index, 0);
-    expect(client.queries.last.page.hasCursor(), isFalse);
+    expect(client.queries.last.hasFirst(), isTrue);
   });
 
   test('a stale scan restarts from the first page', () async {
@@ -64,24 +85,32 @@ void main() {
     final c = containerFor(client);
     c.listen(soulPagesProvider(spec), (_, _) {});
     await c.read(soulPagesProvider(spec).future);
-    client.onQuery = (q) async =>
-        q.page.cursor.isEmpty ? recordedFirstPage() : throw daemonError('query.stale_revision');
+    client.onQuery = (q) async => q.hasFirst()
+        ? recordedFirstPage()
+        : throw refused(pb.Error(queryStaleRevision: pb.QueryStaleRevision()));
     await c.read(soulPagesProvider(spec).notifier).next();
     final restarted = await c.read(soulPagesProvider(spec).future);
     expect(restarted.index, 0);
-    expect(client.queries.map((q) => q.page.cursor.isEmpty), [true, false, true]);
+    expect(client.queries.map((q) => q.hasFirst()), [true, false, true]);
   });
 
-  test('another failed page turn keeps the page and shows the error', () async {
+  test('another failed page turn keeps the page and shows the failure', () async {
     final client = FakeDaemonClient();
     final c = containerFor(client);
     c.listen(soulPagesProvider(spec), (_, _) {});
     await c.read(soulPagesProvider(spec).future);
-    client.onQuery = (_) async => throw daemonError(ClientErrorCode.timeout);
+    client.onQuery = (_) async => throw RaisedFailure.timeout(9, const Duration(seconds: 30));
     await c.read(soulPagesProvider(spec).notifier).next();
     final page = c.read(soulPagesProvider(spec)).requireValue;
     expect(page.index, 0);
-    expect(page.turnError?.code, ClientErrorCode.timeout);
+    expect(
+      page.turn,
+      isA<TurnFailed>().having(
+        (t) => t.failure,
+        'failure',
+        raised(pb.ClientFailure_Kind.clientTimeout),
+      ),
+    );
   });
 
   test('a projection change past the held revision refetches, and one at it does not', () async {
@@ -123,56 +152,66 @@ void main() {
     );
   });
 
-  test('core status follows the client health, with the failure code', () async {
+  test('core status follows the client health, with the failure', () async {
     final client = FakeDaemonClient(health: const DaemonStopped());
     final c = containerFor(client);
     c.listen(coreStatusProvider, (_, _) {});
     expect(c.read(coreStatusProvider), isA<CoreStopped>());
-    client.setHealth(DaemonStarting(attempt: 2, after: daemonError(ClientErrorCode.daemonExited)));
+    client.setHealth(const DaemonStarting());
+    await Future<void>.delayed(Duration.zero);
+    expect(c.read(coreStatusProvider), isA<CoreStarting>());
+    client.setHealth(
+      DaemonRestarting(attempt: 2, cause: RaisedFailure.daemonExited(3, null, asked: false)),
+    );
     await Future<void>.delayed(Duration.zero);
     expect(
       c.read(coreStatusProvider),
-      isA<CoreStarting>().having((s) => s.cause?.code, 'cause', ClientErrorCode.daemonExited),
+      isA<CoreRestarting>()
+          .having((s) => s.attempt, 'attempt', 2)
+          .having((s) => s.cause, 'cause', raised(pb.ClientFailure_Kind.clientDaemonExited)),
     );
-    client.setHealth(DaemonFailed(daemonError('session.protocol_unsupported')));
+    client.setHealth(
+      DaemonFailed(refused(pb.Error(sessionProtocolUnsupported: pb.SessionProtocolUnsupported()))),
+    );
     await Future<void>.delayed(Duration.zero);
     final failed = c.read(coreStatusProvider) as CoreFailed;
-    expect(failed.error.code, 'session.protocol_unsupported');
+    expect(failed.failure.code, 'session.protocol_unsupported');
     expect(failed.log, isNotEmpty);
   });
 
-  test('warnings from the daemon are collected by code', () async {
+  test('warnings from the daemon are collected by kind', () async {
     final client = FakeDaemonClient();
     final c = containerFor(client);
     c.listen(coreWarningsProvider, (_, _) {});
     client.emit(
       pb.Event(
-        warning: pb.Warning(code: 'session.client_outdated', message: 'x'),
+        warning: pb.Warning(message: 'x', clientOutdated: pb.ClientOutdated()),
       ),
     );
     await Future<void>.delayed(Duration.zero);
-    expect(c.read(coreWarningsProvider).single.code, 'session.client_outdated');
+    expect(c.read(coreWarningsProvider).single.warning.whichKind(), pb.Warning_Kind.clientOutdated);
   });
 
-  test('importing a scheme keeps the daemon decode, and a failure keeps its code', () async {
+  test('importing a scheme keeps the daemon decode, and a failure keeps its case', () async {
     final client = FakeDaemonClient();
     final c = containerFor(client);
     c.listen(schemeLibraryProvider, (_, _) {});
     await c.read(schemeLibraryProvider.notifier).importText('ignored by the fake');
     final library = c.read(schemeLibraryProvider);
     expect(library.selected?.decoded.entries.map((e) => e.name), ['spd', 'six']);
-    client.onDecode = (_) async => throw daemonError('decode.unknown_format');
+    client.onDecode = (_) async =>
+        throw refused(pb.Error(decodeUnknownFormat: pb.DecodeUnknownFormat()));
     final outcome = await c.read(schemeLibraryProvider.notifier).importText('x');
     expect(
       outcome,
-      isA<ImportRejected>().having((o) => o.error.code, 'code', 'decode.unknown_format'),
+      isA<ImportRejected>().having((o) => o.failure.code, 'code', 'decode.unknown_format'),
     );
     expect(
       c.read(schemeLibraryProvider).status,
-      isA<ImportFailed>().having((s) => s.error.code, 'code', 'decode.unknown_format'),
+      isA<ImportFailed>().having((s) => s.failure.code, 'code', 'decode.unknown_format'),
     );
     expect(c.read(schemeLibraryProvider).imported, hasLength(1));
-    expect(c.read(generatedSchemesProvider).available, isFalse);
+    expect(c.read(generatedSchemesProvider), isA<GeneratedUnavailable>());
   });
 
   test('an in-flight import is not doubled', () async {

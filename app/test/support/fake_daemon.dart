@@ -6,7 +6,6 @@ import 'dart:async';
 import 'package:fixnum/fixnum.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:yata/daemon/daemon_client.dart';
-import 'package:yata/daemon/daemon_error.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
 import 'package:yata/platform/platform_services.dart';
 import 'package:yata/state/core.dart';
@@ -30,12 +29,12 @@ class FakeDaemonClient implements DaemonClient {
 
   /// Answers; by default the recorded session's.
   Future<pb.ProfileList> Function() onListProfiles = () async => recordedProfiles();
-  Future<pb.QueryPage> Function(pb.Query) onQuery = (q) async =>
-      q.page.hasCursor() ? recordedSecondPage() : recordedFirstPage();
+  Future<pb.SessionQueryPage> Function(pb.SessionQuery) onQuery = (q) async =>
+      q.hasNext() ? recordedSecondPage() : recordedFirstPage();
   Future<pb.SchemeCodeDecoded> Function(pb.DecodeSchemeCode) onDecode = (_) async =>
       recordedScheme();
 
-  final queries = <pb.Query>[];
+  final queries = <pb.SessionQuery>[];
   int profileCalls = 0;
   int restarts = 0;
 
@@ -74,7 +73,7 @@ class FakeDaemonClient implements DaemonClient {
   }
 
   @override
-  Future<pb.QueryPage> query(pb.Query query) {
+  Future<pb.SessionQueryPage> query(pb.SessionQuery query) {
     queries.add(query);
     return onQuery(query);
   }
@@ -83,8 +82,8 @@ class FakeDaemonClient implements DaemonClient {
   Future<pb.SchemeCodeDecoded> decodeSchemeCode(pb.DecodeSchemeCode request) => onDecode(request);
 }
 
-/// A daemon error, as the client would raise it.
-DaemonException daemonError(String code) => DaemonException(code, 'test: $code');
+/// The daemon's refusal of one request, as the client raises it.
+RequestFailure refused(pb.Error error) => RequestFailure(error..message = 'test refusal');
 
 class FakePlatform implements PlatformServices {
   const FakePlatform({this.fixture = false});
@@ -92,13 +91,13 @@ class FakePlatform implements PlatformServices {
   final bool fixture;
 
   @override
-  DaemonLocation locateDaemon() => const DaemonLocation(path: null, searched: []);
+  DaemonLocation locateDaemon() => const DaemonNotFound(searched: []);
 
   @override
   bool get serveFixture => fixture;
 
   @override
-  String? localIconPath(String kind, String role, int id) => null;
+  String? localIconPath(IconKind kind, IconRole role, int id) => null;
 
   @override
   Future<Never> pickPngImage() => throw UnimplementedError();

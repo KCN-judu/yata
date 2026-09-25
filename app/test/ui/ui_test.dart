@@ -1,5 +1,5 @@
 // Presentation and interaction over a fake daemon client (ADR-0012, "Tests"): navigation, the
-// inventory's data, empty, and error states, the core banner, and scheme import with its QR code.
+// inventory's data, empty, and failure states, the core banner, and scheme import with its QR code.
 // Nothing here asserts a score; the application has none.
 
 import 'dart:async';
@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yata/daemon/daemon_client.dart';
-import 'package:yata/daemon/daemon_error.dart';
+import 'package:yata/state/core.dart';
 import 'package:yata/gen/l10n/app_localizations.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
 import 'package:yata/ui/app.dart';
@@ -65,7 +65,7 @@ void main() {
   });
 
   testWidgets('a profile with no souls says so', (tester) async {
-    final client = FakeDaemonClient()..onQuery = (_) async => pb.QueryPage();
+    final client = FakeDaemonClient()..onQuery = (_) async => pb.SessionQueryPage();
     await pumpApp(tester, client);
     expect(find.text(l.inventoryEmptyTitle), findsOneWidget);
   });
@@ -77,33 +77,36 @@ void main() {
     expect(find.text(l.statusNoProfile), findsOneWidget);
   });
 
-  testWidgets('a failed query shows the text for its code and a retry', (tester) async {
+  testWidgets('a failed query shows the cause and remedy of its code, and a retry', (tester) async {
     final client = FakeDaemonClient()
-      ..onQuery = (_) async => throw daemonError('query.unknown_profile');
+      ..onQuery = (_) async =>
+          throw refused(pb.Error(queryUnknownProfile: pb.QueryUnknownProfile()));
     await pumpApp(tester, client);
-    expect(find.text(l.errorUnknownProfile), findsOneWidget);
+    expect(find.text(l.causeUnknownProfile), findsOneWidget);
+    expect(find.text(l.remedyUnknownProfile), findsOneWidget);
     client.onQuery = (q) async => recordedFirstPage();
     await tester.tap(find.text(l.actionRetry));
     await tester.pumpAndSettle();
-    expect(find.text(l.errorUnknownProfile), findsNothing);
+    expect(find.text(l.causeUnknownProfile), findsNothing);
     expect(find.text(l.inventoryPageRange(1, 8)), findsOneWidget);
   });
 
-  testWidgets('an unmapped code shows the generic text with the code visible', (tester) async {
+  testWidgets('a code this build does not know shows the generic text and its tag', (tester) async {
+    // Field 999 of Error: a oneof case from a newer daemon.
     final client = FakeDaemonClient()
-      ..onQuery = (_) async => throw daemonError('query.something_new');
+      ..onQuery = (_) async => throw refused(pb.Error.fromBuffer([0xba, 0x3e, 0x00]));
     await pumpApp(tester, client);
-    expect(find.text(l.errorUnknown), findsOneWidget);
-    expect(find.text(l.labelErrorCode('query.something_new')), findsOneWidget);
+    expect(find.text(l.causeUnknown), findsOneWidget);
+    expect(find.text(l.labelErrorCode('unknown (tag 999)')), findsOneWidget);
   });
 
   testWidgets('a failed core shows the banner, and retry restarts it', (tester) async {
     final client = FakeDaemonClient(
-      health: DaemonFailed(DaemonException(ClientErrorCode.daemonNotFound, 'looked nowhere')),
-    )..onListProfiles = () async => throw daemonError(ClientErrorCode.daemonNotFound);
+      health: DaemonFailed(RaisedFailure.daemonNotFound(const ['nowhere'])),
+    )..onListProfiles = () async => throw RaisedFailure.daemonNotFound(const ['nowhere']);
     await pumpApp(tester, client);
     expect(find.text(l.bannerCoreFailed), findsOneWidget);
-    expect(find.text(l.errorDaemonNotFound), findsWidgets);
+    expect(find.text(l.causeDaemonNotFound), findsWidgets);
     expect(find.text(l.statusCoreFailed), findsOneWidget);
     await tester.tap(find.text(l.actionRetry).first);
     await tester.pumpAndSettle();
@@ -113,7 +116,9 @@ void main() {
   testWidgets('a restarting core keeps the data and says why', (tester) async {
     final client = FakeDaemonClient();
     await pumpApp(tester, client);
-    client.setHealth(DaemonStarting(attempt: 2, after: daemonError(ClientErrorCode.daemonExited)));
+    client.setHealth(
+      DaemonRestarting(attempt: 2, cause: RaisedFailure.daemonExited(3, null, asked: false)),
+    );
     await tester.pumpAndSettle();
     expect(find.textContaining(l.bannerCoreRestarting), findsOneWidget);
     expect(find.text(l.inventoryPageRange(1, 8)), findsOneWidget);
@@ -171,13 +176,15 @@ void main() {
 
   testWidgets('a scheme that does not decode shows why', (tester) async {
     final client = FakeDaemonClient()
-      ..onDecode = (_) async => throw daemonError('decode.malformed_text');
+      ..onDecode = (_) async =>
+          throw refused(pb.Error(decodeMalformedText: pb.DecodeMalformedText()));
     await pumpApp(tester, client);
     await tester.tap(find.text(l.navSchemes));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'not a code');
     await tester.tap(find.text(l.actionImportText));
     await tester.pumpAndSettle();
-    expect(find.text(l.errorDecodeMalformedText), findsOneWidget);
+    expect(find.text(l.causeDecodeMalformedText), findsOneWidget);
+    expect(find.text(l.remedyDecodeMalformedText), findsOneWidget);
   });
 }

@@ -16,7 +16,6 @@ use yata_protocol::core as pb;
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
 
 use self::session::{Next, Session};
-use crate::wire::{self, Failure};
 
 /// Why a session ended other than by `Shutdown` or the client closing its end cleanly.
 #[derive(Debug)]
@@ -86,14 +85,33 @@ fn write_message(output: &mut impl Write, m: &pb::ServerMessage) -> Result<(), S
 
 /// Tell the client the session failed, as far as the output still works, and pass the error on.
 fn fail(output: &mut impl Write, e: ServeError) -> ServeError {
-    let failure = match &e {
-        ServeError::Frame(f) => Failure::new("session.malformed_frame", format!("{f:?}")),
-        ServeError::NotAMessage(d) => Failure::new("session.malformed_message", d.to_string()),
-        ServeError::Io(io) => Failure::new("internal.io", io.to_string()),
+    use pb::session_failed::Kind;
+    let (kind, message) = match &e {
+        ServeError::Frame(f) => (
+            Kind::SessionMalformedFrame(pb::SessionMalformedFrame {
+                problem: format!("{f:?}"),
+            }),
+            "the input broke the framing",
+        ),
+        ServeError::NotAMessage(d) => (
+            Kind::SessionMalformedMessage(pb::SessionMalformedMessage {
+                problem: d.to_string(),
+            }),
+            "a frame's payload is not a ClientMessage",
+        ),
+        ServeError::Io(io) => (
+            Kind::InternalIo(pb::InternalIo {
+                problem: io.to_string(),
+            }),
+            "reading or writing the session failed",
+        ),
     };
     let event = pb::ServerMessage {
         kind: Some(pb::server_message::Kind::Event(pb::Event {
-            kind: Some(pb::event::Kind::SessionFailed(wire::error(&failure))),
+            kind: Some(pb::event::Kind::SessionFailure(pb::SessionFailed {
+                message: message.to_owned(),
+                kind: Some(kind),
+            })),
         })),
     };
     // Best effort: the session is ending either way, and the error returned is the one to report.

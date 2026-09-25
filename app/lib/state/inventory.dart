@@ -1,9 +1,9 @@
 /// The soul inventory as pages of the daemon's query (`core-protocol.md`, "Queries and pages").
 ///
 /// One page is held at a time, so the Flutter heap is never the inventory store (ADR-0004, rule
-/// 12). Moving forward sends the previous page's cursor and the scan's revision; a scan whose
-/// revision went stale restarts from the first page, as the protocol requires. The order and the
-/// selection are the daemon's: nothing here sorts or filters a row.
+/// 12). A later page sends the previous page's cursor with the revision its scan began at; a scan
+/// whose revision went stale restarts from the first page, as the protocol requires. The order and
+/// the selection are the daemon's: nothing here sorts or filters a row.
 library;
 
 import 'package:fixnum/fixnum.dart';
@@ -14,14 +14,14 @@ import 'core.dart';
 import 'profiles.dart';
 
 /// Everything a soul query is keyed by. The filter pane and the sort control attach here: when
-/// the schema carries `query.md`'s filter and sort, they become fields of this key and are sent
-/// as query parameters, so a changed filter is a new provider, never a list operation in Dart.
+/// they exist, they become fields of this key and are sent in the query, so a changed filter is a
+/// new provider, never a list operation in Dart.
 final class SoulQuerySpec {
   const SoulQuerySpec({required this.profileId, this.rowBudget = defaultRowBudget});
 
   static const defaultRowBudget = 200;
 
-  final String profileId;
+  final ProfileId profileId;
   final int rowBudget;
 
   @override
@@ -38,69 +38,117 @@ final soulQuerySpecProvider = Provider<SoulQuerySpec?>((ref) {
   return profile == null ? null : SoulQuerySpec(profileId: profile);
 });
 
-/// One page of a scan.
+/// Which page of a scan a query asks for.
+sealed class QueryPosition {
+  const QueryPosition();
+}
+
+final class FirstPosition extends QueryPosition {
+  const FirstPosition();
+}
+
+/// The page after the one whose [cursor] this is, in the scan that began at [scan].
+final class NextPosition extends QueryPosition {
+  const NextPosition(this.cursor, this.scan);
+
+  final List<int> cursor;
+  final Revision scan;
+}
+
+/// Where a page of the scan begins: how to ask for it again, and its first row's position.
+final class PageAnchor {
+  const PageAnchor(this.position, this.firstRow);
+
+  final QueryPosition position;
+
+  /// The zero-based position of the page's first row within the scan.
+  final int firstRow;
+}
+
+/// The page turn in progress, or how the last one ended.
+sealed class TurnState {
+  const TurnState();
+}
+
+final class TurnSettled extends TurnState {
+  const TurnSettled();
+}
+
+final class Turning extends TurnState {
+  const Turning({required this.forward});
+
+  final bool forward;
+}
+
+/// The last turn failed; this page stays shown beside the failure.
+final class TurnFailed extends TurnState {
+  const TurnFailed(this.failure);
+
+  final CoreFailure failure;
+}
+
+/// One page of a scan, with the way back to every page before it.
 final class SoulPage {
   const SoulPage({
     required this.rows,
     required this.total,
     required this.revision,
-    required this.index,
-    required this.firstRow,
-    required this.hasMore,
-    this.turning = false,
-    this.turnError,
+    required this.anchors,
+    required this.next,
+    this.turn = const TurnSettled(),
   });
 
-  /// The rows as the daemon returned them: each soul's values and its verdict, exact or open
-  /// (ADR-0026).
-  final List<pb.QueryRow> rows;
+  /// The rows as the daemon returned them: each soul with its verdict, exact or open (ADR-0026).
+  final List<pb.SessionRow> rows;
 
   List<pb.Soul> get souls => [for (final r in rows) r.soul];
 
-  /// Every row the query selects, across all pages.
+  /// Every row the query keeps, across all pages.
   final Int64 total;
 
   /// The revision the scan is valid at.
-  final Int64 revision;
+  final Revision revision;
 
-  /// Zero-based page number within the scan.
-  final int index;
+  /// This page's anchor and those of the pages before it, first page first. Never empty.
+  final List<PageAnchor> anchors;
 
-  /// The zero-based position of the page's first row within the scan.
-  final int firstRow;
-  final bool hasMore;
+  /// The cursor of the page after this one; `null` on the last page.
+  final List<int>? next;
 
-  /// A neighbouring page is being fetched; this one stays shown meanwhile.
-  final bool turning;
+  final TurnState turn;
 
-  /// Why the last page turn failed, shown beside this page.
-  final CoreError? turnError;
+  int get index => anchors.length - 1;
+  int get firstRow => anchors.last.firstRow;
+  bool get hasMore => next != null;
+  bool get hasPrevious => anchors.length > 1;
+  bool get turning => turn is Turning;
 
-  bool get hasPrevious => index > 0;
-
-  SoulPage copyWith({bool? turning, CoreError? turnError}) => SoulPage(
+  SoulPage withTurn(TurnState turn) => SoulPage(
     rows: rows,
     total: total,
     revision: revision,
-    index: index,
-    firstRow: firstRow,
-    hasMore: hasMore,
-    turning: turning ?? this.turning,
-    turnError: turnError,
+    anchors: anchors,
+    next: next,
+    turn: turn,
   );
 }
 
-/// The query for one page of [spec]. Only non-default scalars are set, so the bytes match the
-/// Rust encoder's (see `clientProtocolVersion`).
-pb.Query soulQuery(SoulQuerySpec spec, {List<int> cursor = const [], Int64? scan}) {
-  final page = pb.PageRequest(rowBudget: spec.rowBudget);
-  if (cursor.isNotEmpty) page.cursor = cursor;
-  final query = pb.Query(
-    profileId: spec.profileId,
-    collection: pb.Collection.COLLECTION_SOULS,
-    page: page,
+/// The session query for one page of [spec]. Each field follows `clientProtocolVersion`'s encoding
+/// rule, so the bytes match the Rust encoder's.
+pb.SessionQuery soulQuery(SoulQuerySpec spec, QueryPosition position) {
+  final query = pb.SessionQuery(
+    profileId: spec.profileId.hex,
+    query: pb.Query(collection: pb.Collection.COLLECTION_SOULS),
+    rowBudget: spec.rowBudget,
   );
-  if (scan != null) query.scanRevision = scan;
+  switch (position) {
+    case FirstPosition():
+      query.first = pb.FirstPage();
+    case NextPosition(:final cursor, :final scan):
+      final next = pb.NextPage(cursor: cursor);
+      if (scan.seq != Int64.ZERO) next.scan = scan.seq;
+      query.next = next;
+  }
   return query;
 }
 
@@ -109,39 +157,29 @@ class SoulPages extends AsyncNotifier<SoulPage> {
 
   final SoulQuerySpec spec;
 
-  /// The cursor that fetches page `i` is `_cursors[i]`; page 0's is empty.
-  final List<List<int>> _cursors = [];
-  final List<int> _firstRows = [];
-  List<int> _nextCursor = const [];
-
   @override
   Future<SoulPage> build() async {
     ref.watch(sessionEpochProvider);
     ref.listen(projectionRevisionProvider, (_, held) {
       final page = state.value;
-      if (page != null && page.revision < held) ref.invalidateSelf();
+      if (page != null && isStale(page.revision, held)) ref.invalidateSelf();
     });
-    _cursors
-      ..clear()
-      ..add(const []);
-    _firstRows
-      ..clear()
-      ..add(0);
-    return _fetch(0, scan: null);
+    return _fetch(const [PageAnchor(FirstPosition(), 0)]);
   }
 
-  Future<SoulPage> _fetch(int index, {required Int64? scan}) async {
-    final query = soulQuery(spec, cursor: _cursors[index], scan: scan);
-    final r = await coreCall(ref.read(daemonClientProvider).query(query));
-    ref.read(projectionRevisionProvider.notifier).observe(r.revision);
-    _nextCursor = r.hasNextCursor() ? r.nextCursor : const [];
+  /// The page the last of [anchors] names.
+  Future<SoulPage> _fetch(List<PageAnchor> anchors) async {
+    final r = await coreCall(
+      () => ref.read(daemonClientProvider).query(soulQuery(spec, anchors.last.position)),
+    );
+    final revision = Revision(r.revision);
+    if (ref.mounted) ref.read(projectionRevisionProvider.notifier).observe(revision);
     return SoulPage(
       rows: r.rows,
       total: r.total,
-      revision: r.revision,
-      index: index,
-      firstRow: _firstRows[index],
-      hasMore: r.hasNextCursor(),
+      revision: revision,
+      anchors: List.unmodifiable(anchors),
+      next: r.hasNextCursor() ? r.nextCursor : null,
     );
   }
 
@@ -152,22 +190,32 @@ class SoulPages extends AsyncNotifier<SoulPage> {
   Future<void> _turn({required bool forward}) async {
     final page = state.value;
     if (page == null || page.turning) return;
-    if (forward ? !page.hasMore : !page.hasPrevious) return;
-    final index = forward ? page.index + 1 : page.index - 1;
-    if (forward && _cursors.length == index) {
-      _cursors.add(_nextCursor);
-      _firstRows.add(page.firstRow + page.souls.length);
+    final List<PageAnchor> anchors;
+    if (forward) {
+      final cursor = page.next;
+      if (cursor == null) return;
+      anchors = [
+        ...page.anchors,
+        PageAnchor(NextPosition(cursor, page.revision), page.firstRow + page.rows.length),
+      ];
+    } else {
+      if (!page.hasPrevious) return;
+      anchors = page.anchors.sublist(0, page.anchors.length - 1);
     }
-    state = AsyncData(page.copyWith(turning: true));
+    state = AsyncData(page.withTurn(Turning(forward: forward)));
     try {
-      state = AsyncData(await _fetch(index, scan: page.revision));
-    } on CoreError catch (e) {
-      if (e.code == 'query.stale_revision') {
+      final turned = await _fetch(anchors);
+      if (ref.mounted) state = AsyncData(turned);
+    } on CoreFailure catch (e) {
+      if (!ref.mounted) return;
+      if (e case RequestFailure(
+        :final error,
+      ) when error.whichKind() == pb.Error_Kind.queryStaleRevision) {
         // The projection moved under the scan: start it again from the first page.
         ref.invalidateSelf();
         return;
       }
-      state = AsyncData(page.copyWith(turnError: e));
+      state = AsyncData(page.withTurn(TurnFailed(e)));
     }
   }
 }

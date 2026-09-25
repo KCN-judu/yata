@@ -41,16 +41,6 @@ pub enum LoadError {
     Fold(FoldError),
 }
 
-impl LoadError {
-    pub fn code(&self) -> &'static str {
-        match self {
-            LoadError::Store(_) => "store.failure",
-            LoadError::Fact(e) => e.code(),
-            LoadError::Fold(_) => "store.invalid_log",
-        }
-    }
-}
-
 /// What a command did (`core-protocol.md`, § Commands). A command maps to at most one commit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandOutcome {
@@ -73,17 +63,6 @@ pub enum CommitError {
     Store(Failure),
 }
 
-impl CommitError {
-    pub fn code(&self) -> &'static str {
-        match self {
-            CommitError::Refused(FoldError::ProfileMismatch { .. }) => "import.profile_mismatch",
-            CommitError::Refused(_) => "command.refused",
-            CommitError::Encode(_) => "command.too_large",
-            CommitError::LogFull | CommitError::Store(_) => "store.failure",
-        }
-    }
-}
-
 /// Why a reading could not be imported. Nothing was written.
 #[derive(Debug, Clone, PartialEq)]
 pub enum IngestError {
@@ -93,17 +72,6 @@ pub enum IngestError {
     Refused(AdmissionError),
     Blob(BlobError),
     Commit(CommitError),
-}
-
-impl IngestError {
-    pub fn code(&self) -> &'static str {
-        match self {
-            IngestError::Convert(_) => "import.malformed_reading",
-            IngestError::Refused(e) => e.code(),
-            IngestError::Blob(_) => "import.reading_too_large",
-            IngestError::Commit(e) => e.code(),
-        }
-    }
 }
 
 /// Why an inventory could not be derived. Each is a damaged or inconsistent store.
@@ -396,6 +364,8 @@ fn hex(bytes: &[u8]) -> String {
 mod tests {
     use std::path::PathBuf;
 
+    use crate::wire::Code as _;
+
     use yata_core::fact::{GameSoulId, Mark};
 
     use super::*;
@@ -514,7 +484,7 @@ mod tests {
         let e = log
             .ingest(P, &reading(), provenance(), Origin::Job { job_id: 1 }, 0)
             .expect_err("seq 2 is taken");
-        assert_eq!(e.code(), "store.failure");
+        assert_eq!(crate::wire::ingest_failure(&e).code(), "store.failure");
         assert_eq!(log.projection(), &before);
         let digest = store_digest(&blob::digest_of(&blob_of(&reading())));
         assert_eq!(log.store.apply(GetBlob { digest }), Ok(None));
@@ -556,7 +526,10 @@ mod tests {
             })
             .expect("append");
         let e = FactLog::open(store).err().expect("refused");
-        assert_eq!(e.code(), "store.malformed_commit");
+        assert_eq!(
+            crate::wire::load_failure(&e).code(),
+            "store.malformed_commit"
+        );
         assert_eq!(
             e,
             LoadError::Fact(FactError::Malformed {
@@ -587,7 +560,7 @@ mod tests {
             })
             .expect("append");
         let e = FactLog::open(store).err().expect("refused");
-        assert_eq!(e.code(), "store.invalid_log");
+        assert_eq!(crate::wire::load_failure(&e).code(), "store.invalid_log");
     }
 
     #[test]

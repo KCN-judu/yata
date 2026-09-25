@@ -24,9 +24,9 @@ class IoPlatformServices implements PlatformServices {
       if (!kReleaseMode) ..._workingCopyBuilds(),
     ];
     for (final c in candidates) {
-      if (File(c).existsSync()) return DaemonLocation(path: c, searched: candidates);
+      if (File(c).existsSync()) return DaemonFound(c, searched: candidates);
     }
-    return DaemonLocation(path: null, searched: candidates);
+    return DaemonNotFound(searched: candidates);
   }
 
   /// `target/debug` and `target/release` in the current directory and its ancestors.
@@ -48,10 +48,10 @@ class IoPlatformServices implements PlatformServices {
       const bool.fromEnvironment('YATA_FIXTURE') || Platform.environment['YATA_FIXTURE'] == '1';
 
   @override
-  String? localIconPath(String kind, String role, int id) {
+  String? localIconPath(IconKind kind, IconRole role, int id) {
     final pack = Platform.environment['YATA_LOCAL_ICONS'];
     if (pack == null || pack.isEmpty) return null;
-    final path = [pack, kind, role, '$id.png'].join(Platform.pathSeparator);
+    final path = [pack, kind.folder, role.folder, '$id.png'].join(Platform.pathSeparator);
     return File(path).existsSync() ? path : null;
   }
 

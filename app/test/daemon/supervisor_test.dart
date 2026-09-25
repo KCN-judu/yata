@@ -5,7 +5,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yata/daemon/daemon_client.dart';
-import 'package:yata/daemon/daemon_error.dart';
+import 'package:yata/daemon/failure.dart';
 import 'package:yata/daemon/transport.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
 
@@ -19,6 +19,10 @@ SupervisedDaemon supervise(DaemonLauncher launch) => SupervisedDaemon(
 
 Future<T> nextHealth<T extends DaemonHealth>(DaemonClient d) =>
     d.healthChanges.firstWhere((h) => h is T).then((h) => h as T);
+
+/// A client failure of [kind]: its case is its code.
+Matcher raised(pb.ClientFailure_Kind kind) =>
+    isA<RaisedFailure>().having((e) => e.failure.whichKind(), 'kind', kind);
 
 void main() {
   test('a daemon that answers opens a session', () async {
@@ -37,27 +41,27 @@ void main() {
   });
 
   test('a missing executable fails at once, and requests fail with it', () async {
-    final d = supervise(
-      () async => throw DaemonException(ClientErrorCode.daemonNotFound, 'nowhere'),
-    );
+    final d = supervise(() async => throw RaisedFailure.daemonNotFound(const ['nowhere']));
     await d.start();
     expect(
       d.health,
-      isA<DaemonFailed>().having((h) => h.error.code, 'code', ClientErrorCode.daemonNotFound),
+      isA<DaemonFailed>().having(
+        (h) => h.failure,
+        'failure',
+        raised(pb.ClientFailure_Kind.clientDaemonNotFound),
+      ),
     );
     await expectLater(
       d.listProfiles(),
-      throwsA(isA<DaemonException>().having((e) => e.code, 'code', ClientErrorCode.daemonNotFound)),
+      throwsA(raised(pb.ClientFailure_Kind.clientDaemonNotFound)),
     );
   });
 
   test('a request before start starts the daemon and fails with the real cause', () async {
-    final d = supervise(
-      () async => throw DaemonException(ClientErrorCode.daemonNotFound, 'nowhere'),
-    );
+    final d = supervise(() async => throw RaisedFailure.daemonNotFound(const ['nowhere']));
     await expectLater(
       d.listProfiles(),
-      throwsA(isA<DaemonException>().having((e) => e.code, 'code', ClientErrorCode.daemonNotFound)),
+      throwsA(raised(pb.ClientFailure_Kind.clientDaemonNotFound)),
     );
     expect(d.health, isA<DaemonFailed>());
   });
@@ -70,10 +74,7 @@ void main() {
     });
     await d.start();
     await d.shutdown();
-    await expectLater(
-      d.listProfiles(),
-      throwsA(isA<DaemonException>().having((e) => e.code, 'code', ClientErrorCode.notConnected)),
-    );
+    await expectLater(d.listProfiles(), throwsA(raised(pb.ClientFailure_Kind.clientNotConnected)));
     expect(launches, 1);
   });
 
@@ -81,12 +82,16 @@ void main() {
     var launches = 0;
     final d = supervise(() async {
       launches++;
-      return MemoryTransport((r) => [errorResponse(r, 'session.protocol_unsupported')]);
+      return MemoryTransport(
+        (r) => [
+          errorResponse(r, pb.Error(sessionProtocolUnsupported: pb.SessionProtocolUnsupported())),
+        ],
+      );
     });
     await d.start();
     expect(
       d.health,
-      isA<DaemonFailed>().having((h) => h.error.code, 'code', 'session.protocol_unsupported'),
+      isA<DaemonFailed>().having((h) => h.failure.code, 'code', 'session.protocol_unsupported'),
     );
     expect(launches, 1);
   });
@@ -97,8 +102,12 @@ void main() {
       () async => transports.last = (transports..add(MemoryTransport(daemonThat()))).last,
     );
     await d.start();
+    final restarting = nextHealth<DaemonRestarting>(d);
     final restarted = nextHealth<DaemonReady>(d);
     transports.first.exit(3);
+    final cause = (await restarting).cause;
+    expect(cause, raised(pb.ClientFailure_Kind.clientDaemonExited));
+    expect((cause as RaisedFailure).failure.clientDaemonExited.exitCode, 3);
     final ready = await restarted;
     expect(ready.restarted, isTrue);
     expect(ready.session, 2);
@@ -115,7 +124,7 @@ void main() {
       return t;
     });
     await d.start();
-    final starting = nextHealth<DaemonStarting>(d);
+    final starting = nextHealth<DaemonRestarting>(d);
     transports.first.exit(3);
     await starting;
     final answer = d.listProfiles();
@@ -134,7 +143,7 @@ void main() {
     final failed = nextHealth<DaemonFailed>(d);
     await d.start();
     final h = await failed.timeout(const Duration(seconds: 5));
-    expect(h.error.code, ClientErrorCode.daemonExited);
+    expect(h.failure, raised(pb.ClientFailure_Kind.clientDaemonExited));
     await d.restart();
     expect(d.health, isNot(isA<DaemonStopped>()));
   });

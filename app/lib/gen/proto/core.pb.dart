@@ -90,88 +90,6 @@ class ProtocolVersion extends $pb.GeneratedMessage {
   void clearMinor() => $_clearField(2);
 }
 
-/// Every failure (core-protocol.md, "Errors"). `code` is the contract; `message` is English and
-/// never parsed.
-class Error extends $pb.GeneratedMessage {
-  factory Error({
-    $core.String? code,
-    $core.String? message,
-    $core.List<$core.int>? details,
-  }) {
-    final result = Error._();
-    if (code != null) result.code = code;
-    if (message != null) result.message = message;
-    if (details != null) result.details = details;
-    return result;
-  }
-
-  Error._();
-
-  factory Error.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      Error()..mergeFromBuffer(data, registry);
-  factory Error.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      Error()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Error',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: Error.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'code')
-    ..aOS(2, _omitFieldNames ? '' : 'message')
-    ..a<$core.List<$core.int>>(
-        3, _omitFieldNames ? '' : 'details', $pb.PbFieldType.OY)
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Error clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Error copyWith(void Function(Error) updates) =>
-      super.copyWith((message) => updates(message as Error)) as Error;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  @$core.Deprecated('Use Error() / Error.new instead')
-  static Error create() => Error._();
-  static $pb.GeneratedMessage $_createMessage() => Error._();
-  @$core.override
-  Error createEmptyInstance() => Error._();
-  @$core.pragma('dart2js:noInline')
-  static Error getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<Error>(Error.$_createMessage);
-  static Error? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get code => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set code($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasCode() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearCode() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.String get message => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set message($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasMessage() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearMessage() => $_clearField(2);
-
-  @$pb.TagNumber(3)
-  $core.List<$core.int> get details => $_getN(2);
-  @$pb.TagNumber(3)
-  set details($core.List<$core.int> value) => $_setBytes(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasDetails() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearDetails() => $_clearField(3);
-}
-
 enum Soul_Kind { ordinary, boss, notSet }
 
 /// A soul in domain terms, not the game's record: the set by suit code, values in display units.
@@ -2160,18 +2078,12 @@ class Query extends $pb.GeneratedMessage {
     Expr? filter,
     $core.Iterable<SortKey>? sort,
     ParamSetRef? params,
-    PageRequest? page,
-    $core.String? profileId,
-    $fixnum.Int64? scanRevision,
   }) {
     final result = Query._();
     if (collection != null) result.collection = collection;
     if (filter != null) result.filter = filter;
     if (sort != null) result.sort.addAll(sort);
     if (params != null) result.params = params;
-    if (page != null) result.page = page;
-    if (profileId != null) result.profileId = profileId;
-    if (scanRevision != null) result.scanRevision = scanRevision;
     return result;
   }
 
@@ -2196,12 +2108,6 @@ class Query extends $pb.GeneratedMessage {
         subBuilder: SortKey.$_createMessage)
     ..aOM<ParamSetRef>(4, _omitFieldNames ? '' : 'params',
         subBuilder: ParamSetRef.$_createMessage)
-    ..aOM<PageRequest>(5, _omitFieldNames ? '' : 'page',
-        subBuilder: PageRequest.$_createMessage)
-    ..aOS(6, _omitFieldNames ? '' : 'profileId')
-    ..a<$fixnum.Int64>(
-        7, _omitFieldNames ? '' : 'scanRevision', $pb.PbFieldType.OU6,
-        defaultOrMaker: $fixnum.Int64.ZERO)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2259,39 +2165,6 @@ class Query extends $pb.GeneratedMessage {
   void clearParams() => $_clearField(4);
   @$pb.TagNumber(4)
   ParamSetRef ensureParams() => $_ensure(3);
-
-  @$pb.TagNumber(5)
-  PageRequest get page => $_getN(4);
-  @$pb.TagNumber(5)
-  set page(PageRequest value) => $_setField(5, value);
-  @$pb.TagNumber(5)
-  $core.bool hasPage() => $_has(4);
-  @$pb.TagNumber(5)
-  void clearPage() => $_clearField(5);
-  @$pb.TagNumber(5)
-  PageRequest ensurePage() => $_ensure(4);
-
-  /// The session only (`ClientMessage.query`): the profile the rows come from. The headless
-  /// endpoint supplies its own inventory and ignores it.
-  @$pb.TagNumber(6)
-  $core.String get profileId => $_getSZ(5);
-  @$pb.TagNumber(6)
-  set profileId($core.String value) => $_setString(5, value);
-  @$pb.TagNumber(6)
-  $core.bool hasProfileId() => $_has(5);
-  @$pb.TagNumber(6)
-  void clearProfileId() => $_clearField(6);
-
-  /// The session only: absent on a scan's first page; every later page repeats the revision the
-  /// first page was valid at, and is refused with `query.stale_revision` if the projection moved.
-  @$pb.TagNumber(7)
-  $fixnum.Int64 get scanRevision => $_getI64(6);
-  @$pb.TagNumber(7)
-  set scanRevision($fixnum.Int64 value) => $_setInt64(6, value);
-  @$pb.TagNumber(7)
-  $core.bool hasScanRevision() => $_has(6);
-  @$pb.TagNumber(7)
-  void clearScanRevision() => $_clearField(7);
 }
 
 /// The row is in the game's selection however the open rules are settled (ADR-0026).
@@ -2396,13 +2269,11 @@ enum QueryRow_Verdict { exact, open, notSet }
 class QueryRow extends $pb.GeneratedMessage {
   factory QueryRow({
     $core.String? soulId,
-    Soul? soul,
     ExactVerdict? exact,
     OpenVerdict? open,
   }) {
     final result = QueryRow._();
     if (soulId != null) result.soulId = soulId;
-    if (soul != null) result.soul = soul;
     if (exact != null) result.exact = exact;
     if (open != null) result.open = open;
     return result;
@@ -2428,8 +2299,6 @@ class QueryRow extends $pb.GeneratedMessage {
       createEmptyInstance: QueryRow.$_createMessage)
     ..oo(0, [4, 5])
     ..aOS(1, _omitFieldNames ? '' : 'soulId')
-    ..aOM<Soul>(3, _omitFieldNames ? '' : 'soul',
-        subBuilder: Soul.$_createMessage)
     ..aOM<ExactVerdict>(4, _omitFieldNames ? '' : 'exact',
         subBuilder: ExactVerdict.$_createMessage)
     ..aOM<OpenVerdict>(5, _omitFieldNames ? '' : 'open',
@@ -2472,52 +2341,37 @@ class QueryRow extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearSoulId() => $_clearField(1);
 
-  /// The session only: the row's values, so the application shows what the daemon holds without a
-  /// second request. The headless endpoint leaves it absent; its caller supplied the souls.
-  @$pb.TagNumber(3)
-  Soul get soul => $_getN(1);
-  @$pb.TagNumber(3)
-  set soul(Soul value) => $_setField(3, value);
-  @$pb.TagNumber(3)
-  $core.bool hasSoul() => $_has(1);
-  @$pb.TagNumber(3)
-  void clearSoul() => $_clearField(3);
-  @$pb.TagNumber(3)
-  Soul ensureSoul() => $_ensure(1);
-
   @$pb.TagNumber(4)
-  ExactVerdict get exact => $_getN(2);
+  ExactVerdict get exact => $_getN(1);
   @$pb.TagNumber(4)
   set exact(ExactVerdict value) => $_setField(4, value);
   @$pb.TagNumber(4)
-  $core.bool hasExact() => $_has(2);
+  $core.bool hasExact() => $_has(1);
   @$pb.TagNumber(4)
   void clearExact() => $_clearField(4);
   @$pb.TagNumber(4)
-  ExactVerdict ensureExact() => $_ensure(2);
+  ExactVerdict ensureExact() => $_ensure(1);
 
   @$pb.TagNumber(5)
-  OpenVerdict get open => $_getN(3);
+  OpenVerdict get open => $_getN(2);
   @$pb.TagNumber(5)
   set open(OpenVerdict value) => $_setField(5, value);
   @$pb.TagNumber(5)
-  $core.bool hasOpen() => $_has(3);
+  $core.bool hasOpen() => $_has(2);
   @$pb.TagNumber(5)
   void clearOpen() => $_clearField(5);
   @$pb.TagNumber(5)
-  OpenVerdict ensureOpen() => $_ensure(3);
+  OpenVerdict ensureOpen() => $_ensure(2);
 }
 
 class QueryPage extends $pb.GeneratedMessage {
   factory QueryPage({
     $core.Iterable<QueryRow>? rows,
-    $fixnum.Int64? revision,
     $fixnum.Int64? total,
     $core.List<$core.int>? nextCursor,
   }) {
     final result = QueryPage._();
     if (rows != null) result.rows.addAll(rows);
-    if (revision != null) result.revision = revision;
     if (total != null) result.total = total;
     if (nextCursor != null) result.nextCursor = nextCursor;
     return result;
@@ -2538,9 +2392,6 @@ class QueryPage extends $pb.GeneratedMessage {
       createEmptyInstance: QueryPage.$_createMessage)
     ..pPM<QueryRow>(1, _omitFieldNames ? '' : 'rows',
         subBuilder: QueryRow.$_createMessage)
-    ..a<$fixnum.Int64>(
-        4, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
-        defaultOrMaker: $fixnum.Int64.ZERO)
     ..a<$fixnum.Int64>(5, _omitFieldNames ? '' : 'total', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..a<$core.List<$core.int>>(
@@ -2570,34 +2421,24 @@ class QueryPage extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   $pb.PbList<QueryRow> get rows => $_getList(0);
 
-  /// The revision the page is valid at; zero from the headless endpoint, which has no projection.
-  @$pb.TagNumber(4)
-  $fixnum.Int64 get revision => $_getI64(1);
-  @$pb.TagNumber(4)
-  set revision($fixnum.Int64 value) => $_setInt64(1, value);
-  @$pb.TagNumber(4)
-  $core.bool hasRevision() => $_has(1);
-  @$pb.TagNumber(4)
-  void clearRevision() => $_clearField(4);
-
   /// Every row the query keeps, exact or open, across all pages.
   @$pb.TagNumber(5)
-  $fixnum.Int64 get total => $_getI64(2);
+  $fixnum.Int64 get total => $_getI64(1);
   @$pb.TagNumber(5)
-  set total($fixnum.Int64 value) => $_setInt64(2, value);
+  set total($fixnum.Int64 value) => $_setInt64(1, value);
   @$pb.TagNumber(5)
-  $core.bool hasTotal() => $_has(2);
+  $core.bool hasTotal() => $_has(1);
   @$pb.TagNumber(5)
   void clearTotal() => $_clearField(5);
 
   /// Present when more rows follow: the cursor of the next page. Opaque: sent back unmodified,
   /// never parsed.
   @$pb.TagNumber(6)
-  $core.List<$core.int> get nextCursor => $_getN(3);
+  $core.List<$core.int> get nextCursor => $_getN(2);
   @$pb.TagNumber(6)
-  set nextCursor($core.List<$core.int> value) => $_setBytes(3, value);
+  set nextCursor($core.List<$core.int> value) => $_setBytes(2, value);
   @$pb.TagNumber(6)
-  $core.bool hasNextCursor() => $_has(3);
+  $core.bool hasNextCursor() => $_has(2);
   @$pb.TagNumber(6)
   void clearNextCursor() => $_clearField(6);
 }
@@ -2610,12 +2451,14 @@ class EvaluateQuery extends $pb.GeneratedMessage {
     ProtocolVersion? protocolVersion,
     $core.Iterable<Soul>? inventory,
     Query? query,
+    PageRequest? page,
   }) {
     final result = EvaluateQuery._();
     if (id != null) result.id = id;
     if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (inventory != null) result.inventory.addAll(inventory);
     if (query != null) result.query = query;
+    if (page != null) result.page = page;
     return result;
   }
 
@@ -2640,6 +2483,8 @@ class EvaluateQuery extends $pb.GeneratedMessage {
         subBuilder: Soul.$_createMessage)
     ..aOM<Query>(4, _omitFieldNames ? '' : 'query',
         subBuilder: Query.$_createMessage)
+    ..aOM<PageRequest>(5, _omitFieldNames ? '' : 'page',
+        subBuilder: PageRequest.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2698,6 +2543,17 @@ class EvaluateQuery extends $pb.GeneratedMessage {
   void clearQuery() => $_clearField(4);
   @$pb.TagNumber(4)
   Query ensureQuery() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  PageRequest get page => $_getN(4);
+  @$pb.TagNumber(5)
+  set page(PageRequest value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasPage() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearPage() => $_clearField(5);
+  @$pb.TagNumber(5)
+  PageRequest ensurePage() => $_ensure(4);
 }
 
 /// A request frame that is not an `EvaluateQuery`, so no id can be answered.
@@ -2885,32 +2741,30 @@ enum ClientMessage_Kind {
   shutdown,
   subscribe,
   listProfiles,
-  query,
   decodeSchemeCode,
+  sessionQuery,
   notSet
 }
 
 /// Client to daemon: one request per frame.
 class ClientMessage extends $pb.GeneratedMessage {
   factory ClientMessage({
-    ProtocolVersion? protocolVersion,
     $fixnum.Int64? id,
     OpenSession? openSession,
     Shutdown? shutdown,
     Subscribe? subscribe,
     ListProfiles? listProfiles,
-    Query? query,
     DecodeSchemeCode? decodeSchemeCode,
+    SessionQuery? sessionQuery,
   }) {
     final result = ClientMessage._();
-    if (protocolVersion != null) result.protocolVersion = protocolVersion;
     if (id != null) result.id = id;
     if (openSession != null) result.openSession = openSession;
     if (shutdown != null) result.shutdown = shutdown;
     if (subscribe != null) result.subscribe = subscribe;
     if (listProfiles != null) result.listProfiles = listProfiles;
-    if (query != null) result.query = query;
     if (decodeSchemeCode != null) result.decodeSchemeCode = decodeSchemeCode;
+    if (sessionQuery != null) result.sessionQuery = sessionQuery;
     return result;
   }
 
@@ -2929,17 +2783,15 @@ class ClientMessage extends $pb.GeneratedMessage {
     11: ClientMessage_Kind.shutdown,
     12: ClientMessage_Kind.subscribe,
     20: ClientMessage_Kind.listProfiles,
-    21: ClientMessage_Kind.query,
     22: ClientMessage_Kind.decodeSchemeCode,
+    23: ClientMessage_Kind.sessionQuery,
     0: ClientMessage_Kind.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'ClientMessage',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: ClientMessage.$_createMessage)
-    ..oo(0, [10, 11, 12, 20, 21, 22])
-    ..aOM<ProtocolVersion>(1, _omitFieldNames ? '' : 'protocolVersion',
-        subBuilder: ProtocolVersion.$_createMessage)
+    ..oo(0, [10, 11, 12, 20, 22, 23])
     ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'id', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<OpenSession>(10, _omitFieldNames ? '' : 'openSession',
@@ -2950,10 +2802,10 @@ class ClientMessage extends $pb.GeneratedMessage {
         subBuilder: Subscribe.$_createMessage)
     ..aOM<ListProfiles>(20, _omitFieldNames ? '' : 'listProfiles',
         subBuilder: ListProfiles.$_createMessage)
-    ..aOM<Query>(21, _omitFieldNames ? '' : 'query',
-        subBuilder: Query.$_createMessage)
     ..aOM<DecodeSchemeCode>(22, _omitFieldNames ? '' : 'decodeSchemeCode',
         subBuilder: DecodeSchemeCode.$_createMessage)
+    ..aOM<SessionQuery>(23, _omitFieldNames ? '' : 'sessionQuery',
+        subBuilder: SessionQuery.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2982,106 +2834,93 @@ class ClientMessage extends $pb.GeneratedMessage {
   @$pb.TagNumber(11)
   @$pb.TagNumber(12)
   @$pb.TagNumber(20)
-  @$pb.TagNumber(21)
   @$pb.TagNumber(22)
+  @$pb.TagNumber(23)
   ClientMessage_Kind whichKind() => _ClientMessage_KindByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
   @$pb.TagNumber(11)
   @$pb.TagNumber(12)
   @$pb.TagNumber(20)
-  @$pb.TagNumber(21)
   @$pb.TagNumber(22)
+  @$pb.TagNumber(23)
   void clearKind() => $_clearField($_whichOneof(0));
-
-  /// The protocol version the client was built against. Compared at `OpenSession`.
-  @$pb.TagNumber(1)
-  ProtocolVersion get protocolVersion => $_getN(0);
-  @$pb.TagNumber(1)
-  set protocolVersion(ProtocolVersion value) => $_setField(1, value);
-  @$pb.TagNumber(1)
-  $core.bool hasProtocolVersion() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearProtocolVersion() => $_clearField(1);
-  @$pb.TagNumber(1)
-  ProtocolVersion ensureProtocolVersion() => $_ensure(0);
 
   /// Chosen by the client, unique within the session, never reused. Never zero.
   @$pb.TagNumber(2)
-  $fixnum.Int64 get id => $_getI64(1);
+  $fixnum.Int64 get id => $_getI64(0);
   @$pb.TagNumber(2)
-  set id($fixnum.Int64 value) => $_setInt64(1, value);
+  set id($fixnum.Int64 value) => $_setInt64(0, value);
   @$pb.TagNumber(2)
-  $core.bool hasId() => $_has(1);
+  $core.bool hasId() => $_has(0);
   @$pb.TagNumber(2)
   void clearId() => $_clearField(2);
 
   @$pb.TagNumber(10)
-  OpenSession get openSession => $_getN(2);
+  OpenSession get openSession => $_getN(1);
   @$pb.TagNumber(10)
   set openSession(OpenSession value) => $_setField(10, value);
   @$pb.TagNumber(10)
-  $core.bool hasOpenSession() => $_has(2);
+  $core.bool hasOpenSession() => $_has(1);
   @$pb.TagNumber(10)
   void clearOpenSession() => $_clearField(10);
   @$pb.TagNumber(10)
-  OpenSession ensureOpenSession() => $_ensure(2);
+  OpenSession ensureOpenSession() => $_ensure(1);
 
   @$pb.TagNumber(11)
-  Shutdown get shutdown => $_getN(3);
+  Shutdown get shutdown => $_getN(2);
   @$pb.TagNumber(11)
   set shutdown(Shutdown value) => $_setField(11, value);
   @$pb.TagNumber(11)
-  $core.bool hasShutdown() => $_has(3);
+  $core.bool hasShutdown() => $_has(2);
   @$pb.TagNumber(11)
   void clearShutdown() => $_clearField(11);
   @$pb.TagNumber(11)
-  Shutdown ensureShutdown() => $_ensure(3);
+  Shutdown ensureShutdown() => $_ensure(2);
 
   @$pb.TagNumber(12)
-  Subscribe get subscribe => $_getN(4);
+  Subscribe get subscribe => $_getN(3);
   @$pb.TagNumber(12)
   set subscribe(Subscribe value) => $_setField(12, value);
   @$pb.TagNumber(12)
-  $core.bool hasSubscribe() => $_has(4);
+  $core.bool hasSubscribe() => $_has(3);
   @$pb.TagNumber(12)
   void clearSubscribe() => $_clearField(12);
   @$pb.TagNumber(12)
-  Subscribe ensureSubscribe() => $_ensure(4);
+  Subscribe ensureSubscribe() => $_ensure(3);
 
   /// Queries.
   @$pb.TagNumber(20)
-  ListProfiles get listProfiles => $_getN(5);
+  ListProfiles get listProfiles => $_getN(4);
   @$pb.TagNumber(20)
   set listProfiles(ListProfiles value) => $_setField(20, value);
   @$pb.TagNumber(20)
-  $core.bool hasListProfiles() => $_has(5);
+  $core.bool hasListProfiles() => $_has(4);
   @$pb.TagNumber(20)
   void clearListProfiles() => $_clearField(20);
   @$pb.TagNumber(20)
-  ListProfiles ensureListProfiles() => $_ensure(5);
-
-  /// Carries `profile_id`, and `scan_revision` after the first page.
-  @$pb.TagNumber(21)
-  Query get query => $_getN(6);
-  @$pb.TagNumber(21)
-  set query(Query value) => $_setField(21, value);
-  @$pb.TagNumber(21)
-  $core.bool hasQuery() => $_has(6);
-  @$pb.TagNumber(21)
-  void clearQuery() => $_clearField(21);
-  @$pb.TagNumber(21)
-  Query ensureQuery() => $_ensure(6);
+  ListProfiles ensureListProfiles() => $_ensure(4);
 
   @$pb.TagNumber(22)
-  DecodeSchemeCode get decodeSchemeCode => $_getN(7);
+  DecodeSchemeCode get decodeSchemeCode => $_getN(5);
   @$pb.TagNumber(22)
   set decodeSchemeCode(DecodeSchemeCode value) => $_setField(22, value);
   @$pb.TagNumber(22)
-  $core.bool hasDecodeSchemeCode() => $_has(7);
+  $core.bool hasDecodeSchemeCode() => $_has(5);
   @$pb.TagNumber(22)
   void clearDecodeSchemeCode() => $_clearField(22);
   @$pb.TagNumber(22)
-  DecodeSchemeCode ensureDecodeSchemeCode() => $_ensure(7);
+  DecodeSchemeCode ensureDecodeSchemeCode() => $_ensure(5);
+
+  @$pb.TagNumber(23)
+  SessionQuery get sessionQuery => $_getN(6);
+  @$pb.TagNumber(23)
+  set sessionQuery(SessionQuery value) => $_setField(23, value);
+  @$pb.TagNumber(23)
+  $core.bool hasSessionQuery() => $_has(6);
+  @$pb.TagNumber(23)
+  void clearSessionQuery() => $_clearField(23);
+  @$pb.TagNumber(23)
+  SessionQuery ensureSessionQuery() => $_ensure(6);
 }
 
 enum ServerMessage_Kind { response, event, notSet }
@@ -3182,8 +3021,8 @@ enum Response_Result {
   shutdownAccepted,
   subscribed,
   profileList,
-  queryPage,
   schemeCodeDecoded,
+  sessionQueryPage,
   notSet
 }
 
@@ -3196,8 +3035,8 @@ class Response extends $pb.GeneratedMessage {
     ShutdownAccepted? shutdownAccepted,
     Subscribed? subscribed,
     ProfileList? profileList,
-    QueryPage? queryPage,
     SchemeCodeDecoded? schemeCodeDecoded,
+    SessionQueryPage? sessionQueryPage,
   }) {
     final result = Response._();
     if (id != null) result.id = id;
@@ -3206,8 +3045,8 @@ class Response extends $pb.GeneratedMessage {
     if (shutdownAccepted != null) result.shutdownAccepted = shutdownAccepted;
     if (subscribed != null) result.subscribed = subscribed;
     if (profileList != null) result.profileList = profileList;
-    if (queryPage != null) result.queryPage = queryPage;
     if (schemeCodeDecoded != null) result.schemeCodeDecoded = schemeCodeDecoded;
+    if (sessionQueryPage != null) result.sessionQueryPage = sessionQueryPage;
     return result;
   }
 
@@ -3226,15 +3065,15 @@ class Response extends $pb.GeneratedMessage {
     11: Response_Result.shutdownAccepted,
     12: Response_Result.subscribed,
     20: Response_Result.profileList,
-    21: Response_Result.queryPage,
     22: Response_Result.schemeCodeDecoded,
+    23: Response_Result.sessionQueryPage,
     0: Response_Result.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Response',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: Response.$_createMessage)
-    ..oo(0, [2, 10, 11, 12, 20, 21, 22])
+    ..oo(0, [2, 10, 11, 12, 20, 22, 23])
     ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'id', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<Error>(2, _omitFieldNames ? '' : 'error',
@@ -3247,10 +3086,10 @@ class Response extends $pb.GeneratedMessage {
         subBuilder: Subscribed.$_createMessage)
     ..aOM<ProfileList>(20, _omitFieldNames ? '' : 'profileList',
         subBuilder: ProfileList.$_createMessage)
-    ..aOM<QueryPage>(21, _omitFieldNames ? '' : 'queryPage',
-        subBuilder: QueryPage.$_createMessage)
     ..aOM<SchemeCodeDecoded>(22, _omitFieldNames ? '' : 'schemeCodeDecoded',
         subBuilder: SchemeCodeDecoded.$_createMessage)
+    ..aOM<SessionQueryPage>(23, _omitFieldNames ? '' : 'sessionQueryPage',
+        subBuilder: SessionQueryPage.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3278,16 +3117,16 @@ class Response extends $pb.GeneratedMessage {
   @$pb.TagNumber(11)
   @$pb.TagNumber(12)
   @$pb.TagNumber(20)
-  @$pb.TagNumber(21)
   @$pb.TagNumber(22)
+  @$pb.TagNumber(23)
   Response_Result whichResult() => _Response_ResultByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(2)
   @$pb.TagNumber(10)
   @$pb.TagNumber(11)
   @$pb.TagNumber(12)
   @$pb.TagNumber(20)
-  @$pb.TagNumber(21)
   @$pb.TagNumber(22)
+  @$pb.TagNumber(23)
   void clearResult() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -3354,43 +3193,42 @@ class Response extends $pb.GeneratedMessage {
   @$pb.TagNumber(20)
   ProfileList ensureProfileList() => $_ensure(5);
 
-  /// Every row carries `soul`, and the page its `revision` and `total`.
-  @$pb.TagNumber(21)
-  QueryPage get queryPage => $_getN(6);
-  @$pb.TagNumber(21)
-  set queryPage(QueryPage value) => $_setField(21, value);
-  @$pb.TagNumber(21)
-  $core.bool hasQueryPage() => $_has(6);
-  @$pb.TagNumber(21)
-  void clearQueryPage() => $_clearField(21);
-  @$pb.TagNumber(21)
-  QueryPage ensureQueryPage() => $_ensure(6);
-
   @$pb.TagNumber(22)
-  SchemeCodeDecoded get schemeCodeDecoded => $_getN(7);
+  SchemeCodeDecoded get schemeCodeDecoded => $_getN(6);
   @$pb.TagNumber(22)
   set schemeCodeDecoded(SchemeCodeDecoded value) => $_setField(22, value);
   @$pb.TagNumber(22)
-  $core.bool hasSchemeCodeDecoded() => $_has(7);
+  $core.bool hasSchemeCodeDecoded() => $_has(6);
   @$pb.TagNumber(22)
   void clearSchemeCodeDecoded() => $_clearField(22);
   @$pb.TagNumber(22)
-  SchemeCodeDecoded ensureSchemeCodeDecoded() => $_ensure(7);
+  SchemeCodeDecoded ensureSchemeCodeDecoded() => $_ensure(6);
+
+  @$pb.TagNumber(23)
+  SessionQueryPage get sessionQueryPage => $_getN(7);
+  @$pb.TagNumber(23)
+  set sessionQueryPage(SessionQueryPage value) => $_setField(23, value);
+  @$pb.TagNumber(23)
+  $core.bool hasSessionQueryPage() => $_has(7);
+  @$pb.TagNumber(23)
+  void clearSessionQueryPage() => $_clearField(23);
+  @$pb.TagNumber(23)
+  SessionQueryPage ensureSessionQueryPage() => $_ensure(7);
 }
 
-enum Event_Kind { projectionChanged, warning, sessionFailed, notSet }
+enum Event_Kind { projectionChanged, warning, sessionFailure, notSet }
 
 /// Not a response: something the client did not ask for.
 class Event extends $pb.GeneratedMessage {
   factory Event({
     ProjectionChanged? projectionChanged,
     Warning? warning,
-    Error? sessionFailed,
+    SessionFailed? sessionFailure,
   }) {
     final result = Event._();
     if (projectionChanged != null) result.projectionChanged = projectionChanged;
     if (warning != null) result.warning = warning;
-    if (sessionFailed != null) result.sessionFailed = sessionFailed;
+    if (sessionFailure != null) result.sessionFailure = sessionFailure;
     return result;
   }
 
@@ -3406,20 +3244,20 @@ class Event extends $pb.GeneratedMessage {
   static const $core.Map<$core.int, Event_Kind> _Event_KindByTag = {
     1: Event_Kind.projectionChanged,
     2: Event_Kind.warning,
-    3: Event_Kind.sessionFailed,
+    4: Event_Kind.sessionFailure,
     0: Event_Kind.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Event',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: Event.$_createMessage)
-    ..oo(0, [1, 2, 3])
+    ..oo(0, [1, 2, 4])
     ..aOM<ProjectionChanged>(1, _omitFieldNames ? '' : 'projectionChanged',
         subBuilder: ProjectionChanged.$_createMessage)
     ..aOM<Warning>(2, _omitFieldNames ? '' : 'warning',
         subBuilder: Warning.$_createMessage)
-    ..aOM<Error>(3, _omitFieldNames ? '' : 'sessionFailed',
-        subBuilder: Error.$_createMessage)
+    ..aOM<SessionFailed>(4, _omitFieldNames ? '' : 'sessionFailure',
+        subBuilder: SessionFailed.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3444,11 +3282,11 @@ class Event extends $pb.GeneratedMessage {
 
   @$pb.TagNumber(1)
   @$pb.TagNumber(2)
-  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
   Event_Kind whichKind() => _Event_KindByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(1)
   @$pb.TagNumber(2)
-  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
   void clearKind() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(1)
@@ -3473,91 +3311,28 @@ class Event extends $pb.GeneratedMessage {
   @$pb.TagNumber(2)
   Warning ensureWarning() => $_ensure(1);
 
-  /// The session cannot continue, and the daemon exits after sending it: a frame that does not
-  /// decode, or a payload that is not a `ClientMessage`. No request id is known for it.
-  @$pb.TagNumber(3)
-  Error get sessionFailed => $_getN(2);
-  @$pb.TagNumber(3)
-  set sessionFailed(Error value) => $_setField(3, value);
-  @$pb.TagNumber(3)
-  $core.bool hasSessionFailed() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearSessionFailed() => $_clearField(3);
-  @$pb.TagNumber(3)
-  Error ensureSessionFailed() => $_ensure(2);
-}
-
-/// Surfaced to the user; changes no state and advances no revision.
-class Warning extends $pb.GeneratedMessage {
-  factory Warning({
-    $core.String? code,
-    $core.String? message,
-  }) {
-    final result = Warning._();
-    if (code != null) result.code = code;
-    if (message != null) result.message = message;
-    return result;
-  }
-
-  Warning._();
-
-  factory Warning.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      Warning()..mergeFromBuffer(data, registry);
-  factory Warning.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      Warning()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'Warning',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: Warning.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'code')
-    ..aOS(2, _omitFieldNames ? '' : 'message')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Warning clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  Warning copyWith(void Function(Warning) updates) =>
-      super.copyWith((message) => updates(message as Warning)) as Warning;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  @$core.Deprecated('Use Warning() / Warning.new instead')
-  static Warning create() => Warning._();
-  static $pb.GeneratedMessage $_createMessage() => Warning._();
-  @$core.override
-  Warning createEmptyInstance() => Warning._();
-  @$core.pragma('dart2js:noInline')
-  static Warning getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<Warning>(Warning.$_createMessage);
-  static Warning? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get code => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set code($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasCode() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearCode() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $core.String get message => $_getSZ(1);
-  @$pb.TagNumber(2)
-  set message($core.String value) => $_setString(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasMessage() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearMessage() => $_clearField(2);
+  /// The session cannot continue, and the daemon exits after sending it.
+  @$pb.TagNumber(4)
+  SessionFailed get sessionFailure => $_getN(2);
+  @$pb.TagNumber(4)
+  set sessionFailure(SessionFailed value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasSessionFailure() => $_has(2);
+  @$pb.TagNumber(4)
+  void clearSessionFailure() => $_clearField(4);
+  @$pb.TagNumber(4)
+  SessionFailed ensureSessionFailure() => $_ensure(2);
 }
 
 /// The first request of a session. Anything before it is refused with `session.not_open`.
 class OpenSession extends $pb.GeneratedMessage {
-  factory OpenSession() => OpenSession._();
+  factory OpenSession({
+    ProtocolVersion? clientVersion,
+  }) {
+    final result = OpenSession._();
+    if (clientVersion != null) result.clientVersion = clientVersion;
+    return result;
+  }
 
   OpenSession._();
 
@@ -3572,6 +3347,8 @@ class OpenSession extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'OpenSession',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: OpenSession.$_createMessage)
+    ..aOM<ProtocolVersion>(1, _omitFieldNames ? '' : 'clientVersion',
+        subBuilder: ProtocolVersion.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3595,6 +3372,18 @@ class OpenSession extends $pb.GeneratedMessage {
       _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<OpenSession>(
           OpenSession.$_createMessage);
   static OpenSession? _defaultInstance;
+
+  /// The protocol version the client was built against; absent is refused.
+  @$pb.TagNumber(1)
+  ProtocolVersion get clientVersion => $_getN(0);
+  @$pb.TagNumber(1)
+  set clientVersion(ProtocolVersion value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasClientVersion() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearClientVersion() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ProtocolVersion ensureClientVersion() => $_ensure(0);
 }
 
 class SessionOpened extends $pb.GeneratedMessage {
@@ -3661,7 +3450,8 @@ class SessionOpened extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   ProtocolVersion ensureDaemonVersion() => $_ensure(0);
 
-  /// The projection's revision when the session opened.
+  /// The projection's revision when the session opened: the `seq` of the last commit, 0 for the
+  /// empty log (a real revision, not "none").
   @$pb.TagNumber(2)
   $fixnum.Int64 get revision => $_getI64(1);
   @$pb.TagNumber(2)
@@ -4085,7 +3875,7 @@ class Profile extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<Profile>(Profile.$_createMessage);
   static Profile? _defaultInstance;
 
-  /// Opaque; sent back unmodified.
+  /// The profile's id: 32 lowercase hex digits, its 16 bytes. Sent back unmodified.
   @$pb.TagNumber(1)
   $core.String get id => $_getSZ(0);
   @$pb.TagNumber(1)
@@ -4104,6 +3894,452 @@ class Profile extends $pb.GeneratedMessage {
   $core.bool hasName() => $_has(1);
   @$pb.TagNumber(2)
   void clearName() => $_clearField(2);
+}
+
+enum SessionQuery_Position { first, next, notSet }
+
+/// A query over one profile's souls. A later page carries the cursor and the revision its scan
+/// began at together, so a cursor never travels without its scan.
+class SessionQuery extends $pb.GeneratedMessage {
+  factory SessionQuery({
+    $core.String? profileId,
+    Query? query,
+    $core.int? rowBudget,
+    FirstPage? first,
+    NextPage? next,
+  }) {
+    final result = SessionQuery._();
+    if (profileId != null) result.profileId = profileId;
+    if (query != null) result.query = query;
+    if (rowBudget != null) result.rowBudget = rowBudget;
+    if (first != null) result.first = first;
+    if (next != null) result.next = next;
+    return result;
+  }
+
+  SessionQuery._();
+
+  factory SessionQuery.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionQuery()..mergeFromBuffer(data, registry);
+  factory SessionQuery.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionQuery()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, SessionQuery_Position>
+      _SessionQuery_PositionByTag = {
+    4: SessionQuery_Position.first,
+    5: SessionQuery_Position.next,
+    0: SessionQuery_Position.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionQuery',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionQuery.$_createMessage)
+    ..oo(0, [4, 5])
+    ..aOS(1, _omitFieldNames ? '' : 'profileId')
+    ..aOM<Query>(2, _omitFieldNames ? '' : 'query',
+        subBuilder: Query.$_createMessage)
+    ..aI(3, _omitFieldNames ? '' : 'rowBudget', fieldType: $pb.PbFieldType.OU3)
+    ..aOM<FirstPage>(4, _omitFieldNames ? '' : 'first',
+        subBuilder: FirstPage.$_createMessage)
+    ..aOM<NextPage>(5, _omitFieldNames ? '' : 'next',
+        subBuilder: NextPage.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionQuery clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionQuery copyWith(void Function(SessionQuery) updates) =>
+      super.copyWith((message) => updates(message as SessionQuery))
+          as SessionQuery;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SessionQuery() / SessionQuery.new instead')
+  static SessionQuery create() => SessionQuery._();
+  static $pb.GeneratedMessage $_createMessage() => SessionQuery._();
+  @$core.override
+  SessionQuery createEmptyInstance() => SessionQuery._();
+  @$core.pragma('dart2js:noInline')
+  static SessionQuery getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SessionQuery>(
+          SessionQuery.$_createMessage);
+  static SessionQuery? _defaultInstance;
+
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  SessionQuery_Position whichPosition() =>
+      _SessionQuery_PositionByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  void clearPosition() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(1)
+  $core.String get profileId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set profileId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProfileId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProfileId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  Query get query => $_getN(1);
+  @$pb.TagNumber(2)
+  set query(Query value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasQuery() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearQuery() => $_clearField(2);
+  @$pb.TagNumber(2)
+  Query ensureQuery() => $_ensure(1);
+
+  /// Absent: the daemon's default. 1 to 10 000.
+  @$pb.TagNumber(3)
+  $core.int get rowBudget => $_getIZ(2);
+  @$pb.TagNumber(3)
+  set rowBudget($core.int value) => $_setUnsignedInt32(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasRowBudget() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearRowBudget() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  FirstPage get first => $_getN(3);
+  @$pb.TagNumber(4)
+  set first(FirstPage value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasFirst() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearFirst() => $_clearField(4);
+  @$pb.TagNumber(4)
+  FirstPage ensureFirst() => $_ensure(3);
+
+  @$pb.TagNumber(5)
+  NextPage get next => $_getN(4);
+  @$pb.TagNumber(5)
+  set next(NextPage value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasNext() => $_has(4);
+  @$pb.TagNumber(5)
+  void clearNext() => $_clearField(5);
+  @$pb.TagNumber(5)
+  NextPage ensureNext() => $_ensure(4);
+}
+
+class FirstPage extends $pb.GeneratedMessage {
+  factory FirstPage() => FirstPage._();
+
+  FirstPage._();
+
+  factory FirstPage.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FirstPage()..mergeFromBuffer(data, registry);
+  factory FirstPage.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      FirstPage()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'FirstPage',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: FirstPage.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FirstPage clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  FirstPage copyWith(void Function(FirstPage) updates) =>
+      super.copyWith((message) => updates(message as FirstPage)) as FirstPage;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use FirstPage() / FirstPage.new instead')
+  static FirstPage create() => FirstPage._();
+  static $pb.GeneratedMessage $_createMessage() => FirstPage._();
+  @$core.override
+  FirstPage createEmptyInstance() => FirstPage._();
+  @$core.pragma('dart2js:noInline')
+  static FirstPage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<FirstPage>(FirstPage.$_createMessage);
+  static FirstPage? _defaultInstance;
+}
+
+class NextPage extends $pb.GeneratedMessage {
+  factory NextPage({
+    $core.List<$core.int>? cursor,
+    $fixnum.Int64? scan,
+  }) {
+    final result = NextPage._();
+    if (cursor != null) result.cursor = cursor;
+    if (scan != null) result.scan = scan;
+    return result;
+  }
+
+  NextPage._();
+
+  factory NextPage.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NextPage()..mergeFromBuffer(data, registry);
+  factory NextPage.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NextPage()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NextPage',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: NextPage.$_createMessage)
+    ..a<$core.List<$core.int>>(
+        1, _omitFieldNames ? '' : 'cursor', $pb.PbFieldType.OY)
+    ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'scan', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NextPage clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NextPage copyWith(void Function(NextPage) updates) =>
+      super.copyWith((message) => updates(message as NextPage)) as NextPage;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use NextPage() / NextPage.new instead')
+  static NextPage create() => NextPage._();
+  static $pb.GeneratedMessage $_createMessage() => NextPage._();
+  @$core.override
+  NextPage createEmptyInstance() => NextPage._();
+  @$core.pragma('dart2js:noInline')
+  static NextPage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<NextPage>(NextPage.$_createMessage);
+  static NextPage? _defaultInstance;
+
+  /// A cursor a page of this scan returned, unmodified; never empty.
+  @$pb.TagNumber(1)
+  $core.List<$core.int> get cursor => $_getN(0);
+  @$pb.TagNumber(1)
+  set cursor($core.List<$core.int> value) => $_setBytes(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCursor() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCursor() => $_clearField(1);
+
+  /// The revision the scan's first page was valid at. Refused with `query.stale_revision` when
+  /// the projection has moved.
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get scan => $_getI64(1);
+  @$pb.TagNumber(2)
+  set scan($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasScan() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearScan() => $_clearField(2);
+}
+
+class SessionQueryPage extends $pb.GeneratedMessage {
+  factory SessionQueryPage({
+    $core.Iterable<SessionRow>? rows,
+    $core.List<$core.int>? nextCursor,
+    $fixnum.Int64? total,
+    $fixnum.Int64? revision,
+  }) {
+    final result = SessionQueryPage._();
+    if (rows != null) result.rows.addAll(rows);
+    if (nextCursor != null) result.nextCursor = nextCursor;
+    if (total != null) result.total = total;
+    if (revision != null) result.revision = revision;
+    return result;
+  }
+
+  SessionQueryPage._();
+
+  factory SessionQueryPage.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionQueryPage()..mergeFromBuffer(data, registry);
+  factory SessionQueryPage.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionQueryPage()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionQueryPage',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionQueryPage.$_createMessage)
+    ..pPM<SessionRow>(1, _omitFieldNames ? '' : 'rows',
+        subBuilder: SessionRow.$_createMessage)
+    ..a<$core.List<$core.int>>(
+        2, _omitFieldNames ? '' : 'nextCursor', $pb.PbFieldType.OY)
+    ..a<$fixnum.Int64>(3, _omitFieldNames ? '' : 'total', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        4, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionQueryPage clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionQueryPage copyWith(void Function(SessionQueryPage) updates) =>
+      super.copyWith((message) => updates(message as SessionQueryPage))
+          as SessionQueryPage;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SessionQueryPage() / SessionQueryPage.new instead')
+  static SessionQueryPage create() => SessionQueryPage._();
+  static $pb.GeneratedMessage $_createMessage() => SessionQueryPage._();
+  @$core.override
+  SessionQueryPage createEmptyInstance() => SessionQueryPage._();
+  @$core.pragma('dart2js:noInline')
+  static SessionQueryPage getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SessionQueryPage>(
+          SessionQueryPage.$_createMessage);
+  static SessionQueryPage? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<SessionRow> get rows => $_getList(0);
+
+  /// Present when more rows follow.
+  @$pb.TagNumber(2)
+  $core.List<$core.int> get nextCursor => $_getN(1);
+  @$pb.TagNumber(2)
+  set nextCursor($core.List<$core.int> value) => $_setBytes(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasNextCursor() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearNextCursor() => $_clearField(2);
+
+  /// Every row the query keeps, exact or open, across all pages.
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get total => $_getI64(2);
+  @$pb.TagNumber(3)
+  set total($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasTotal() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearTotal() => $_clearField(3);
+
+  /// The revision the page is valid at.
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get revision => $_getI64(3);
+  @$pb.TagNumber(4)
+  set revision($fixnum.Int64 value) => $_setInt64(3, value);
+  @$pb.TagNumber(4)
+  $core.bool hasRevision() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearRevision() => $_clearField(4);
+}
+
+enum SessionRow_Verdict { exact, open, notSet }
+
+/// A row with the values the application shows: the soul, and the query's verdict on it.
+class SessionRow extends $pb.GeneratedMessage {
+  factory SessionRow({
+    Soul? soul,
+    ExactVerdict? exact,
+    OpenVerdict? open,
+  }) {
+    final result = SessionRow._();
+    if (soul != null) result.soul = soul;
+    if (exact != null) result.exact = exact;
+    if (open != null) result.open = open;
+    return result;
+  }
+
+  SessionRow._();
+
+  factory SessionRow.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionRow()..mergeFromBuffer(data, registry);
+  factory SessionRow.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionRow()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, SessionRow_Verdict>
+      _SessionRow_VerdictByTag = {
+    2: SessionRow_Verdict.exact,
+    3: SessionRow_Verdict.open,
+    0: SessionRow_Verdict.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionRow',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionRow.$_createMessage)
+    ..oo(0, [2, 3])
+    ..aOM<Soul>(1, _omitFieldNames ? '' : 'soul',
+        subBuilder: Soul.$_createMessage)
+    ..aOM<ExactVerdict>(2, _omitFieldNames ? '' : 'exact',
+        subBuilder: ExactVerdict.$_createMessage)
+    ..aOM<OpenVerdict>(3, _omitFieldNames ? '' : 'open',
+        subBuilder: OpenVerdict.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionRow clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionRow copyWith(void Function(SessionRow) updates) =>
+      super.copyWith((message) => updates(message as SessionRow)) as SessionRow;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SessionRow() / SessionRow.new instead')
+  static SessionRow create() => SessionRow._();
+  static $pb.GeneratedMessage $_createMessage() => SessionRow._();
+  @$core.override
+  SessionRow createEmptyInstance() => SessionRow._();
+  @$core.pragma('dart2js:noInline')
+  static SessionRow getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SessionRow>(SessionRow.$_createMessage);
+  static SessionRow? _defaultInstance;
+
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  SessionRow_Verdict whichVerdict() =>
+      _SessionRow_VerdictByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  void clearVerdict() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(1)
+  Soul get soul => $_getN(0);
+  @$pb.TagNumber(1)
+  set soul(Soul value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSoul() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSoul() => $_clearField(1);
+  @$pb.TagNumber(1)
+  Soul ensureSoul() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  ExactVerdict get exact => $_getN(1);
+  @$pb.TagNumber(2)
+  set exact(ExactVerdict value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasExact() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearExact() => $_clearField(2);
+  @$pb.TagNumber(2)
+  ExactVerdict ensureExact() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  OpenVerdict get open => $_getN(2);
+  @$pb.TagNumber(3)
+  set open(OpenVerdict value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasOpen() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearOpen() => $_clearField(3);
+  @$pb.TagNumber(3)
+  OpenVerdict ensureOpen() => $_ensure(2);
 }
 
 enum DecodeSchemeCode_Source { text, png, notSet }
@@ -4505,6 +4741,4682 @@ class QrMatrix extends $pb.GeneratedMessage {
   $core.bool hasModules() => $_has(1);
   @$pb.TagNumber(2)
   void clearModules() => $_clearField(2);
+}
+
+enum Error_Kind {
+  sessionProtocolUnsupported,
+  sessionNotOpen,
+  sessionAlreadyOpen,
+  sessionInvalidRequestId,
+  sessionUnknownRequest,
+  queryUnknownProfile,
+  queryStaleRevision,
+  queryMalformed,
+  queryUnknownField,
+  queryTooComplex,
+  queryTypeMismatch,
+  queryParamSetRequired,
+  queryFieldUnavailable,
+  queryUnknownScheme,
+  queryMalformedCursor,
+  decodeNoInput,
+  decodeMalformedText,
+  decodeUnknownFormat,
+  decodeMalformedLayout,
+  decodeMalformedScheme,
+  decodeImageInvalid,
+  decodeNoQrCode,
+  decodeSeveralQrCodes,
+  decodeQrUnreadable,
+  importProfileMismatch,
+  importMalformedReading,
+  importReadingTooLarge,
+  importUnestablishedIdentity,
+  importDuplicateSoul,
+  commandRefused,
+  commandTooLarge,
+  storeFailure,
+  storeInvalidLog,
+  storeNewerFormat,
+  storeMalformedCommit,
+  storeMissing,
+  storeNotADatabase,
+  storeForeign,
+  storeNoFormatVersion,
+  storeDamaged,
+  storeUninitialized,
+  internalPanic,
+  internalQrTooLong,
+  internalResponseTooLarge,
+  internalPageWithoutSoul,
+  notSet
+}
+
+class Error extends $pb.GeneratedMessage {
+  factory Error({
+    $core.String? message,
+    SessionProtocolUnsupported? sessionProtocolUnsupported,
+    SessionNotOpen? sessionNotOpen,
+    SessionAlreadyOpen? sessionAlreadyOpen,
+    SessionInvalidRequestId? sessionInvalidRequestId,
+    SessionUnknownRequest? sessionUnknownRequest,
+    QueryUnknownProfile? queryUnknownProfile,
+    QueryStaleRevision? queryStaleRevision,
+    QueryMalformed? queryMalformed,
+    QueryUnknownField? queryUnknownField,
+    QueryTooComplex? queryTooComplex,
+    QueryTypeMismatch? queryTypeMismatch,
+    QueryParamSetRequired? queryParamSetRequired,
+    QueryFieldUnavailable? queryFieldUnavailable,
+    QueryUnknownScheme? queryUnknownScheme,
+    QueryMalformedCursor? queryMalformedCursor,
+    DecodeNoInput? decodeNoInput,
+    DecodeMalformedText? decodeMalformedText,
+    DecodeUnknownFormat? decodeUnknownFormat,
+    DecodeMalformedLayout? decodeMalformedLayout,
+    DecodeMalformedScheme? decodeMalformedScheme,
+    DecodeImageInvalid? decodeImageInvalid,
+    DecodeNoQrCode? decodeNoQrCode,
+    DecodeSeveralQrCodes? decodeSeveralQrCodes,
+    DecodeQrUnreadable? decodeQrUnreadable,
+    ImportProfileMismatch? importProfileMismatch,
+    ImportMalformedReading? importMalformedReading,
+    ImportReadingTooLarge? importReadingTooLarge,
+    ImportUnestablishedIdentity? importUnestablishedIdentity,
+    ImportDuplicateSoul? importDuplicateSoul,
+    CommandRefused? commandRefused,
+    CommandTooLarge? commandTooLarge,
+    StoreFailure? storeFailure,
+    StoreInvalidLog? storeInvalidLog,
+    StoreNewerFormat? storeNewerFormat,
+    StoreMalformedCommit? storeMalformedCommit,
+    StoreMissing? storeMissing,
+    StoreNotADatabase? storeNotADatabase,
+    StoreForeign? storeForeign,
+    StoreNoFormatVersion? storeNoFormatVersion,
+    StoreDamaged? storeDamaged,
+    StoreUninitialized? storeUninitialized,
+    InternalPanic? internalPanic,
+    InternalQrTooLong? internalQrTooLong,
+    InternalResponseTooLarge? internalResponseTooLarge,
+    InternalPageWithoutSoul? internalPageWithoutSoul,
+  }) {
+    final result = Error._();
+    if (message != null) result.message = message;
+    if (sessionProtocolUnsupported != null)
+      result.sessionProtocolUnsupported = sessionProtocolUnsupported;
+    if (sessionNotOpen != null) result.sessionNotOpen = sessionNotOpen;
+    if (sessionAlreadyOpen != null)
+      result.sessionAlreadyOpen = sessionAlreadyOpen;
+    if (sessionInvalidRequestId != null)
+      result.sessionInvalidRequestId = sessionInvalidRequestId;
+    if (sessionUnknownRequest != null)
+      result.sessionUnknownRequest = sessionUnknownRequest;
+    if (queryUnknownProfile != null)
+      result.queryUnknownProfile = queryUnknownProfile;
+    if (queryStaleRevision != null)
+      result.queryStaleRevision = queryStaleRevision;
+    if (queryMalformed != null) result.queryMalformed = queryMalformed;
+    if (queryUnknownField != null) result.queryUnknownField = queryUnknownField;
+    if (queryTooComplex != null) result.queryTooComplex = queryTooComplex;
+    if (queryTypeMismatch != null) result.queryTypeMismatch = queryTypeMismatch;
+    if (queryParamSetRequired != null)
+      result.queryParamSetRequired = queryParamSetRequired;
+    if (queryFieldUnavailable != null)
+      result.queryFieldUnavailable = queryFieldUnavailable;
+    if (queryUnknownScheme != null)
+      result.queryUnknownScheme = queryUnknownScheme;
+    if (queryMalformedCursor != null)
+      result.queryMalformedCursor = queryMalformedCursor;
+    if (decodeNoInput != null) result.decodeNoInput = decodeNoInput;
+    if (decodeMalformedText != null)
+      result.decodeMalformedText = decodeMalformedText;
+    if (decodeUnknownFormat != null)
+      result.decodeUnknownFormat = decodeUnknownFormat;
+    if (decodeMalformedLayout != null)
+      result.decodeMalformedLayout = decodeMalformedLayout;
+    if (decodeMalformedScheme != null)
+      result.decodeMalformedScheme = decodeMalformedScheme;
+    if (decodeImageInvalid != null)
+      result.decodeImageInvalid = decodeImageInvalid;
+    if (decodeNoQrCode != null) result.decodeNoQrCode = decodeNoQrCode;
+    if (decodeSeveralQrCodes != null)
+      result.decodeSeveralQrCodes = decodeSeveralQrCodes;
+    if (decodeQrUnreadable != null)
+      result.decodeQrUnreadable = decodeQrUnreadable;
+    if (importProfileMismatch != null)
+      result.importProfileMismatch = importProfileMismatch;
+    if (importMalformedReading != null)
+      result.importMalformedReading = importMalformedReading;
+    if (importReadingTooLarge != null)
+      result.importReadingTooLarge = importReadingTooLarge;
+    if (importUnestablishedIdentity != null)
+      result.importUnestablishedIdentity = importUnestablishedIdentity;
+    if (importDuplicateSoul != null)
+      result.importDuplicateSoul = importDuplicateSoul;
+    if (commandRefused != null) result.commandRefused = commandRefused;
+    if (commandTooLarge != null) result.commandTooLarge = commandTooLarge;
+    if (storeFailure != null) result.storeFailure = storeFailure;
+    if (storeInvalidLog != null) result.storeInvalidLog = storeInvalidLog;
+    if (storeNewerFormat != null) result.storeNewerFormat = storeNewerFormat;
+    if (storeMalformedCommit != null)
+      result.storeMalformedCommit = storeMalformedCommit;
+    if (storeMissing != null) result.storeMissing = storeMissing;
+    if (storeNotADatabase != null) result.storeNotADatabase = storeNotADatabase;
+    if (storeForeign != null) result.storeForeign = storeForeign;
+    if (storeNoFormatVersion != null)
+      result.storeNoFormatVersion = storeNoFormatVersion;
+    if (storeDamaged != null) result.storeDamaged = storeDamaged;
+    if (storeUninitialized != null)
+      result.storeUninitialized = storeUninitialized;
+    if (internalPanic != null) result.internalPanic = internalPanic;
+    if (internalQrTooLong != null) result.internalQrTooLong = internalQrTooLong;
+    if (internalResponseTooLarge != null)
+      result.internalResponseTooLarge = internalResponseTooLarge;
+    if (internalPageWithoutSoul != null)
+      result.internalPageWithoutSoul = internalPageWithoutSoul;
+    return result;
+  }
+
+  Error._();
+
+  factory Error.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Error()..mergeFromBuffer(data, registry);
+  factory Error.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Error()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, Error_Kind> _Error_KindByTag = {
+    10: Error_Kind.sessionProtocolUnsupported,
+    11: Error_Kind.sessionNotOpen,
+    12: Error_Kind.sessionAlreadyOpen,
+    13: Error_Kind.sessionInvalidRequestId,
+    14: Error_Kind.sessionUnknownRequest,
+    20: Error_Kind.queryUnknownProfile,
+    21: Error_Kind.queryStaleRevision,
+    22: Error_Kind.queryMalformed,
+    23: Error_Kind.queryUnknownField,
+    24: Error_Kind.queryTooComplex,
+    25: Error_Kind.queryTypeMismatch,
+    26: Error_Kind.queryParamSetRequired,
+    27: Error_Kind.queryFieldUnavailable,
+    28: Error_Kind.queryUnknownScheme,
+    29: Error_Kind.queryMalformedCursor,
+    40: Error_Kind.decodeNoInput,
+    41: Error_Kind.decodeMalformedText,
+    42: Error_Kind.decodeUnknownFormat,
+    43: Error_Kind.decodeMalformedLayout,
+    44: Error_Kind.decodeMalformedScheme,
+    45: Error_Kind.decodeImageInvalid,
+    46: Error_Kind.decodeNoQrCode,
+    47: Error_Kind.decodeSeveralQrCodes,
+    48: Error_Kind.decodeQrUnreadable,
+    60: Error_Kind.importProfileMismatch,
+    61: Error_Kind.importMalformedReading,
+    62: Error_Kind.importReadingTooLarge,
+    63: Error_Kind.importUnestablishedIdentity,
+    64: Error_Kind.importDuplicateSoul,
+    70: Error_Kind.commandRefused,
+    71: Error_Kind.commandTooLarge,
+    80: Error_Kind.storeFailure,
+    81: Error_Kind.storeInvalidLog,
+    82: Error_Kind.storeNewerFormat,
+    83: Error_Kind.storeMalformedCommit,
+    84: Error_Kind.storeMissing,
+    85: Error_Kind.storeNotADatabase,
+    86: Error_Kind.storeForeign,
+    87: Error_Kind.storeNoFormatVersion,
+    88: Error_Kind.storeDamaged,
+    89: Error_Kind.storeUninitialized,
+    100: Error_Kind.internalPanic,
+    101: Error_Kind.internalQrTooLong,
+    102: Error_Kind.internalResponseTooLarge,
+    103: Error_Kind.internalPageWithoutSoul,
+    0: Error_Kind.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Error',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: Error.$_createMessage)
+    ..oo(0, [
+      10,
+      11,
+      12,
+      13,
+      14,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      60,
+      61,
+      62,
+      63,
+      64,
+      70,
+      71,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      100,
+      101,
+      102,
+      103
+    ])
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..aOM<SessionProtocolUnsupported>(
+        10, _omitFieldNames ? '' : 'sessionProtocolUnsupported',
+        subBuilder: SessionProtocolUnsupported.$_createMessage)
+    ..aOM<SessionNotOpen>(11, _omitFieldNames ? '' : 'sessionNotOpen',
+        subBuilder: SessionNotOpen.$_createMessage)
+    ..aOM<SessionAlreadyOpen>(12, _omitFieldNames ? '' : 'sessionAlreadyOpen',
+        subBuilder: SessionAlreadyOpen.$_createMessage)
+    ..aOM<SessionInvalidRequestId>(
+        13, _omitFieldNames ? '' : 'sessionInvalidRequestId',
+        subBuilder: SessionInvalidRequestId.$_createMessage)
+    ..aOM<SessionUnknownRequest>(
+        14, _omitFieldNames ? '' : 'sessionUnknownRequest',
+        subBuilder: SessionUnknownRequest.$_createMessage)
+    ..aOM<QueryUnknownProfile>(20, _omitFieldNames ? '' : 'queryUnknownProfile',
+        subBuilder: QueryUnknownProfile.$_createMessage)
+    ..aOM<QueryStaleRevision>(21, _omitFieldNames ? '' : 'queryStaleRevision',
+        subBuilder: QueryStaleRevision.$_createMessage)
+    ..aOM<QueryMalformed>(22, _omitFieldNames ? '' : 'queryMalformed',
+        subBuilder: QueryMalformed.$_createMessage)
+    ..aOM<QueryUnknownField>(23, _omitFieldNames ? '' : 'queryUnknownField',
+        subBuilder: QueryUnknownField.$_createMessage)
+    ..aOM<QueryTooComplex>(24, _omitFieldNames ? '' : 'queryTooComplex',
+        subBuilder: QueryTooComplex.$_createMessage)
+    ..aOM<QueryTypeMismatch>(25, _omitFieldNames ? '' : 'queryTypeMismatch',
+        subBuilder: QueryTypeMismatch.$_createMessage)
+    ..aOM<QueryParamSetRequired>(
+        26, _omitFieldNames ? '' : 'queryParamSetRequired',
+        subBuilder: QueryParamSetRequired.$_createMessage)
+    ..aOM<QueryFieldUnavailable>(
+        27, _omitFieldNames ? '' : 'queryFieldUnavailable',
+        subBuilder: QueryFieldUnavailable.$_createMessage)
+    ..aOM<QueryUnknownScheme>(28, _omitFieldNames ? '' : 'queryUnknownScheme',
+        subBuilder: QueryUnknownScheme.$_createMessage)
+    ..aOM<QueryMalformedCursor>(
+        29, _omitFieldNames ? '' : 'queryMalformedCursor',
+        subBuilder: QueryMalformedCursor.$_createMessage)
+    ..aOM<DecodeNoInput>(40, _omitFieldNames ? '' : 'decodeNoInput',
+        subBuilder: DecodeNoInput.$_createMessage)
+    ..aOM<DecodeMalformedText>(41, _omitFieldNames ? '' : 'decodeMalformedText',
+        subBuilder: DecodeMalformedText.$_createMessage)
+    ..aOM<DecodeUnknownFormat>(42, _omitFieldNames ? '' : 'decodeUnknownFormat',
+        subBuilder: DecodeUnknownFormat.$_createMessage)
+    ..aOM<DecodeMalformedLayout>(
+        43, _omitFieldNames ? '' : 'decodeMalformedLayout',
+        subBuilder: DecodeMalformedLayout.$_createMessage)
+    ..aOM<DecodeMalformedScheme>(
+        44, _omitFieldNames ? '' : 'decodeMalformedScheme',
+        subBuilder: DecodeMalformedScheme.$_createMessage)
+    ..aOM<DecodeImageInvalid>(45, _omitFieldNames ? '' : 'decodeImageInvalid',
+        subBuilder: DecodeImageInvalid.$_createMessage)
+    ..aOM<DecodeNoQrCode>(46, _omitFieldNames ? '' : 'decodeNoQrCode',
+        subBuilder: DecodeNoQrCode.$_createMessage)
+    ..aOM<DecodeSeveralQrCodes>(
+        47, _omitFieldNames ? '' : 'decodeSeveralQrCodes',
+        subBuilder: DecodeSeveralQrCodes.$_createMessage)
+    ..aOM<DecodeQrUnreadable>(48, _omitFieldNames ? '' : 'decodeQrUnreadable',
+        subBuilder: DecodeQrUnreadable.$_createMessage)
+    ..aOM<ImportProfileMismatch>(
+        60, _omitFieldNames ? '' : 'importProfileMismatch',
+        subBuilder: ImportProfileMismatch.$_createMessage)
+    ..aOM<ImportMalformedReading>(
+        61, _omitFieldNames ? '' : 'importMalformedReading',
+        subBuilder: ImportMalformedReading.$_createMessage)
+    ..aOM<ImportReadingTooLarge>(
+        62, _omitFieldNames ? '' : 'importReadingTooLarge',
+        subBuilder: ImportReadingTooLarge.$_createMessage)
+    ..aOM<ImportUnestablishedIdentity>(
+        63, _omitFieldNames ? '' : 'importUnestablishedIdentity',
+        subBuilder: ImportUnestablishedIdentity.$_createMessage)
+    ..aOM<ImportDuplicateSoul>(64, _omitFieldNames ? '' : 'importDuplicateSoul',
+        subBuilder: ImportDuplicateSoul.$_createMessage)
+    ..aOM<CommandRefused>(70, _omitFieldNames ? '' : 'commandRefused',
+        subBuilder: CommandRefused.$_createMessage)
+    ..aOM<CommandTooLarge>(71, _omitFieldNames ? '' : 'commandTooLarge',
+        subBuilder: CommandTooLarge.$_createMessage)
+    ..aOM<StoreFailure>(80, _omitFieldNames ? '' : 'storeFailure',
+        subBuilder: StoreFailure.$_createMessage)
+    ..aOM<StoreInvalidLog>(81, _omitFieldNames ? '' : 'storeInvalidLog',
+        subBuilder: StoreInvalidLog.$_createMessage)
+    ..aOM<StoreNewerFormat>(82, _omitFieldNames ? '' : 'storeNewerFormat',
+        subBuilder: StoreNewerFormat.$_createMessage)
+    ..aOM<StoreMalformedCommit>(
+        83, _omitFieldNames ? '' : 'storeMalformedCommit',
+        subBuilder: StoreMalformedCommit.$_createMessage)
+    ..aOM<StoreMissing>(84, _omitFieldNames ? '' : 'storeMissing',
+        subBuilder: StoreMissing.$_createMessage)
+    ..aOM<StoreNotADatabase>(85, _omitFieldNames ? '' : 'storeNotADatabase',
+        subBuilder: StoreNotADatabase.$_createMessage)
+    ..aOM<StoreForeign>(86, _omitFieldNames ? '' : 'storeForeign',
+        subBuilder: StoreForeign.$_createMessage)
+    ..aOM<StoreNoFormatVersion>(
+        87, _omitFieldNames ? '' : 'storeNoFormatVersion',
+        subBuilder: StoreNoFormatVersion.$_createMessage)
+    ..aOM<StoreDamaged>(88, _omitFieldNames ? '' : 'storeDamaged',
+        subBuilder: StoreDamaged.$_createMessage)
+    ..aOM<StoreUninitialized>(89, _omitFieldNames ? '' : 'storeUninitialized',
+        subBuilder: StoreUninitialized.$_createMessage)
+    ..aOM<InternalPanic>(100, _omitFieldNames ? '' : 'internalPanic',
+        subBuilder: InternalPanic.$_createMessage)
+    ..aOM<InternalQrTooLong>(101, _omitFieldNames ? '' : 'internalQrTooLong',
+        subBuilder: InternalQrTooLong.$_createMessage)
+    ..aOM<InternalResponseTooLarge>(
+        102, _omitFieldNames ? '' : 'internalResponseTooLarge',
+        subBuilder: InternalResponseTooLarge.$_createMessage)
+    ..aOM<InternalPageWithoutSoul>(
+        103, _omitFieldNames ? '' : 'internalPageWithoutSoul',
+        subBuilder: InternalPageWithoutSoul.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Error clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Error copyWith(void Function(Error) updates) =>
+      super.copyWith((message) => updates(message as Error)) as Error;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Error() / Error.new instead')
+  static Error create() => Error._();
+  static $pb.GeneratedMessage $_createMessage() => Error._();
+  @$core.override
+  Error createEmptyInstance() => Error._();
+  @$core.pragma('dart2js:noInline')
+  static Error getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Error>(Error.$_createMessage);
+  static Error? _defaultInstance;
+
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  @$pb.TagNumber(13)
+  @$pb.TagNumber(14)
+  @$pb.TagNumber(20)
+  @$pb.TagNumber(21)
+  @$pb.TagNumber(22)
+  @$pb.TagNumber(23)
+  @$pb.TagNumber(24)
+  @$pb.TagNumber(25)
+  @$pb.TagNumber(26)
+  @$pb.TagNumber(27)
+  @$pb.TagNumber(28)
+  @$pb.TagNumber(29)
+  @$pb.TagNumber(40)
+  @$pb.TagNumber(41)
+  @$pb.TagNumber(42)
+  @$pb.TagNumber(43)
+  @$pb.TagNumber(44)
+  @$pb.TagNumber(45)
+  @$pb.TagNumber(46)
+  @$pb.TagNumber(47)
+  @$pb.TagNumber(48)
+  @$pb.TagNumber(60)
+  @$pb.TagNumber(61)
+  @$pb.TagNumber(62)
+  @$pb.TagNumber(63)
+  @$pb.TagNumber(64)
+  @$pb.TagNumber(70)
+  @$pb.TagNumber(71)
+  @$pb.TagNumber(80)
+  @$pb.TagNumber(81)
+  @$pb.TagNumber(82)
+  @$pb.TagNumber(83)
+  @$pb.TagNumber(84)
+  @$pb.TagNumber(85)
+  @$pb.TagNumber(86)
+  @$pb.TagNumber(87)
+  @$pb.TagNumber(88)
+  @$pb.TagNumber(89)
+  @$pb.TagNumber(100)
+  @$pb.TagNumber(101)
+  @$pb.TagNumber(102)
+  @$pb.TagNumber(103)
+  Error_Kind whichKind() => _Error_KindByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  @$pb.TagNumber(13)
+  @$pb.TagNumber(14)
+  @$pb.TagNumber(20)
+  @$pb.TagNumber(21)
+  @$pb.TagNumber(22)
+  @$pb.TagNumber(23)
+  @$pb.TagNumber(24)
+  @$pb.TagNumber(25)
+  @$pb.TagNumber(26)
+  @$pb.TagNumber(27)
+  @$pb.TagNumber(28)
+  @$pb.TagNumber(29)
+  @$pb.TagNumber(40)
+  @$pb.TagNumber(41)
+  @$pb.TagNumber(42)
+  @$pb.TagNumber(43)
+  @$pb.TagNumber(44)
+  @$pb.TagNumber(45)
+  @$pb.TagNumber(46)
+  @$pb.TagNumber(47)
+  @$pb.TagNumber(48)
+  @$pb.TagNumber(60)
+  @$pb.TagNumber(61)
+  @$pb.TagNumber(62)
+  @$pb.TagNumber(63)
+  @$pb.TagNumber(64)
+  @$pb.TagNumber(70)
+  @$pb.TagNumber(71)
+  @$pb.TagNumber(80)
+  @$pb.TagNumber(81)
+  @$pb.TagNumber(82)
+  @$pb.TagNumber(83)
+  @$pb.TagNumber(84)
+  @$pb.TagNumber(85)
+  @$pb.TagNumber(86)
+  @$pb.TagNumber(87)
+  @$pb.TagNumber(88)
+  @$pb.TagNumber(89)
+  @$pb.TagNumber(100)
+  @$pb.TagNumber(101)
+  @$pb.TagNumber(102)
+  @$pb.TagNumber(103)
+  void clearKind() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(0);
+  @$pb.TagNumber(2)
+  set message($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(0);
+  @$pb.TagNumber(2)
+  void clearMessage() => $_clearField(2);
+
+  @$pb.TagNumber(10)
+  SessionProtocolUnsupported get sessionProtocolUnsupported => $_getN(1);
+  @$pb.TagNumber(10)
+  set sessionProtocolUnsupported(SessionProtocolUnsupported value) =>
+      $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasSessionProtocolUnsupported() => $_has(1);
+  @$pb.TagNumber(10)
+  void clearSessionProtocolUnsupported() => $_clearField(10);
+  @$pb.TagNumber(10)
+  SessionProtocolUnsupported ensureSessionProtocolUnsupported() => $_ensure(1);
+
+  @$pb.TagNumber(11)
+  SessionNotOpen get sessionNotOpen => $_getN(2);
+  @$pb.TagNumber(11)
+  set sessionNotOpen(SessionNotOpen value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasSessionNotOpen() => $_has(2);
+  @$pb.TagNumber(11)
+  void clearSessionNotOpen() => $_clearField(11);
+  @$pb.TagNumber(11)
+  SessionNotOpen ensureSessionNotOpen() => $_ensure(2);
+
+  @$pb.TagNumber(12)
+  SessionAlreadyOpen get sessionAlreadyOpen => $_getN(3);
+  @$pb.TagNumber(12)
+  set sessionAlreadyOpen(SessionAlreadyOpen value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasSessionAlreadyOpen() => $_has(3);
+  @$pb.TagNumber(12)
+  void clearSessionAlreadyOpen() => $_clearField(12);
+  @$pb.TagNumber(12)
+  SessionAlreadyOpen ensureSessionAlreadyOpen() => $_ensure(3);
+
+  @$pb.TagNumber(13)
+  SessionInvalidRequestId get sessionInvalidRequestId => $_getN(4);
+  @$pb.TagNumber(13)
+  set sessionInvalidRequestId(SessionInvalidRequestId value) =>
+      $_setField(13, value);
+  @$pb.TagNumber(13)
+  $core.bool hasSessionInvalidRequestId() => $_has(4);
+  @$pb.TagNumber(13)
+  void clearSessionInvalidRequestId() => $_clearField(13);
+  @$pb.TagNumber(13)
+  SessionInvalidRequestId ensureSessionInvalidRequestId() => $_ensure(4);
+
+  @$pb.TagNumber(14)
+  SessionUnknownRequest get sessionUnknownRequest => $_getN(5);
+  @$pb.TagNumber(14)
+  set sessionUnknownRequest(SessionUnknownRequest value) =>
+      $_setField(14, value);
+  @$pb.TagNumber(14)
+  $core.bool hasSessionUnknownRequest() => $_has(5);
+  @$pb.TagNumber(14)
+  void clearSessionUnknownRequest() => $_clearField(14);
+  @$pb.TagNumber(14)
+  SessionUnknownRequest ensureSessionUnknownRequest() => $_ensure(5);
+
+  @$pb.TagNumber(20)
+  QueryUnknownProfile get queryUnknownProfile => $_getN(6);
+  @$pb.TagNumber(20)
+  set queryUnknownProfile(QueryUnknownProfile value) => $_setField(20, value);
+  @$pb.TagNumber(20)
+  $core.bool hasQueryUnknownProfile() => $_has(6);
+  @$pb.TagNumber(20)
+  void clearQueryUnknownProfile() => $_clearField(20);
+  @$pb.TagNumber(20)
+  QueryUnknownProfile ensureQueryUnknownProfile() => $_ensure(6);
+
+  @$pb.TagNumber(21)
+  QueryStaleRevision get queryStaleRevision => $_getN(7);
+  @$pb.TagNumber(21)
+  set queryStaleRevision(QueryStaleRevision value) => $_setField(21, value);
+  @$pb.TagNumber(21)
+  $core.bool hasQueryStaleRevision() => $_has(7);
+  @$pb.TagNumber(21)
+  void clearQueryStaleRevision() => $_clearField(21);
+  @$pb.TagNumber(21)
+  QueryStaleRevision ensureQueryStaleRevision() => $_ensure(7);
+
+  @$pb.TagNumber(22)
+  QueryMalformed get queryMalformed => $_getN(8);
+  @$pb.TagNumber(22)
+  set queryMalformed(QueryMalformed value) => $_setField(22, value);
+  @$pb.TagNumber(22)
+  $core.bool hasQueryMalformed() => $_has(8);
+  @$pb.TagNumber(22)
+  void clearQueryMalformed() => $_clearField(22);
+  @$pb.TagNumber(22)
+  QueryMalformed ensureQueryMalformed() => $_ensure(8);
+
+  @$pb.TagNumber(23)
+  QueryUnknownField get queryUnknownField => $_getN(9);
+  @$pb.TagNumber(23)
+  set queryUnknownField(QueryUnknownField value) => $_setField(23, value);
+  @$pb.TagNumber(23)
+  $core.bool hasQueryUnknownField() => $_has(9);
+  @$pb.TagNumber(23)
+  void clearQueryUnknownField() => $_clearField(23);
+  @$pb.TagNumber(23)
+  QueryUnknownField ensureQueryUnknownField() => $_ensure(9);
+
+  @$pb.TagNumber(24)
+  QueryTooComplex get queryTooComplex => $_getN(10);
+  @$pb.TagNumber(24)
+  set queryTooComplex(QueryTooComplex value) => $_setField(24, value);
+  @$pb.TagNumber(24)
+  $core.bool hasQueryTooComplex() => $_has(10);
+  @$pb.TagNumber(24)
+  void clearQueryTooComplex() => $_clearField(24);
+  @$pb.TagNumber(24)
+  QueryTooComplex ensureQueryTooComplex() => $_ensure(10);
+
+  @$pb.TagNumber(25)
+  QueryTypeMismatch get queryTypeMismatch => $_getN(11);
+  @$pb.TagNumber(25)
+  set queryTypeMismatch(QueryTypeMismatch value) => $_setField(25, value);
+  @$pb.TagNumber(25)
+  $core.bool hasQueryTypeMismatch() => $_has(11);
+  @$pb.TagNumber(25)
+  void clearQueryTypeMismatch() => $_clearField(25);
+  @$pb.TagNumber(25)
+  QueryTypeMismatch ensureQueryTypeMismatch() => $_ensure(11);
+
+  @$pb.TagNumber(26)
+  QueryParamSetRequired get queryParamSetRequired => $_getN(12);
+  @$pb.TagNumber(26)
+  set queryParamSetRequired(QueryParamSetRequired value) =>
+      $_setField(26, value);
+  @$pb.TagNumber(26)
+  $core.bool hasQueryParamSetRequired() => $_has(12);
+  @$pb.TagNumber(26)
+  void clearQueryParamSetRequired() => $_clearField(26);
+  @$pb.TagNumber(26)
+  QueryParamSetRequired ensureQueryParamSetRequired() => $_ensure(12);
+
+  @$pb.TagNumber(27)
+  QueryFieldUnavailable get queryFieldUnavailable => $_getN(13);
+  @$pb.TagNumber(27)
+  set queryFieldUnavailable(QueryFieldUnavailable value) =>
+      $_setField(27, value);
+  @$pb.TagNumber(27)
+  $core.bool hasQueryFieldUnavailable() => $_has(13);
+  @$pb.TagNumber(27)
+  void clearQueryFieldUnavailable() => $_clearField(27);
+  @$pb.TagNumber(27)
+  QueryFieldUnavailable ensureQueryFieldUnavailable() => $_ensure(13);
+
+  @$pb.TagNumber(28)
+  QueryUnknownScheme get queryUnknownScheme => $_getN(14);
+  @$pb.TagNumber(28)
+  set queryUnknownScheme(QueryUnknownScheme value) => $_setField(28, value);
+  @$pb.TagNumber(28)
+  $core.bool hasQueryUnknownScheme() => $_has(14);
+  @$pb.TagNumber(28)
+  void clearQueryUnknownScheme() => $_clearField(28);
+  @$pb.TagNumber(28)
+  QueryUnknownScheme ensureQueryUnknownScheme() => $_ensure(14);
+
+  @$pb.TagNumber(29)
+  QueryMalformedCursor get queryMalformedCursor => $_getN(15);
+  @$pb.TagNumber(29)
+  set queryMalformedCursor(QueryMalformedCursor value) => $_setField(29, value);
+  @$pb.TagNumber(29)
+  $core.bool hasQueryMalformedCursor() => $_has(15);
+  @$pb.TagNumber(29)
+  void clearQueryMalformedCursor() => $_clearField(29);
+  @$pb.TagNumber(29)
+  QueryMalformedCursor ensureQueryMalformedCursor() => $_ensure(15);
+
+  @$pb.TagNumber(40)
+  DecodeNoInput get decodeNoInput => $_getN(16);
+  @$pb.TagNumber(40)
+  set decodeNoInput(DecodeNoInput value) => $_setField(40, value);
+  @$pb.TagNumber(40)
+  $core.bool hasDecodeNoInput() => $_has(16);
+  @$pb.TagNumber(40)
+  void clearDecodeNoInput() => $_clearField(40);
+  @$pb.TagNumber(40)
+  DecodeNoInput ensureDecodeNoInput() => $_ensure(16);
+
+  @$pb.TagNumber(41)
+  DecodeMalformedText get decodeMalformedText => $_getN(17);
+  @$pb.TagNumber(41)
+  set decodeMalformedText(DecodeMalformedText value) => $_setField(41, value);
+  @$pb.TagNumber(41)
+  $core.bool hasDecodeMalformedText() => $_has(17);
+  @$pb.TagNumber(41)
+  void clearDecodeMalformedText() => $_clearField(41);
+  @$pb.TagNumber(41)
+  DecodeMalformedText ensureDecodeMalformedText() => $_ensure(17);
+
+  @$pb.TagNumber(42)
+  DecodeUnknownFormat get decodeUnknownFormat => $_getN(18);
+  @$pb.TagNumber(42)
+  set decodeUnknownFormat(DecodeUnknownFormat value) => $_setField(42, value);
+  @$pb.TagNumber(42)
+  $core.bool hasDecodeUnknownFormat() => $_has(18);
+  @$pb.TagNumber(42)
+  void clearDecodeUnknownFormat() => $_clearField(42);
+  @$pb.TagNumber(42)
+  DecodeUnknownFormat ensureDecodeUnknownFormat() => $_ensure(18);
+
+  @$pb.TagNumber(43)
+  DecodeMalformedLayout get decodeMalformedLayout => $_getN(19);
+  @$pb.TagNumber(43)
+  set decodeMalformedLayout(DecodeMalformedLayout value) =>
+      $_setField(43, value);
+  @$pb.TagNumber(43)
+  $core.bool hasDecodeMalformedLayout() => $_has(19);
+  @$pb.TagNumber(43)
+  void clearDecodeMalformedLayout() => $_clearField(43);
+  @$pb.TagNumber(43)
+  DecodeMalformedLayout ensureDecodeMalformedLayout() => $_ensure(19);
+
+  @$pb.TagNumber(44)
+  DecodeMalformedScheme get decodeMalformedScheme => $_getN(20);
+  @$pb.TagNumber(44)
+  set decodeMalformedScheme(DecodeMalformedScheme value) =>
+      $_setField(44, value);
+  @$pb.TagNumber(44)
+  $core.bool hasDecodeMalformedScheme() => $_has(20);
+  @$pb.TagNumber(44)
+  void clearDecodeMalformedScheme() => $_clearField(44);
+  @$pb.TagNumber(44)
+  DecodeMalformedScheme ensureDecodeMalformedScheme() => $_ensure(20);
+
+  @$pb.TagNumber(45)
+  DecodeImageInvalid get decodeImageInvalid => $_getN(21);
+  @$pb.TagNumber(45)
+  set decodeImageInvalid(DecodeImageInvalid value) => $_setField(45, value);
+  @$pb.TagNumber(45)
+  $core.bool hasDecodeImageInvalid() => $_has(21);
+  @$pb.TagNumber(45)
+  void clearDecodeImageInvalid() => $_clearField(45);
+  @$pb.TagNumber(45)
+  DecodeImageInvalid ensureDecodeImageInvalid() => $_ensure(21);
+
+  @$pb.TagNumber(46)
+  DecodeNoQrCode get decodeNoQrCode => $_getN(22);
+  @$pb.TagNumber(46)
+  set decodeNoQrCode(DecodeNoQrCode value) => $_setField(46, value);
+  @$pb.TagNumber(46)
+  $core.bool hasDecodeNoQrCode() => $_has(22);
+  @$pb.TagNumber(46)
+  void clearDecodeNoQrCode() => $_clearField(46);
+  @$pb.TagNumber(46)
+  DecodeNoQrCode ensureDecodeNoQrCode() => $_ensure(22);
+
+  @$pb.TagNumber(47)
+  DecodeSeveralQrCodes get decodeSeveralQrCodes => $_getN(23);
+  @$pb.TagNumber(47)
+  set decodeSeveralQrCodes(DecodeSeveralQrCodes value) => $_setField(47, value);
+  @$pb.TagNumber(47)
+  $core.bool hasDecodeSeveralQrCodes() => $_has(23);
+  @$pb.TagNumber(47)
+  void clearDecodeSeveralQrCodes() => $_clearField(47);
+  @$pb.TagNumber(47)
+  DecodeSeveralQrCodes ensureDecodeSeveralQrCodes() => $_ensure(23);
+
+  @$pb.TagNumber(48)
+  DecodeQrUnreadable get decodeQrUnreadable => $_getN(24);
+  @$pb.TagNumber(48)
+  set decodeQrUnreadable(DecodeQrUnreadable value) => $_setField(48, value);
+  @$pb.TagNumber(48)
+  $core.bool hasDecodeQrUnreadable() => $_has(24);
+  @$pb.TagNumber(48)
+  void clearDecodeQrUnreadable() => $_clearField(48);
+  @$pb.TagNumber(48)
+  DecodeQrUnreadable ensureDecodeQrUnreadable() => $_ensure(24);
+
+  @$pb.TagNumber(60)
+  ImportProfileMismatch get importProfileMismatch => $_getN(25);
+  @$pb.TagNumber(60)
+  set importProfileMismatch(ImportProfileMismatch value) =>
+      $_setField(60, value);
+  @$pb.TagNumber(60)
+  $core.bool hasImportProfileMismatch() => $_has(25);
+  @$pb.TagNumber(60)
+  void clearImportProfileMismatch() => $_clearField(60);
+  @$pb.TagNumber(60)
+  ImportProfileMismatch ensureImportProfileMismatch() => $_ensure(25);
+
+  @$pb.TagNumber(61)
+  ImportMalformedReading get importMalformedReading => $_getN(26);
+  @$pb.TagNumber(61)
+  set importMalformedReading(ImportMalformedReading value) =>
+      $_setField(61, value);
+  @$pb.TagNumber(61)
+  $core.bool hasImportMalformedReading() => $_has(26);
+  @$pb.TagNumber(61)
+  void clearImportMalformedReading() => $_clearField(61);
+  @$pb.TagNumber(61)
+  ImportMalformedReading ensureImportMalformedReading() => $_ensure(26);
+
+  @$pb.TagNumber(62)
+  ImportReadingTooLarge get importReadingTooLarge => $_getN(27);
+  @$pb.TagNumber(62)
+  set importReadingTooLarge(ImportReadingTooLarge value) =>
+      $_setField(62, value);
+  @$pb.TagNumber(62)
+  $core.bool hasImportReadingTooLarge() => $_has(27);
+  @$pb.TagNumber(62)
+  void clearImportReadingTooLarge() => $_clearField(62);
+  @$pb.TagNumber(62)
+  ImportReadingTooLarge ensureImportReadingTooLarge() => $_ensure(27);
+
+  @$pb.TagNumber(63)
+  ImportUnestablishedIdentity get importUnestablishedIdentity => $_getN(28);
+  @$pb.TagNumber(63)
+  set importUnestablishedIdentity(ImportUnestablishedIdentity value) =>
+      $_setField(63, value);
+  @$pb.TagNumber(63)
+  $core.bool hasImportUnestablishedIdentity() => $_has(28);
+  @$pb.TagNumber(63)
+  void clearImportUnestablishedIdentity() => $_clearField(63);
+  @$pb.TagNumber(63)
+  ImportUnestablishedIdentity ensureImportUnestablishedIdentity() =>
+      $_ensure(28);
+
+  @$pb.TagNumber(64)
+  ImportDuplicateSoul get importDuplicateSoul => $_getN(29);
+  @$pb.TagNumber(64)
+  set importDuplicateSoul(ImportDuplicateSoul value) => $_setField(64, value);
+  @$pb.TagNumber(64)
+  $core.bool hasImportDuplicateSoul() => $_has(29);
+  @$pb.TagNumber(64)
+  void clearImportDuplicateSoul() => $_clearField(64);
+  @$pb.TagNumber(64)
+  ImportDuplicateSoul ensureImportDuplicateSoul() => $_ensure(29);
+
+  @$pb.TagNumber(70)
+  CommandRefused get commandRefused => $_getN(30);
+  @$pb.TagNumber(70)
+  set commandRefused(CommandRefused value) => $_setField(70, value);
+  @$pb.TagNumber(70)
+  $core.bool hasCommandRefused() => $_has(30);
+  @$pb.TagNumber(70)
+  void clearCommandRefused() => $_clearField(70);
+  @$pb.TagNumber(70)
+  CommandRefused ensureCommandRefused() => $_ensure(30);
+
+  @$pb.TagNumber(71)
+  CommandTooLarge get commandTooLarge => $_getN(31);
+  @$pb.TagNumber(71)
+  set commandTooLarge(CommandTooLarge value) => $_setField(71, value);
+  @$pb.TagNumber(71)
+  $core.bool hasCommandTooLarge() => $_has(31);
+  @$pb.TagNumber(71)
+  void clearCommandTooLarge() => $_clearField(71);
+  @$pb.TagNumber(71)
+  CommandTooLarge ensureCommandTooLarge() => $_ensure(31);
+
+  @$pb.TagNumber(80)
+  StoreFailure get storeFailure => $_getN(32);
+  @$pb.TagNumber(80)
+  set storeFailure(StoreFailure value) => $_setField(80, value);
+  @$pb.TagNumber(80)
+  $core.bool hasStoreFailure() => $_has(32);
+  @$pb.TagNumber(80)
+  void clearStoreFailure() => $_clearField(80);
+  @$pb.TagNumber(80)
+  StoreFailure ensureStoreFailure() => $_ensure(32);
+
+  @$pb.TagNumber(81)
+  StoreInvalidLog get storeInvalidLog => $_getN(33);
+  @$pb.TagNumber(81)
+  set storeInvalidLog(StoreInvalidLog value) => $_setField(81, value);
+  @$pb.TagNumber(81)
+  $core.bool hasStoreInvalidLog() => $_has(33);
+  @$pb.TagNumber(81)
+  void clearStoreInvalidLog() => $_clearField(81);
+  @$pb.TagNumber(81)
+  StoreInvalidLog ensureStoreInvalidLog() => $_ensure(33);
+
+  @$pb.TagNumber(82)
+  StoreNewerFormat get storeNewerFormat => $_getN(34);
+  @$pb.TagNumber(82)
+  set storeNewerFormat(StoreNewerFormat value) => $_setField(82, value);
+  @$pb.TagNumber(82)
+  $core.bool hasStoreNewerFormat() => $_has(34);
+  @$pb.TagNumber(82)
+  void clearStoreNewerFormat() => $_clearField(82);
+  @$pb.TagNumber(82)
+  StoreNewerFormat ensureStoreNewerFormat() => $_ensure(34);
+
+  @$pb.TagNumber(83)
+  StoreMalformedCommit get storeMalformedCommit => $_getN(35);
+  @$pb.TagNumber(83)
+  set storeMalformedCommit(StoreMalformedCommit value) => $_setField(83, value);
+  @$pb.TagNumber(83)
+  $core.bool hasStoreMalformedCommit() => $_has(35);
+  @$pb.TagNumber(83)
+  void clearStoreMalformedCommit() => $_clearField(83);
+  @$pb.TagNumber(83)
+  StoreMalformedCommit ensureStoreMalformedCommit() => $_ensure(35);
+
+  @$pb.TagNumber(84)
+  StoreMissing get storeMissing => $_getN(36);
+  @$pb.TagNumber(84)
+  set storeMissing(StoreMissing value) => $_setField(84, value);
+  @$pb.TagNumber(84)
+  $core.bool hasStoreMissing() => $_has(36);
+  @$pb.TagNumber(84)
+  void clearStoreMissing() => $_clearField(84);
+  @$pb.TagNumber(84)
+  StoreMissing ensureStoreMissing() => $_ensure(36);
+
+  @$pb.TagNumber(85)
+  StoreNotADatabase get storeNotADatabase => $_getN(37);
+  @$pb.TagNumber(85)
+  set storeNotADatabase(StoreNotADatabase value) => $_setField(85, value);
+  @$pb.TagNumber(85)
+  $core.bool hasStoreNotADatabase() => $_has(37);
+  @$pb.TagNumber(85)
+  void clearStoreNotADatabase() => $_clearField(85);
+  @$pb.TagNumber(85)
+  StoreNotADatabase ensureStoreNotADatabase() => $_ensure(37);
+
+  @$pb.TagNumber(86)
+  StoreForeign get storeForeign => $_getN(38);
+  @$pb.TagNumber(86)
+  set storeForeign(StoreForeign value) => $_setField(86, value);
+  @$pb.TagNumber(86)
+  $core.bool hasStoreForeign() => $_has(38);
+  @$pb.TagNumber(86)
+  void clearStoreForeign() => $_clearField(86);
+  @$pb.TagNumber(86)
+  StoreForeign ensureStoreForeign() => $_ensure(38);
+
+  @$pb.TagNumber(87)
+  StoreNoFormatVersion get storeNoFormatVersion => $_getN(39);
+  @$pb.TagNumber(87)
+  set storeNoFormatVersion(StoreNoFormatVersion value) => $_setField(87, value);
+  @$pb.TagNumber(87)
+  $core.bool hasStoreNoFormatVersion() => $_has(39);
+  @$pb.TagNumber(87)
+  void clearStoreNoFormatVersion() => $_clearField(87);
+  @$pb.TagNumber(87)
+  StoreNoFormatVersion ensureStoreNoFormatVersion() => $_ensure(39);
+
+  @$pb.TagNumber(88)
+  StoreDamaged get storeDamaged => $_getN(40);
+  @$pb.TagNumber(88)
+  set storeDamaged(StoreDamaged value) => $_setField(88, value);
+  @$pb.TagNumber(88)
+  $core.bool hasStoreDamaged() => $_has(40);
+  @$pb.TagNumber(88)
+  void clearStoreDamaged() => $_clearField(88);
+  @$pb.TagNumber(88)
+  StoreDamaged ensureStoreDamaged() => $_ensure(40);
+
+  @$pb.TagNumber(89)
+  StoreUninitialized get storeUninitialized => $_getN(41);
+  @$pb.TagNumber(89)
+  set storeUninitialized(StoreUninitialized value) => $_setField(89, value);
+  @$pb.TagNumber(89)
+  $core.bool hasStoreUninitialized() => $_has(41);
+  @$pb.TagNumber(89)
+  void clearStoreUninitialized() => $_clearField(89);
+  @$pb.TagNumber(89)
+  StoreUninitialized ensureStoreUninitialized() => $_ensure(41);
+
+  @$pb.TagNumber(100)
+  InternalPanic get internalPanic => $_getN(42);
+  @$pb.TagNumber(100)
+  set internalPanic(InternalPanic value) => $_setField(100, value);
+  @$pb.TagNumber(100)
+  $core.bool hasInternalPanic() => $_has(42);
+  @$pb.TagNumber(100)
+  void clearInternalPanic() => $_clearField(100);
+  @$pb.TagNumber(100)
+  InternalPanic ensureInternalPanic() => $_ensure(42);
+
+  @$pb.TagNumber(101)
+  InternalQrTooLong get internalQrTooLong => $_getN(43);
+  @$pb.TagNumber(101)
+  set internalQrTooLong(InternalQrTooLong value) => $_setField(101, value);
+  @$pb.TagNumber(101)
+  $core.bool hasInternalQrTooLong() => $_has(43);
+  @$pb.TagNumber(101)
+  void clearInternalQrTooLong() => $_clearField(101);
+  @$pb.TagNumber(101)
+  InternalQrTooLong ensureInternalQrTooLong() => $_ensure(43);
+
+  @$pb.TagNumber(102)
+  InternalResponseTooLarge get internalResponseTooLarge => $_getN(44);
+  @$pb.TagNumber(102)
+  set internalResponseTooLarge(InternalResponseTooLarge value) =>
+      $_setField(102, value);
+  @$pb.TagNumber(102)
+  $core.bool hasInternalResponseTooLarge() => $_has(44);
+  @$pb.TagNumber(102)
+  void clearInternalResponseTooLarge() => $_clearField(102);
+  @$pb.TagNumber(102)
+  InternalResponseTooLarge ensureInternalResponseTooLarge() => $_ensure(44);
+
+  @$pb.TagNumber(103)
+  InternalPageWithoutSoul get internalPageWithoutSoul => $_getN(45);
+  @$pb.TagNumber(103)
+  set internalPageWithoutSoul(InternalPageWithoutSoul value) =>
+      $_setField(103, value);
+  @$pb.TagNumber(103)
+  $core.bool hasInternalPageWithoutSoul() => $_has(45);
+  @$pb.TagNumber(103)
+  void clearInternalPageWithoutSoul() => $_clearField(103);
+  @$pb.TagNumber(103)
+  InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(45);
+}
+
+enum SessionFailed_Kind {
+  sessionMalformedFrame,
+  sessionMalformedMessage,
+  internalIo,
+  notSet
+}
+
+/// The session cannot continue; the daemon exits after sending it. No request id is known for it.
+class SessionFailed extends $pb.GeneratedMessage {
+  factory SessionFailed({
+    $core.String? message,
+    SessionMalformedFrame? sessionMalformedFrame,
+    SessionMalformedMessage? sessionMalformedMessage,
+    InternalIo? internalIo,
+  }) {
+    final result = SessionFailed._();
+    if (message != null) result.message = message;
+    if (sessionMalformedFrame != null)
+      result.sessionMalformedFrame = sessionMalformedFrame;
+    if (sessionMalformedMessage != null)
+      result.sessionMalformedMessage = sessionMalformedMessage;
+    if (internalIo != null) result.internalIo = internalIo;
+    return result;
+  }
+
+  SessionFailed._();
+
+  factory SessionFailed.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionFailed()..mergeFromBuffer(data, registry);
+  factory SessionFailed.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionFailed()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, SessionFailed_Kind>
+      _SessionFailed_KindByTag = {
+    10: SessionFailed_Kind.sessionMalformedFrame,
+    11: SessionFailed_Kind.sessionMalformedMessage,
+    12: SessionFailed_Kind.internalIo,
+    0: SessionFailed_Kind.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionFailed',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionFailed.$_createMessage)
+    ..oo(0, [10, 11, 12])
+    ..aOS(1, _omitFieldNames ? '' : 'message')
+    ..aOM<SessionMalformedFrame>(
+        10, _omitFieldNames ? '' : 'sessionMalformedFrame',
+        subBuilder: SessionMalformedFrame.$_createMessage)
+    ..aOM<SessionMalformedMessage>(
+        11, _omitFieldNames ? '' : 'sessionMalformedMessage',
+        subBuilder: SessionMalformedMessage.$_createMessage)
+    ..aOM<InternalIo>(12, _omitFieldNames ? '' : 'internalIo',
+        subBuilder: InternalIo.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionFailed clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionFailed copyWith(void Function(SessionFailed) updates) =>
+      super.copyWith((message) => updates(message as SessionFailed))
+          as SessionFailed;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SessionFailed() / SessionFailed.new instead')
+  static SessionFailed create() => SessionFailed._();
+  static $pb.GeneratedMessage $_createMessage() => SessionFailed._();
+  @$core.override
+  SessionFailed createEmptyInstance() => SessionFailed._();
+  @$core.pragma('dart2js:noInline')
+  static SessionFailed getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SessionFailed>(
+          SessionFailed.$_createMessage);
+  static SessionFailed? _defaultInstance;
+
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  SessionFailed_Kind whichKind() => _SessionFailed_KindByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  void clearKind() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(1)
+  $core.String get message => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set message($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMessage() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMessage() => $_clearField(1);
+
+  @$pb.TagNumber(10)
+  SessionMalformedFrame get sessionMalformedFrame => $_getN(1);
+  @$pb.TagNumber(10)
+  set sessionMalformedFrame(SessionMalformedFrame value) =>
+      $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasSessionMalformedFrame() => $_has(1);
+  @$pb.TagNumber(10)
+  void clearSessionMalformedFrame() => $_clearField(10);
+  @$pb.TagNumber(10)
+  SessionMalformedFrame ensureSessionMalformedFrame() => $_ensure(1);
+
+  @$pb.TagNumber(11)
+  SessionMalformedMessage get sessionMalformedMessage => $_getN(2);
+  @$pb.TagNumber(11)
+  set sessionMalformedMessage(SessionMalformedMessage value) =>
+      $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasSessionMalformedMessage() => $_has(2);
+  @$pb.TagNumber(11)
+  void clearSessionMalformedMessage() => $_clearField(11);
+  @$pb.TagNumber(11)
+  SessionMalformedMessage ensureSessionMalformedMessage() => $_ensure(2);
+
+  @$pb.TagNumber(12)
+  InternalIo get internalIo => $_getN(3);
+  @$pb.TagNumber(12)
+  set internalIo(InternalIo value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasInternalIo() => $_has(3);
+  @$pb.TagNumber(12)
+  void clearInternalIo() => $_clearField(12);
+  @$pb.TagNumber(12)
+  InternalIo ensureInternalIo() => $_ensure(3);
+}
+
+enum ClientFailure_Kind {
+  clientDaemonNotFound,
+  clientDaemonStartFailed,
+  clientDaemonExited,
+  clientTimeout,
+  clientProtocolError,
+  clientNotConnected,
+  clientUnexpected,
+  notSet
+}
+
+/// Raised by the application for what only it can see. Never sent: it is in this file so that
+/// every code has one list and both sides read it from one place.
+class ClientFailure extends $pb.GeneratedMessage {
+  factory ClientFailure({
+    ClientDaemonNotFound? clientDaemonNotFound,
+    ClientDaemonStartFailed? clientDaemonStartFailed,
+    ClientDaemonExited? clientDaemonExited,
+    ClientTimeout? clientTimeout,
+    ClientProtocolError? clientProtocolError,
+    ClientNotConnected? clientNotConnected,
+    ClientUnexpected? clientUnexpected,
+  }) {
+    final result = ClientFailure._();
+    if (clientDaemonNotFound != null)
+      result.clientDaemonNotFound = clientDaemonNotFound;
+    if (clientDaemonStartFailed != null)
+      result.clientDaemonStartFailed = clientDaemonStartFailed;
+    if (clientDaemonExited != null)
+      result.clientDaemonExited = clientDaemonExited;
+    if (clientTimeout != null) result.clientTimeout = clientTimeout;
+    if (clientProtocolError != null)
+      result.clientProtocolError = clientProtocolError;
+    if (clientNotConnected != null)
+      result.clientNotConnected = clientNotConnected;
+    if (clientUnexpected != null) result.clientUnexpected = clientUnexpected;
+    return result;
+  }
+
+  ClientFailure._();
+
+  factory ClientFailure.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientFailure()..mergeFromBuffer(data, registry);
+  factory ClientFailure.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientFailure()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, ClientFailure_Kind>
+      _ClientFailure_KindByTag = {
+    10: ClientFailure_Kind.clientDaemonNotFound,
+    11: ClientFailure_Kind.clientDaemonStartFailed,
+    12: ClientFailure_Kind.clientDaemonExited,
+    13: ClientFailure_Kind.clientTimeout,
+    14: ClientFailure_Kind.clientProtocolError,
+    15: ClientFailure_Kind.clientNotConnected,
+    16: ClientFailure_Kind.clientUnexpected,
+    0: ClientFailure_Kind.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientFailure',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientFailure.$_createMessage)
+    ..oo(0, [10, 11, 12, 13, 14, 15, 16])
+    ..aOM<ClientDaemonNotFound>(
+        10, _omitFieldNames ? '' : 'clientDaemonNotFound',
+        subBuilder: ClientDaemonNotFound.$_createMessage)
+    ..aOM<ClientDaemonStartFailed>(
+        11, _omitFieldNames ? '' : 'clientDaemonStartFailed',
+        subBuilder: ClientDaemonStartFailed.$_createMessage)
+    ..aOM<ClientDaemonExited>(12, _omitFieldNames ? '' : 'clientDaemonExited',
+        subBuilder: ClientDaemonExited.$_createMessage)
+    ..aOM<ClientTimeout>(13, _omitFieldNames ? '' : 'clientTimeout',
+        subBuilder: ClientTimeout.$_createMessage)
+    ..aOM<ClientProtocolError>(14, _omitFieldNames ? '' : 'clientProtocolError',
+        subBuilder: ClientProtocolError.$_createMessage)
+    ..aOM<ClientNotConnected>(15, _omitFieldNames ? '' : 'clientNotConnected',
+        subBuilder: ClientNotConnected.$_createMessage)
+    ..aOM<ClientUnexpected>(16, _omitFieldNames ? '' : 'clientUnexpected',
+        subBuilder: ClientUnexpected.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientFailure clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientFailure copyWith(void Function(ClientFailure) updates) =>
+      super.copyWith((message) => updates(message as ClientFailure))
+          as ClientFailure;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientFailure() / ClientFailure.new instead')
+  static ClientFailure create() => ClientFailure._();
+  static $pb.GeneratedMessage $_createMessage() => ClientFailure._();
+  @$core.override
+  ClientFailure createEmptyInstance() => ClientFailure._();
+  @$core.pragma('dart2js:noInline')
+  static ClientFailure getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientFailure>(
+          ClientFailure.$_createMessage);
+  static ClientFailure? _defaultInstance;
+
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  @$pb.TagNumber(13)
+  @$pb.TagNumber(14)
+  @$pb.TagNumber(15)
+  @$pb.TagNumber(16)
+  ClientFailure_Kind whichKind() => _ClientFailure_KindByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(10)
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  @$pb.TagNumber(13)
+  @$pb.TagNumber(14)
+  @$pb.TagNumber(15)
+  @$pb.TagNumber(16)
+  void clearKind() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(10)
+  ClientDaemonNotFound get clientDaemonNotFound => $_getN(0);
+  @$pb.TagNumber(10)
+  set clientDaemonNotFound(ClientDaemonNotFound value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasClientDaemonNotFound() => $_has(0);
+  @$pb.TagNumber(10)
+  void clearClientDaemonNotFound() => $_clearField(10);
+  @$pb.TagNumber(10)
+  ClientDaemonNotFound ensureClientDaemonNotFound() => $_ensure(0);
+
+  @$pb.TagNumber(11)
+  ClientDaemonStartFailed get clientDaemonStartFailed => $_getN(1);
+  @$pb.TagNumber(11)
+  set clientDaemonStartFailed(ClientDaemonStartFailed value) =>
+      $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasClientDaemonStartFailed() => $_has(1);
+  @$pb.TagNumber(11)
+  void clearClientDaemonStartFailed() => $_clearField(11);
+  @$pb.TagNumber(11)
+  ClientDaemonStartFailed ensureClientDaemonStartFailed() => $_ensure(1);
+
+  @$pb.TagNumber(12)
+  ClientDaemonExited get clientDaemonExited => $_getN(2);
+  @$pb.TagNumber(12)
+  set clientDaemonExited(ClientDaemonExited value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasClientDaemonExited() => $_has(2);
+  @$pb.TagNumber(12)
+  void clearClientDaemonExited() => $_clearField(12);
+  @$pb.TagNumber(12)
+  ClientDaemonExited ensureClientDaemonExited() => $_ensure(2);
+
+  @$pb.TagNumber(13)
+  ClientTimeout get clientTimeout => $_getN(3);
+  @$pb.TagNumber(13)
+  set clientTimeout(ClientTimeout value) => $_setField(13, value);
+  @$pb.TagNumber(13)
+  $core.bool hasClientTimeout() => $_has(3);
+  @$pb.TagNumber(13)
+  void clearClientTimeout() => $_clearField(13);
+  @$pb.TagNumber(13)
+  ClientTimeout ensureClientTimeout() => $_ensure(3);
+
+  @$pb.TagNumber(14)
+  ClientProtocolError get clientProtocolError => $_getN(4);
+  @$pb.TagNumber(14)
+  set clientProtocolError(ClientProtocolError value) => $_setField(14, value);
+  @$pb.TagNumber(14)
+  $core.bool hasClientProtocolError() => $_has(4);
+  @$pb.TagNumber(14)
+  void clearClientProtocolError() => $_clearField(14);
+  @$pb.TagNumber(14)
+  ClientProtocolError ensureClientProtocolError() => $_ensure(4);
+
+  @$pb.TagNumber(15)
+  ClientNotConnected get clientNotConnected => $_getN(5);
+  @$pb.TagNumber(15)
+  set clientNotConnected(ClientNotConnected value) => $_setField(15, value);
+  @$pb.TagNumber(15)
+  $core.bool hasClientNotConnected() => $_has(5);
+  @$pb.TagNumber(15)
+  void clearClientNotConnected() => $_clearField(15);
+  @$pb.TagNumber(15)
+  ClientNotConnected ensureClientNotConnected() => $_ensure(5);
+
+  @$pb.TagNumber(16)
+  ClientUnexpected get clientUnexpected => $_getN(6);
+  @$pb.TagNumber(16)
+  set clientUnexpected(ClientUnexpected value) => $_setField(16, value);
+  @$pb.TagNumber(16)
+  $core.bool hasClientUnexpected() => $_has(6);
+  @$pb.TagNumber(16)
+  void clearClientUnexpected() => $_clearField(16);
+  @$pb.TagNumber(16)
+  ClientUnexpected ensureClientUnexpected() => $_ensure(6);
+}
+
+class SessionProtocolUnsupported extends $pb.GeneratedMessage {
+  factory SessionProtocolUnsupported({
+    ProtocolVersion? client,
+    ProtocolVersion? daemon,
+  }) {
+    final result = SessionProtocolUnsupported._();
+    if (client != null) result.client = client;
+    if (daemon != null) result.daemon = daemon;
+    return result;
+  }
+
+  SessionProtocolUnsupported._();
+
+  factory SessionProtocolUnsupported.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionProtocolUnsupported()..mergeFromBuffer(data, registry);
+  factory SessionProtocolUnsupported.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionProtocolUnsupported()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionProtocolUnsupported',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionProtocolUnsupported.$_createMessage)
+    ..aOM<ProtocolVersion>(1, _omitFieldNames ? '' : 'client',
+        subBuilder: ProtocolVersion.$_createMessage)
+    ..aOM<ProtocolVersion>(2, _omitFieldNames ? '' : 'daemon',
+        subBuilder: ProtocolVersion.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionProtocolUnsupported clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionProtocolUnsupported copyWith(
+          void Function(SessionProtocolUnsupported) updates) =>
+      super.copyWith(
+              (message) => updates(message as SessionProtocolUnsupported))
+          as SessionProtocolUnsupported;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SessionProtocolUnsupported() / SessionProtocolUnsupported.new instead')
+  static SessionProtocolUnsupported create() => SessionProtocolUnsupported._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      SessionProtocolUnsupported._();
+  @$core.override
+  SessionProtocolUnsupported createEmptyInstance() =>
+      SessionProtocolUnsupported._();
+  @$core.pragma('dart2js:noInline')
+  static SessionProtocolUnsupported getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SessionProtocolUnsupported>(
+          SessionProtocolUnsupported.$_createMessage);
+  static SessionProtocolUnsupported? _defaultInstance;
+
+  /// Absent when the client sent no version.
+  @$pb.TagNumber(1)
+  ProtocolVersion get client => $_getN(0);
+  @$pb.TagNumber(1)
+  set client(ProtocolVersion value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasClient() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearClient() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ProtocolVersion ensureClient() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  ProtocolVersion get daemon => $_getN(1);
+  @$pb.TagNumber(2)
+  set daemon(ProtocolVersion value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDaemon() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDaemon() => $_clearField(2);
+  @$pb.TagNumber(2)
+  ProtocolVersion ensureDaemon() => $_ensure(1);
+}
+
+class SessionNotOpen extends $pb.GeneratedMessage {
+  factory SessionNotOpen({
+    $core.String? request,
+  }) {
+    final result = SessionNotOpen._();
+    if (request != null) result.request = request;
+    return result;
+  }
+
+  SessionNotOpen._();
+
+  factory SessionNotOpen.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionNotOpen()..mergeFromBuffer(data, registry);
+  factory SessionNotOpen.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionNotOpen()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionNotOpen',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionNotOpen.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'request')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionNotOpen clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionNotOpen copyWith(void Function(SessionNotOpen) updates) =>
+      super.copyWith((message) => updates(message as SessionNotOpen))
+          as SessionNotOpen;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SessionNotOpen() / SessionNotOpen.new instead')
+  static SessionNotOpen create() => SessionNotOpen._();
+  static $pb.GeneratedMessage $_createMessage() => SessionNotOpen._();
+  @$core.override
+  SessionNotOpen createEmptyInstance() => SessionNotOpen._();
+  @$core.pragma('dart2js:noInline')
+  static SessionNotOpen getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<SessionNotOpen>(
+          SessionNotOpen.$_createMessage);
+  static SessionNotOpen? _defaultInstance;
+
+  /// The request kind that came before `OpenSession`, as its field name.
+  @$pb.TagNumber(1)
+  $core.String get request => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set request($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequest() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequest() => $_clearField(1);
+}
+
+class SessionAlreadyOpen extends $pb.GeneratedMessage {
+  factory SessionAlreadyOpen() => SessionAlreadyOpen._();
+
+  SessionAlreadyOpen._();
+
+  factory SessionAlreadyOpen.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionAlreadyOpen()..mergeFromBuffer(data, registry);
+  factory SessionAlreadyOpen.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionAlreadyOpen()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionAlreadyOpen',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionAlreadyOpen.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionAlreadyOpen clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionAlreadyOpen copyWith(void Function(SessionAlreadyOpen) updates) =>
+      super.copyWith((message) => updates(message as SessionAlreadyOpen))
+          as SessionAlreadyOpen;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SessionAlreadyOpen() / SessionAlreadyOpen.new instead')
+  static SessionAlreadyOpen create() => SessionAlreadyOpen._();
+  static $pb.GeneratedMessage $_createMessage() => SessionAlreadyOpen._();
+  @$core.override
+  SessionAlreadyOpen createEmptyInstance() => SessionAlreadyOpen._();
+  @$core.pragma('dart2js:noInline')
+  static SessionAlreadyOpen getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SessionAlreadyOpen>(
+          SessionAlreadyOpen.$_createMessage);
+  static SessionAlreadyOpen? _defaultInstance;
+}
+
+class SessionInvalidRequestId extends $pb.GeneratedMessage {
+  factory SessionInvalidRequestId({
+    $fixnum.Int64? id,
+  }) {
+    final result = SessionInvalidRequestId._();
+    if (id != null) result.id = id;
+    return result;
+  }
+
+  SessionInvalidRequestId._();
+
+  factory SessionInvalidRequestId.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionInvalidRequestId()..mergeFromBuffer(data, registry);
+  factory SessionInvalidRequestId.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionInvalidRequestId()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionInvalidRequestId',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionInvalidRequestId.$_createMessage)
+    ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'id', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionInvalidRequestId clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionInvalidRequestId copyWith(
+          void Function(SessionInvalidRequestId) updates) =>
+      super.copyWith((message) => updates(message as SessionInvalidRequestId))
+          as SessionInvalidRequestId;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SessionInvalidRequestId() / SessionInvalidRequestId.new instead')
+  static SessionInvalidRequestId create() => SessionInvalidRequestId._();
+  static $pb.GeneratedMessage $_createMessage() => SessionInvalidRequestId._();
+  @$core.override
+  SessionInvalidRequestId createEmptyInstance() => SessionInvalidRequestId._();
+  @$core.pragma('dart2js:noInline')
+  static SessionInvalidRequestId getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SessionInvalidRequestId>(
+          SessionInvalidRequestId.$_createMessage);
+  static SessionInvalidRequestId? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get id => $_getI64(0);
+  @$pb.TagNumber(1)
+  set id($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearId() => $_clearField(1);
+}
+
+class SessionUnknownRequest extends $pb.GeneratedMessage {
+  factory SessionUnknownRequest() => SessionUnknownRequest._();
+
+  SessionUnknownRequest._();
+
+  factory SessionUnknownRequest.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionUnknownRequest()..mergeFromBuffer(data, registry);
+  factory SessionUnknownRequest.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionUnknownRequest()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionUnknownRequest',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionUnknownRequest.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionUnknownRequest clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionUnknownRequest copyWith(
+          void Function(SessionUnknownRequest) updates) =>
+      super.copyWith((message) => updates(message as SessionUnknownRequest))
+          as SessionUnknownRequest;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SessionUnknownRequest() / SessionUnknownRequest.new instead')
+  static SessionUnknownRequest create() => SessionUnknownRequest._();
+  static $pb.GeneratedMessage $_createMessage() => SessionUnknownRequest._();
+  @$core.override
+  SessionUnknownRequest createEmptyInstance() => SessionUnknownRequest._();
+  @$core.pragma('dart2js:noInline')
+  static SessionUnknownRequest getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SessionUnknownRequest>(
+          SessionUnknownRequest.$_createMessage);
+  static SessionUnknownRequest? _defaultInstance;
+}
+
+class QueryUnknownProfile extends $pb.GeneratedMessage {
+  factory QueryUnknownProfile({
+    $core.String? profileId,
+  }) {
+    final result = QueryUnknownProfile._();
+    if (profileId != null) result.profileId = profileId;
+    return result;
+  }
+
+  QueryUnknownProfile._();
+
+  factory QueryUnknownProfile.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryUnknownProfile()..mergeFromBuffer(data, registry);
+  factory QueryUnknownProfile.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryUnknownProfile()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryUnknownProfile',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryUnknownProfile.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'profileId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryUnknownProfile clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryUnknownProfile copyWith(void Function(QueryUnknownProfile) updates) =>
+      super.copyWith((message) => updates(message as QueryUnknownProfile))
+          as QueryUnknownProfile;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use QueryUnknownProfile() / QueryUnknownProfile.new instead')
+  static QueryUnknownProfile create() => QueryUnknownProfile._();
+  static $pb.GeneratedMessage $_createMessage() => QueryUnknownProfile._();
+  @$core.override
+  QueryUnknownProfile createEmptyInstance() => QueryUnknownProfile._();
+  @$core.pragma('dart2js:noInline')
+  static QueryUnknownProfile getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<QueryUnknownProfile>(
+          QueryUnknownProfile.$_createMessage);
+  static QueryUnknownProfile? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get profileId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set profileId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProfileId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProfileId() => $_clearField(1);
+}
+
+class QueryStaleRevision extends $pb.GeneratedMessage {
+  factory QueryStaleRevision({
+    $fixnum.Int64? scan,
+    $fixnum.Int64? current,
+  }) {
+    final result = QueryStaleRevision._();
+    if (scan != null) result.scan = scan;
+    if (current != null) result.current = current;
+    return result;
+  }
+
+  QueryStaleRevision._();
+
+  factory QueryStaleRevision.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryStaleRevision()..mergeFromBuffer(data, registry);
+  factory QueryStaleRevision.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryStaleRevision()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryStaleRevision',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryStaleRevision.$_createMessage)
+    ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'scan', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'current', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryStaleRevision clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryStaleRevision copyWith(void Function(QueryStaleRevision) updates) =>
+      super.copyWith((message) => updates(message as QueryStaleRevision))
+          as QueryStaleRevision;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use QueryStaleRevision() / QueryStaleRevision.new instead')
+  static QueryStaleRevision create() => QueryStaleRevision._();
+  static $pb.GeneratedMessage $_createMessage() => QueryStaleRevision._();
+  @$core.override
+  QueryStaleRevision createEmptyInstance() => QueryStaleRevision._();
+  @$core.pragma('dart2js:noInline')
+  static QueryStaleRevision getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<QueryStaleRevision>(
+          QueryStaleRevision.$_createMessage);
+  static QueryStaleRevision? _defaultInstance;
+
+  /// The revision the scan began at, and the projection's.
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get scan => $_getI64(0);
+  @$pb.TagNumber(1)
+  set scan($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasScan() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearScan() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get current => $_getI64(1);
+  @$pb.TagNumber(2)
+  set current($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCurrent() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCurrent() => $_clearField(2);
+}
+
+class QueryMalformed extends $pb.GeneratedMessage {
+  factory QueryMalformed({
+    $core.String? problem,
+  }) {
+    final result = QueryMalformed._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  QueryMalformed._();
+
+  factory QueryMalformed.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryMalformed()..mergeFromBuffer(data, registry);
+  factory QueryMalformed.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryMalformed()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryMalformed',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryMalformed.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryMalformed clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryMalformed copyWith(void Function(QueryMalformed) updates) =>
+      super.copyWith((message) => updates(message as QueryMalformed))
+          as QueryMalformed;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use QueryMalformed() / QueryMalformed.new instead')
+  static QueryMalformed create() => QueryMalformed._();
+  static $pb.GeneratedMessage $_createMessage() => QueryMalformed._();
+  @$core.override
+  QueryMalformed createEmptyInstance() => QueryMalformed._();
+  @$core.pragma('dart2js:noInline')
+  static QueryMalformed getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<QueryMalformed>(
+          QueryMalformed.$_createMessage);
+  static QueryMalformed? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class QueryUnknownField extends $pb.GeneratedMessage {
+  factory QueryUnknownField({
+    $core.int? value,
+  }) {
+    final result = QueryUnknownField._();
+    if (value != null) result.value = value;
+    return result;
+  }
+
+  QueryUnknownField._();
+
+  factory QueryUnknownField.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryUnknownField()..mergeFromBuffer(data, registry);
+  factory QueryUnknownField.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryUnknownField()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryUnknownField',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryUnknownField.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'value')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryUnknownField clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryUnknownField copyWith(void Function(QueryUnknownField) updates) =>
+      super.copyWith((message) => updates(message as QueryUnknownField))
+          as QueryUnknownField;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use QueryUnknownField() / QueryUnknownField.new instead')
+  static QueryUnknownField create() => QueryUnknownField._();
+  static $pb.GeneratedMessage $_createMessage() => QueryUnknownField._();
+  @$core.override
+  QueryUnknownField createEmptyInstance() => QueryUnknownField._();
+  @$core.pragma('dart2js:noInline')
+  static QueryUnknownField getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<QueryUnknownField>(
+          QueryUnknownField.$_createMessage);
+  static QueryUnknownField? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get value => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set value($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasValue() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearValue() => $_clearField(1);
+}
+
+class QueryTooComplex extends $pb.GeneratedMessage {
+  factory QueryTooComplex({
+    $core.String? limit,
+    $fixnum.Int64? found,
+    $fixnum.Int64? max,
+  }) {
+    final result = QueryTooComplex._();
+    if (limit != null) result.limit = limit;
+    if (found != null) result.found = found;
+    if (max != null) result.max = max;
+    return result;
+  }
+
+  QueryTooComplex._();
+
+  factory QueryTooComplex.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryTooComplex()..mergeFromBuffer(data, registry);
+  factory QueryTooComplex.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryTooComplex()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryTooComplex',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryTooComplex.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'limit')
+    ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'found', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(3, _omitFieldNames ? '' : 'max', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryTooComplex clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryTooComplex copyWith(void Function(QueryTooComplex) updates) =>
+      super.copyWith((message) => updates(message as QueryTooComplex))
+          as QueryTooComplex;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use QueryTooComplex() / QueryTooComplex.new instead')
+  static QueryTooComplex create() => QueryTooComplex._();
+  static $pb.GeneratedMessage $_createMessage() => QueryTooComplex._();
+  @$core.override
+  QueryTooComplex createEmptyInstance() => QueryTooComplex._();
+  @$core.pragma('dart2js:noInline')
+  static QueryTooComplex getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<QueryTooComplex>(
+          QueryTooComplex.$_createMessage);
+  static QueryTooComplex? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get limit => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set limit($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasLimit() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearLimit() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get found => $_getI64(1);
+  @$pb.TagNumber(2)
+  set found($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasFound() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearFound() => $_clearField(2);
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get max => $_getI64(2);
+  @$pb.TagNumber(3)
+  set max($fixnum.Int64 value) => $_setInt64(2, value);
+  @$pb.TagNumber(3)
+  $core.bool hasMax() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearMax() => $_clearField(3);
+}
+
+class QueryTypeMismatch extends $pb.GeneratedMessage {
+  factory QueryTypeMismatch({
+    $core.String? problem,
+  }) {
+    final result = QueryTypeMismatch._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  QueryTypeMismatch._();
+
+  factory QueryTypeMismatch.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryTypeMismatch()..mergeFromBuffer(data, registry);
+  factory QueryTypeMismatch.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryTypeMismatch()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryTypeMismatch',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryTypeMismatch.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryTypeMismatch clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryTypeMismatch copyWith(void Function(QueryTypeMismatch) updates) =>
+      super.copyWith((message) => updates(message as QueryTypeMismatch))
+          as QueryTypeMismatch;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use QueryTypeMismatch() / QueryTypeMismatch.new instead')
+  static QueryTypeMismatch create() => QueryTypeMismatch._();
+  static $pb.GeneratedMessage $_createMessage() => QueryTypeMismatch._();
+  @$core.override
+  QueryTypeMismatch createEmptyInstance() => QueryTypeMismatch._();
+  @$core.pragma('dart2js:noInline')
+  static QueryTypeMismatch getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<QueryTypeMismatch>(
+          QueryTypeMismatch.$_createMessage);
+  static QueryTypeMismatch? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class QueryParamSetRequired extends $pb.GeneratedMessage {
+  factory QueryParamSetRequired({
+    $core.String? field_1,
+  }) {
+    final result = QueryParamSetRequired._();
+    if (field_1 != null) result.field_1 = field_1;
+    return result;
+  }
+
+  QueryParamSetRequired._();
+
+  factory QueryParamSetRequired.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryParamSetRequired()..mergeFromBuffer(data, registry);
+  factory QueryParamSetRequired.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryParamSetRequired()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryParamSetRequired',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryParamSetRequired.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'field')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryParamSetRequired clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryParamSetRequired copyWith(
+          void Function(QueryParamSetRequired) updates) =>
+      super.copyWith((message) => updates(message as QueryParamSetRequired))
+          as QueryParamSetRequired;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use QueryParamSetRequired() / QueryParamSetRequired.new instead')
+  static QueryParamSetRequired create() => QueryParamSetRequired._();
+  static $pb.GeneratedMessage $_createMessage() => QueryParamSetRequired._();
+  @$core.override
+  QueryParamSetRequired createEmptyInstance() => QueryParamSetRequired._();
+  @$core.pragma('dart2js:noInline')
+  static QueryParamSetRequired getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<QueryParamSetRequired>(
+          QueryParamSetRequired.$_createMessage);
+  static QueryParamSetRequired? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get field_1 => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set field_1($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasField_1() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearField_1() => $_clearField(1);
+}
+
+class QueryFieldUnavailable extends $pb.GeneratedMessage {
+  factory QueryFieldUnavailable({
+    $core.String? field_1,
+  }) {
+    final result = QueryFieldUnavailable._();
+    if (field_1 != null) result.field_1 = field_1;
+    return result;
+  }
+
+  QueryFieldUnavailable._();
+
+  factory QueryFieldUnavailable.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryFieldUnavailable()..mergeFromBuffer(data, registry);
+  factory QueryFieldUnavailable.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryFieldUnavailable()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryFieldUnavailable',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryFieldUnavailable.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'field')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryFieldUnavailable clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryFieldUnavailable copyWith(
+          void Function(QueryFieldUnavailable) updates) =>
+      super.copyWith((message) => updates(message as QueryFieldUnavailable))
+          as QueryFieldUnavailable;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use QueryFieldUnavailable() / QueryFieldUnavailable.new instead')
+  static QueryFieldUnavailable create() => QueryFieldUnavailable._();
+  static $pb.GeneratedMessage $_createMessage() => QueryFieldUnavailable._();
+  @$core.override
+  QueryFieldUnavailable createEmptyInstance() => QueryFieldUnavailable._();
+  @$core.pragma('dart2js:noInline')
+  static QueryFieldUnavailable getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<QueryFieldUnavailable>(
+          QueryFieldUnavailable.$_createMessage);
+  static QueryFieldUnavailable? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get field_1 => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set field_1($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasField_1() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearField_1() => $_clearField(1);
+}
+
+class QueryUnknownScheme extends $pb.GeneratedMessage {
+  factory QueryUnknownScheme({
+    $core.String? problem,
+  }) {
+    final result = QueryUnknownScheme._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  QueryUnknownScheme._();
+
+  factory QueryUnknownScheme.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryUnknownScheme()..mergeFromBuffer(data, registry);
+  factory QueryUnknownScheme.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryUnknownScheme()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryUnknownScheme',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryUnknownScheme.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryUnknownScheme clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryUnknownScheme copyWith(void Function(QueryUnknownScheme) updates) =>
+      super.copyWith((message) => updates(message as QueryUnknownScheme))
+          as QueryUnknownScheme;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use QueryUnknownScheme() / QueryUnknownScheme.new instead')
+  static QueryUnknownScheme create() => QueryUnknownScheme._();
+  static $pb.GeneratedMessage $_createMessage() => QueryUnknownScheme._();
+  @$core.override
+  QueryUnknownScheme createEmptyInstance() => QueryUnknownScheme._();
+  @$core.pragma('dart2js:noInline')
+  static QueryUnknownScheme getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<QueryUnknownScheme>(
+          QueryUnknownScheme.$_createMessage);
+  static QueryUnknownScheme? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class QueryMalformedCursor extends $pb.GeneratedMessage {
+  factory QueryMalformedCursor() => QueryMalformedCursor._();
+
+  QueryMalformedCursor._();
+
+  factory QueryMalformedCursor.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryMalformedCursor()..mergeFromBuffer(data, registry);
+  factory QueryMalformedCursor.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      QueryMalformedCursor()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'QueryMalformedCursor',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: QueryMalformedCursor.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryMalformedCursor clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  QueryMalformedCursor copyWith(void Function(QueryMalformedCursor) updates) =>
+      super.copyWith((message) => updates(message as QueryMalformedCursor))
+          as QueryMalformedCursor;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use QueryMalformedCursor() / QueryMalformedCursor.new instead')
+  static QueryMalformedCursor create() => QueryMalformedCursor._();
+  static $pb.GeneratedMessage $_createMessage() => QueryMalformedCursor._();
+  @$core.override
+  QueryMalformedCursor createEmptyInstance() => QueryMalformedCursor._();
+  @$core.pragma('dart2js:noInline')
+  static QueryMalformedCursor getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<QueryMalformedCursor>(
+          QueryMalformedCursor.$_createMessage);
+  static QueryMalformedCursor? _defaultInstance;
+}
+
+class DecodeNoInput extends $pb.GeneratedMessage {
+  factory DecodeNoInput() => DecodeNoInput._();
+
+  DecodeNoInput._();
+
+  factory DecodeNoInput.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeNoInput()..mergeFromBuffer(data, registry);
+  factory DecodeNoInput.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeNoInput()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeNoInput',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeNoInput.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeNoInput clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeNoInput copyWith(void Function(DecodeNoInput) updates) =>
+      super.copyWith((message) => updates(message as DecodeNoInput))
+          as DecodeNoInput;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DecodeNoInput() / DecodeNoInput.new instead')
+  static DecodeNoInput create() => DecodeNoInput._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeNoInput._();
+  @$core.override
+  DecodeNoInput createEmptyInstance() => DecodeNoInput._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeNoInput getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DecodeNoInput>(
+          DecodeNoInput.$_createMessage);
+  static DecodeNoInput? _defaultInstance;
+}
+
+class DecodeMalformedText extends $pb.GeneratedMessage {
+  factory DecodeMalformedText({
+    $core.String? problem,
+  }) {
+    final result = DecodeMalformedText._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  DecodeMalformedText._();
+
+  factory DecodeMalformedText.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeMalformedText()..mergeFromBuffer(data, registry);
+  factory DecodeMalformedText.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeMalformedText()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeMalformedText',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeMalformedText.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeMalformedText clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeMalformedText copyWith(void Function(DecodeMalformedText) updates) =>
+      super.copyWith((message) => updates(message as DecodeMalformedText))
+          as DecodeMalformedText;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use DecodeMalformedText() / DecodeMalformedText.new instead')
+  static DecodeMalformedText create() => DecodeMalformedText._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeMalformedText._();
+  @$core.override
+  DecodeMalformedText createEmptyInstance() => DecodeMalformedText._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeMalformedText getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DecodeMalformedText>(
+          DecodeMalformedText.$_createMessage);
+  static DecodeMalformedText? _defaultInstance;
+
+  /// The transport layer that refused the text, with its position.
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class DecodeUnknownFormat extends $pb.GeneratedMessage {
+  factory DecodeUnknownFormat({
+    $fixnum.Int64? payloadBytes,
+  }) {
+    final result = DecodeUnknownFormat._();
+    if (payloadBytes != null) result.payloadBytes = payloadBytes;
+    return result;
+  }
+
+  DecodeUnknownFormat._();
+
+  factory DecodeUnknownFormat.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeUnknownFormat()..mergeFromBuffer(data, registry);
+  factory DecodeUnknownFormat.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeUnknownFormat()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeUnknownFormat',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeUnknownFormat.$_createMessage)
+    ..a<$fixnum.Int64>(
+        1, _omitFieldNames ? '' : 'payloadBytes', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeUnknownFormat clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeUnknownFormat copyWith(void Function(DecodeUnknownFormat) updates) =>
+      super.copyWith((message) => updates(message as DecodeUnknownFormat))
+          as DecodeUnknownFormat;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use DecodeUnknownFormat() / DecodeUnknownFormat.new instead')
+  static DecodeUnknownFormat create() => DecodeUnknownFormat._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeUnknownFormat._();
+  @$core.override
+  DecodeUnknownFormat createEmptyInstance() => DecodeUnknownFormat._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeUnknownFormat getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DecodeUnknownFormat>(
+          DecodeUnknownFormat.$_createMessage);
+  static DecodeUnknownFormat? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get payloadBytes => $_getI64(0);
+  @$pb.TagNumber(1)
+  set payloadBytes($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPayloadBytes() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPayloadBytes() => $_clearField(1);
+}
+
+class DecodeMalformedLayout extends $pb.GeneratedMessage {
+  factory DecodeMalformedLayout({
+    $core.String? problem,
+  }) {
+    final result = DecodeMalformedLayout._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  DecodeMalformedLayout._();
+
+  factory DecodeMalformedLayout.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeMalformedLayout()..mergeFromBuffer(data, registry);
+  factory DecodeMalformedLayout.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeMalformedLayout()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeMalformedLayout',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeMalformedLayout.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeMalformedLayout clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeMalformedLayout copyWith(
+          void Function(DecodeMalformedLayout) updates) =>
+      super.copyWith((message) => updates(message as DecodeMalformedLayout))
+          as DecodeMalformedLayout;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DecodeMalformedLayout() / DecodeMalformedLayout.new instead')
+  static DecodeMalformedLayout create() => DecodeMalformedLayout._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeMalformedLayout._();
+  @$core.override
+  DecodeMalformedLayout createEmptyInstance() => DecodeMalformedLayout._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeMalformedLayout getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DecodeMalformedLayout>(
+          DecodeMalformedLayout.$_createMessage);
+  static DecodeMalformedLayout? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class DecodeMalformedScheme extends $pb.GeneratedMessage {
+  factory DecodeMalformedScheme({
+    $core.int? record,
+    $core.String? problem,
+  }) {
+    final result = DecodeMalformedScheme._();
+    if (record != null) result.record = record;
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  DecodeMalformedScheme._();
+
+  factory DecodeMalformedScheme.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeMalformedScheme()..mergeFromBuffer(data, registry);
+  factory DecodeMalformedScheme.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeMalformedScheme()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeMalformedScheme',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeMalformedScheme.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'record', fieldType: $pb.PbFieldType.OU3)
+    ..aOS(2, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeMalformedScheme clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeMalformedScheme copyWith(
+          void Function(DecodeMalformedScheme) updates) =>
+      super.copyWith((message) => updates(message as DecodeMalformedScheme))
+          as DecodeMalformedScheme;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DecodeMalformedScheme() / DecodeMalformedScheme.new instead')
+  static DecodeMalformedScheme create() => DecodeMalformedScheme._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeMalformedScheme._();
+  @$core.override
+  DecodeMalformedScheme createEmptyInstance() => DecodeMalformedScheme._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeMalformedScheme getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DecodeMalformedScheme>(
+          DecodeMalformedScheme.$_createMessage);
+  static DecodeMalformedScheme? _defaultInstance;
+
+  /// The plan or discard scheme, by position in the code; absent when no one record is at fault.
+  @$pb.TagNumber(1)
+  $core.int get record => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set record($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRecord() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRecord() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get problem => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set problem($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProblem() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProblem() => $_clearField(2);
+}
+
+class DecodeImageInvalid extends $pb.GeneratedMessage {
+  factory DecodeImageInvalid({
+    $core.String? problem,
+  }) {
+    final result = DecodeImageInvalid._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  DecodeImageInvalid._();
+
+  factory DecodeImageInvalid.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeImageInvalid()..mergeFromBuffer(data, registry);
+  factory DecodeImageInvalid.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeImageInvalid()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeImageInvalid',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeImageInvalid.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeImageInvalid clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeImageInvalid copyWith(void Function(DecodeImageInvalid) updates) =>
+      super.copyWith((message) => updates(message as DecodeImageInvalid))
+          as DecodeImageInvalid;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DecodeImageInvalid() / DecodeImageInvalid.new instead')
+  static DecodeImageInvalid create() => DecodeImageInvalid._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeImageInvalid._();
+  @$core.override
+  DecodeImageInvalid createEmptyInstance() => DecodeImageInvalid._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeImageInvalid getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DecodeImageInvalid>(
+          DecodeImageInvalid.$_createMessage);
+  static DecodeImageInvalid? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class DecodeNoQrCode extends $pb.GeneratedMessage {
+  factory DecodeNoQrCode() => DecodeNoQrCode._();
+
+  DecodeNoQrCode._();
+
+  factory DecodeNoQrCode.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeNoQrCode()..mergeFromBuffer(data, registry);
+  factory DecodeNoQrCode.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeNoQrCode()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeNoQrCode',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeNoQrCode.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeNoQrCode clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeNoQrCode copyWith(void Function(DecodeNoQrCode) updates) =>
+      super.copyWith((message) => updates(message as DecodeNoQrCode))
+          as DecodeNoQrCode;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DecodeNoQrCode() / DecodeNoQrCode.new instead')
+  static DecodeNoQrCode create() => DecodeNoQrCode._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeNoQrCode._();
+  @$core.override
+  DecodeNoQrCode createEmptyInstance() => DecodeNoQrCode._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeNoQrCode getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<DecodeNoQrCode>(
+          DecodeNoQrCode.$_createMessage);
+  static DecodeNoQrCode? _defaultInstance;
+}
+
+class DecodeSeveralQrCodes extends $pb.GeneratedMessage {
+  factory DecodeSeveralQrCodes({
+    $core.int? count,
+  }) {
+    final result = DecodeSeveralQrCodes._();
+    if (count != null) result.count = count;
+    return result;
+  }
+
+  DecodeSeveralQrCodes._();
+
+  factory DecodeSeveralQrCodes.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeSeveralQrCodes()..mergeFromBuffer(data, registry);
+  factory DecodeSeveralQrCodes.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeSeveralQrCodes()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeSeveralQrCodes',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeSeveralQrCodes.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'count', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeSeveralQrCodes clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeSeveralQrCodes copyWith(void Function(DecodeSeveralQrCodes) updates) =>
+      super.copyWith((message) => updates(message as DecodeSeveralQrCodes))
+          as DecodeSeveralQrCodes;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use DecodeSeveralQrCodes() / DecodeSeveralQrCodes.new instead')
+  static DecodeSeveralQrCodes create() => DecodeSeveralQrCodes._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeSeveralQrCodes._();
+  @$core.override
+  DecodeSeveralQrCodes createEmptyInstance() => DecodeSeveralQrCodes._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeSeveralQrCodes getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DecodeSeveralQrCodes>(
+          DecodeSeveralQrCodes.$_createMessage);
+  static DecodeSeveralQrCodes? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get count => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set count($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCount() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCount() => $_clearField(1);
+}
+
+class DecodeQrUnreadable extends $pb.GeneratedMessage {
+  factory DecodeQrUnreadable({
+    $core.String? problem,
+  }) {
+    final result = DecodeQrUnreadable._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  DecodeQrUnreadable._();
+
+  factory DecodeQrUnreadable.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeQrUnreadable()..mergeFromBuffer(data, registry);
+  factory DecodeQrUnreadable.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      DecodeQrUnreadable()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'DecodeQrUnreadable',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: DecodeQrUnreadable.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeQrUnreadable clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  DecodeQrUnreadable copyWith(void Function(DecodeQrUnreadable) updates) =>
+      super.copyWith((message) => updates(message as DecodeQrUnreadable))
+          as DecodeQrUnreadable;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use DecodeQrUnreadable() / DecodeQrUnreadable.new instead')
+  static DecodeQrUnreadable create() => DecodeQrUnreadable._();
+  static $pb.GeneratedMessage $_createMessage() => DecodeQrUnreadable._();
+  @$core.override
+  DecodeQrUnreadable createEmptyInstance() => DecodeQrUnreadable._();
+  @$core.pragma('dart2js:noInline')
+  static DecodeQrUnreadable getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<DecodeQrUnreadable>(
+          DecodeQrUnreadable.$_createMessage);
+  static DecodeQrUnreadable? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class ImportProfileMismatch extends $pb.GeneratedMessage {
+  factory ImportProfileMismatch({
+    $core.String? problem,
+  }) {
+    final result = ImportProfileMismatch._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportProfileMismatch._();
+
+  factory ImportProfileMismatch.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportProfileMismatch()..mergeFromBuffer(data, registry);
+  factory ImportProfileMismatch.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportProfileMismatch()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportProfileMismatch',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportProfileMismatch.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportProfileMismatch clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportProfileMismatch copyWith(
+          void Function(ImportProfileMismatch) updates) =>
+      super.copyWith((message) => updates(message as ImportProfileMismatch))
+          as ImportProfileMismatch;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportProfileMismatch() / ImportProfileMismatch.new instead')
+  static ImportProfileMismatch create() => ImportProfileMismatch._();
+  static $pb.GeneratedMessage $_createMessage() => ImportProfileMismatch._();
+  @$core.override
+  ImportProfileMismatch createEmptyInstance() => ImportProfileMismatch._();
+  @$core.pragma('dart2js:noInline')
+  static ImportProfileMismatch getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportProfileMismatch>(
+          ImportProfileMismatch.$_createMessage);
+  static ImportProfileMismatch? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class ImportMalformedReading extends $pb.GeneratedMessage {
+  factory ImportMalformedReading({
+    $core.String? problem,
+  }) {
+    final result = ImportMalformedReading._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportMalformedReading._();
+
+  factory ImportMalformedReading.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportMalformedReading()..mergeFromBuffer(data, registry);
+  factory ImportMalformedReading.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportMalformedReading()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportMalformedReading',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportMalformedReading.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportMalformedReading clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportMalformedReading copyWith(
+          void Function(ImportMalformedReading) updates) =>
+      super.copyWith((message) => updates(message as ImportMalformedReading))
+          as ImportMalformedReading;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportMalformedReading() / ImportMalformedReading.new instead')
+  static ImportMalformedReading create() => ImportMalformedReading._();
+  static $pb.GeneratedMessage $_createMessage() => ImportMalformedReading._();
+  @$core.override
+  ImportMalformedReading createEmptyInstance() => ImportMalformedReading._();
+  @$core.pragma('dart2js:noInline')
+  static ImportMalformedReading getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportMalformedReading>(
+          ImportMalformedReading.$_createMessage);
+  static ImportMalformedReading? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class ImportReadingTooLarge extends $pb.GeneratedMessage {
+  factory ImportReadingTooLarge({
+    $core.String? problem,
+  }) {
+    final result = ImportReadingTooLarge._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportReadingTooLarge._();
+
+  factory ImportReadingTooLarge.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportReadingTooLarge()..mergeFromBuffer(data, registry);
+  factory ImportReadingTooLarge.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportReadingTooLarge()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportReadingTooLarge',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportReadingTooLarge.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportReadingTooLarge clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportReadingTooLarge copyWith(
+          void Function(ImportReadingTooLarge) updates) =>
+      super.copyWith((message) => updates(message as ImportReadingTooLarge))
+          as ImportReadingTooLarge;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportReadingTooLarge() / ImportReadingTooLarge.new instead')
+  static ImportReadingTooLarge create() => ImportReadingTooLarge._();
+  static $pb.GeneratedMessage $_createMessage() => ImportReadingTooLarge._();
+  @$core.override
+  ImportReadingTooLarge createEmptyInstance() => ImportReadingTooLarge._();
+  @$core.pragma('dart2js:noInline')
+  static ImportReadingTooLarge getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportReadingTooLarge>(
+          ImportReadingTooLarge.$_createMessage);
+  static ImportReadingTooLarge? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class ImportUnestablishedIdentity extends $pb.GeneratedMessage {
+  factory ImportUnestablishedIdentity({
+    $core.String? evidence,
+  }) {
+    final result = ImportUnestablishedIdentity._();
+    if (evidence != null) result.evidence = evidence;
+    return result;
+  }
+
+  ImportUnestablishedIdentity._();
+
+  factory ImportUnestablishedIdentity.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportUnestablishedIdentity()..mergeFromBuffer(data, registry);
+  factory ImportUnestablishedIdentity.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportUnestablishedIdentity()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportUnestablishedIdentity',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportUnestablishedIdentity.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'evidence')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportUnestablishedIdentity clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportUnestablishedIdentity copyWith(
+          void Function(ImportUnestablishedIdentity) updates) =>
+      super.copyWith(
+              (message) => updates(message as ImportUnestablishedIdentity))
+          as ImportUnestablishedIdentity;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportUnestablishedIdentity() / ImportUnestablishedIdentity.new instead')
+  static ImportUnestablishedIdentity create() =>
+      ImportUnestablishedIdentity._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ImportUnestablishedIdentity._();
+  @$core.override
+  ImportUnestablishedIdentity createEmptyInstance() =>
+      ImportUnestablishedIdentity._();
+  @$core.pragma('dart2js:noInline')
+  static ImportUnestablishedIdentity getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportUnestablishedIdentity>(
+          ImportUnestablishedIdentity.$_createMessage);
+  static ImportUnestablishedIdentity? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get evidence => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set evidence($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasEvidence() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearEvidence() => $_clearField(1);
+}
+
+class ImportDuplicateSoul extends $pb.GeneratedMessage {
+  factory ImportDuplicateSoul({
+    $core.String? soulId,
+  }) {
+    final result = ImportDuplicateSoul._();
+    if (soulId != null) result.soulId = soulId;
+    return result;
+  }
+
+  ImportDuplicateSoul._();
+
+  factory ImportDuplicateSoul.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportDuplicateSoul()..mergeFromBuffer(data, registry);
+  factory ImportDuplicateSoul.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportDuplicateSoul()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportDuplicateSoul',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportDuplicateSoul.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'soulId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportDuplicateSoul clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportDuplicateSoul copyWith(void Function(ImportDuplicateSoul) updates) =>
+      super.copyWith((message) => updates(message as ImportDuplicateSoul))
+          as ImportDuplicateSoul;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use ImportDuplicateSoul() / ImportDuplicateSoul.new instead')
+  static ImportDuplicateSoul create() => ImportDuplicateSoul._();
+  static $pb.GeneratedMessage $_createMessage() => ImportDuplicateSoul._();
+  @$core.override
+  ImportDuplicateSoul createEmptyInstance() => ImportDuplicateSoul._();
+  @$core.pragma('dart2js:noInline')
+  static ImportDuplicateSoul getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportDuplicateSoul>(
+          ImportDuplicateSoul.$_createMessage);
+  static ImportDuplicateSoul? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get soulId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set soulId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSoulId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSoulId() => $_clearField(1);
+}
+
+class CommandRefused extends $pb.GeneratedMessage {
+  factory CommandRefused({
+    $core.String? problem,
+  }) {
+    final result = CommandRefused._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  CommandRefused._();
+
+  factory CommandRefused.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CommandRefused()..mergeFromBuffer(data, registry);
+  factory CommandRefused.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CommandRefused()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommandRefused',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: CommandRefused.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommandRefused clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommandRefused copyWith(void Function(CommandRefused) updates) =>
+      super.copyWith((message) => updates(message as CommandRefused))
+          as CommandRefused;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CommandRefused() / CommandRefused.new instead')
+  static CommandRefused create() => CommandRefused._();
+  static $pb.GeneratedMessage $_createMessage() => CommandRefused._();
+  @$core.override
+  CommandRefused createEmptyInstance() => CommandRefused._();
+  @$core.pragma('dart2js:noInline')
+  static CommandRefused getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CommandRefused>(
+          CommandRefused.$_createMessage);
+  static CommandRefused? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class CommandTooLarge extends $pb.GeneratedMessage {
+  factory CommandTooLarge({
+    $core.String? problem,
+  }) {
+    final result = CommandTooLarge._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  CommandTooLarge._();
+
+  factory CommandTooLarge.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CommandTooLarge()..mergeFromBuffer(data, registry);
+  factory CommandTooLarge.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CommandTooLarge()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CommandTooLarge',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: CommandTooLarge.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommandTooLarge clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CommandTooLarge copyWith(void Function(CommandTooLarge) updates) =>
+      super.copyWith((message) => updates(message as CommandTooLarge))
+          as CommandTooLarge;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use CommandTooLarge() / CommandTooLarge.new instead')
+  static CommandTooLarge create() => CommandTooLarge._();
+  static $pb.GeneratedMessage $_createMessage() => CommandTooLarge._();
+  @$core.override
+  CommandTooLarge createEmptyInstance() => CommandTooLarge._();
+  @$core.pragma('dart2js:noInline')
+  static CommandTooLarge getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<CommandTooLarge>(
+          CommandTooLarge.$_createMessage);
+  static CommandTooLarge? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class StoreFailure extends $pb.GeneratedMessage {
+  factory StoreFailure({
+    $core.String? problem,
+  }) {
+    final result = StoreFailure._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  StoreFailure._();
+
+  factory StoreFailure.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreFailure()..mergeFromBuffer(data, registry);
+  factory StoreFailure.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreFailure()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreFailure',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreFailure.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreFailure clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreFailure copyWith(void Function(StoreFailure) updates) =>
+      super.copyWith((message) => updates(message as StoreFailure))
+          as StoreFailure;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreFailure() / StoreFailure.new instead')
+  static StoreFailure create() => StoreFailure._();
+  static $pb.GeneratedMessage $_createMessage() => StoreFailure._();
+  @$core.override
+  StoreFailure createEmptyInstance() => StoreFailure._();
+  @$core.pragma('dart2js:noInline')
+  static StoreFailure getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoreFailure>(
+          StoreFailure.$_createMessage);
+  static StoreFailure? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class StoreInvalidLog extends $pb.GeneratedMessage {
+  factory StoreInvalidLog({
+    $core.String? problem,
+  }) {
+    final result = StoreInvalidLog._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  StoreInvalidLog._();
+
+  factory StoreInvalidLog.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreInvalidLog()..mergeFromBuffer(data, registry);
+  factory StoreInvalidLog.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreInvalidLog()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreInvalidLog',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreInvalidLog.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreInvalidLog clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreInvalidLog copyWith(void Function(StoreInvalidLog) updates) =>
+      super.copyWith((message) => updates(message as StoreInvalidLog))
+          as StoreInvalidLog;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreInvalidLog() / StoreInvalidLog.new instead')
+  static StoreInvalidLog create() => StoreInvalidLog._();
+  static $pb.GeneratedMessage $_createMessage() => StoreInvalidLog._();
+  @$core.override
+  StoreInvalidLog createEmptyInstance() => StoreInvalidLog._();
+  @$core.pragma('dart2js:noInline')
+  static StoreInvalidLog getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoreInvalidLog>(
+          StoreInvalidLog.$_createMessage);
+  static StoreInvalidLog? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class StoreNewerFormat extends $pb.GeneratedMessage {
+  factory StoreNewerFormat({
+    $core.String? problem,
+  }) {
+    final result = StoreNewerFormat._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  StoreNewerFormat._();
+
+  factory StoreNewerFormat.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreNewerFormat()..mergeFromBuffer(data, registry);
+  factory StoreNewerFormat.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreNewerFormat()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreNewerFormat',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreNewerFormat.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreNewerFormat clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreNewerFormat copyWith(void Function(StoreNewerFormat) updates) =>
+      super.copyWith((message) => updates(message as StoreNewerFormat))
+          as StoreNewerFormat;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreNewerFormat() / StoreNewerFormat.new instead')
+  static StoreNewerFormat create() => StoreNewerFormat._();
+  static $pb.GeneratedMessage $_createMessage() => StoreNewerFormat._();
+  @$core.override
+  StoreNewerFormat createEmptyInstance() => StoreNewerFormat._();
+  @$core.pragma('dart2js:noInline')
+  static StoreNewerFormat getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoreNewerFormat>(
+          StoreNewerFormat.$_createMessage);
+  static StoreNewerFormat? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class StoreMalformedCommit extends $pb.GeneratedMessage {
+  factory StoreMalformedCommit({
+    $core.String? problem,
+  }) {
+    final result = StoreMalformedCommit._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  StoreMalformedCommit._();
+
+  factory StoreMalformedCommit.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreMalformedCommit()..mergeFromBuffer(data, registry);
+  factory StoreMalformedCommit.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreMalformedCommit()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreMalformedCommit',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreMalformedCommit.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreMalformedCommit clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreMalformedCommit copyWith(void Function(StoreMalformedCommit) updates) =>
+      super.copyWith((message) => updates(message as StoreMalformedCommit))
+          as StoreMalformedCommit;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use StoreMalformedCommit() / StoreMalformedCommit.new instead')
+  static StoreMalformedCommit create() => StoreMalformedCommit._();
+  static $pb.GeneratedMessage $_createMessage() => StoreMalformedCommit._();
+  @$core.override
+  StoreMalformedCommit createEmptyInstance() => StoreMalformedCommit._();
+  @$core.pragma('dart2js:noInline')
+  static StoreMalformedCommit getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StoreMalformedCommit>(
+          StoreMalformedCommit.$_createMessage);
+  static StoreMalformedCommit? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class StoreMissing extends $pb.GeneratedMessage {
+  factory StoreMissing({
+    $core.String? path,
+  }) {
+    final result = StoreMissing._();
+    if (path != null) result.path = path;
+    return result;
+  }
+
+  StoreMissing._();
+
+  factory StoreMissing.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreMissing()..mergeFromBuffer(data, registry);
+  factory StoreMissing.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreMissing()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreMissing',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreMissing.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'path')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreMissing clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreMissing copyWith(void Function(StoreMissing) updates) =>
+      super.copyWith((message) => updates(message as StoreMissing))
+          as StoreMissing;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreMissing() / StoreMissing.new instead')
+  static StoreMissing create() => StoreMissing._();
+  static $pb.GeneratedMessage $_createMessage() => StoreMissing._();
+  @$core.override
+  StoreMissing createEmptyInstance() => StoreMissing._();
+  @$core.pragma('dart2js:noInline')
+  static StoreMissing getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoreMissing>(
+          StoreMissing.$_createMessage);
+  static StoreMissing? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get path => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set path($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPath() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPath() => $_clearField(1);
+}
+
+class StoreNotADatabase extends $pb.GeneratedMessage {
+  factory StoreNotADatabase() => StoreNotADatabase._();
+
+  StoreNotADatabase._();
+
+  factory StoreNotADatabase.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreNotADatabase()..mergeFromBuffer(data, registry);
+  factory StoreNotADatabase.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreNotADatabase()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreNotADatabase',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreNotADatabase.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreNotADatabase clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreNotADatabase copyWith(void Function(StoreNotADatabase) updates) =>
+      super.copyWith((message) => updates(message as StoreNotADatabase))
+          as StoreNotADatabase;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreNotADatabase() / StoreNotADatabase.new instead')
+  static StoreNotADatabase create() => StoreNotADatabase._();
+  static $pb.GeneratedMessage $_createMessage() => StoreNotADatabase._();
+  @$core.override
+  StoreNotADatabase createEmptyInstance() => StoreNotADatabase._();
+  @$core.pragma('dart2js:noInline')
+  static StoreNotADatabase getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoreNotADatabase>(
+          StoreNotADatabase.$_createMessage);
+  static StoreNotADatabase? _defaultInstance;
+}
+
+class StoreForeign extends $pb.GeneratedMessage {
+  factory StoreForeign({
+    $fixnum.Int64? applicationId,
+    $fixnum.Int64? objects,
+  }) {
+    final result = StoreForeign._();
+    if (applicationId != null) result.applicationId = applicationId;
+    if (objects != null) result.objects = objects;
+    return result;
+  }
+
+  StoreForeign._();
+
+  factory StoreForeign.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreForeign()..mergeFromBuffer(data, registry);
+  factory StoreForeign.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreForeign()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreForeign',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreForeign.$_createMessage)
+    ..aInt64(1, _omitFieldNames ? '' : 'applicationId')
+    ..aInt64(2, _omitFieldNames ? '' : 'objects')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreForeign clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreForeign copyWith(void Function(StoreForeign) updates) =>
+      super.copyWith((message) => updates(message as StoreForeign))
+          as StoreForeign;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreForeign() / StoreForeign.new instead')
+  static StoreForeign create() => StoreForeign._();
+  static $pb.GeneratedMessage $_createMessage() => StoreForeign._();
+  @$core.override
+  StoreForeign createEmptyInstance() => StoreForeign._();
+  @$core.pragma('dart2js:noInline')
+  static StoreForeign getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoreForeign>(
+          StoreForeign.$_createMessage);
+  static StoreForeign? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get applicationId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set applicationId($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasApplicationId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearApplicationId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get objects => $_getI64(1);
+  @$pb.TagNumber(2)
+  set objects($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasObjects() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearObjects() => $_clearField(2);
+}
+
+class StoreNoFormatVersion extends $pb.GeneratedMessage {
+  factory StoreNoFormatVersion() => StoreNoFormatVersion._();
+
+  StoreNoFormatVersion._();
+
+  factory StoreNoFormatVersion.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreNoFormatVersion()..mergeFromBuffer(data, registry);
+  factory StoreNoFormatVersion.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreNoFormatVersion()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreNoFormatVersion',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreNoFormatVersion.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreNoFormatVersion clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreNoFormatVersion copyWith(void Function(StoreNoFormatVersion) updates) =>
+      super.copyWith((message) => updates(message as StoreNoFormatVersion))
+          as StoreNoFormatVersion;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use StoreNoFormatVersion() / StoreNoFormatVersion.new instead')
+  static StoreNoFormatVersion create() => StoreNoFormatVersion._();
+  static $pb.GeneratedMessage $_createMessage() => StoreNoFormatVersion._();
+  @$core.override
+  StoreNoFormatVersion createEmptyInstance() => StoreNoFormatVersion._();
+  @$core.pragma('dart2js:noInline')
+  static StoreNoFormatVersion getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StoreNoFormatVersion>(
+          StoreNoFormatVersion.$_createMessage);
+  static StoreNoFormatVersion? _defaultInstance;
+}
+
+class StoreDamaged extends $pb.GeneratedMessage {
+  factory StoreDamaged({
+    $core.Iterable<$core.String>? problems,
+  }) {
+    final result = StoreDamaged._();
+    if (problems != null) result.problems.addAll(problems);
+    return result;
+  }
+
+  StoreDamaged._();
+
+  factory StoreDamaged.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreDamaged()..mergeFromBuffer(data, registry);
+  factory StoreDamaged.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreDamaged()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreDamaged',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreDamaged.$_createMessage)
+    ..pPS(1, _omitFieldNames ? '' : 'problems')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreDamaged clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreDamaged copyWith(void Function(StoreDamaged) updates) =>
+      super.copyWith((message) => updates(message as StoreDamaged))
+          as StoreDamaged;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreDamaged() / StoreDamaged.new instead')
+  static StoreDamaged create() => StoreDamaged._();
+  static $pb.GeneratedMessage $_createMessage() => StoreDamaged._();
+  @$core.override
+  StoreDamaged createEmptyInstance() => StoreDamaged._();
+  @$core.pragma('dart2js:noInline')
+  static StoreDamaged getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<StoreDamaged>(
+          StoreDamaged.$_createMessage);
+  static StoreDamaged? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.String> get problems => $_getList(0);
+}
+
+class StoreUninitialized extends $pb.GeneratedMessage {
+  factory StoreUninitialized() => StoreUninitialized._();
+
+  StoreUninitialized._();
+
+  factory StoreUninitialized.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreUninitialized()..mergeFromBuffer(data, registry);
+  factory StoreUninitialized.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreUninitialized()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreUninitialized',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreUninitialized.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreUninitialized clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreUninitialized copyWith(void Function(StoreUninitialized) updates) =>
+      super.copyWith((message) => updates(message as StoreUninitialized))
+          as StoreUninitialized;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreUninitialized() / StoreUninitialized.new instead')
+  static StoreUninitialized create() => StoreUninitialized._();
+  static $pb.GeneratedMessage $_createMessage() => StoreUninitialized._();
+  @$core.override
+  StoreUninitialized createEmptyInstance() => StoreUninitialized._();
+  @$core.pragma('dart2js:noInline')
+  static StoreUninitialized getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StoreUninitialized>(
+          StoreUninitialized.$_createMessage);
+  static StoreUninitialized? _defaultInstance;
+}
+
+class InternalPanic extends $pb.GeneratedMessage {
+  factory InternalPanic() => InternalPanic._();
+
+  InternalPanic._();
+
+  factory InternalPanic.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalPanic()..mergeFromBuffer(data, registry);
+  factory InternalPanic.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalPanic()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InternalPanic',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: InternalPanic.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalPanic clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalPanic copyWith(void Function(InternalPanic) updates) =>
+      super.copyWith((message) => updates(message as InternalPanic))
+          as InternalPanic;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use InternalPanic() / InternalPanic.new instead')
+  static InternalPanic create() => InternalPanic._();
+  static $pb.GeneratedMessage $_createMessage() => InternalPanic._();
+  @$core.override
+  InternalPanic createEmptyInstance() => InternalPanic._();
+  @$core.pragma('dart2js:noInline')
+  static InternalPanic getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InternalPanic>(
+          InternalPanic.$_createMessage);
+  static InternalPanic? _defaultInstance;
+}
+
+class InternalQrTooLong extends $pb.GeneratedMessage {
+  factory InternalQrTooLong({
+    $fixnum.Int64? bits,
+    $fixnum.Int64? capacityBits,
+  }) {
+    final result = InternalQrTooLong._();
+    if (bits != null) result.bits = bits;
+    if (capacityBits != null) result.capacityBits = capacityBits;
+    return result;
+  }
+
+  InternalQrTooLong._();
+
+  factory InternalQrTooLong.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalQrTooLong()..mergeFromBuffer(data, registry);
+  factory InternalQrTooLong.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalQrTooLong()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InternalQrTooLong',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: InternalQrTooLong.$_createMessage)
+    ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'bits', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(
+        2, _omitFieldNames ? '' : 'capacityBits', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalQrTooLong clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalQrTooLong copyWith(void Function(InternalQrTooLong) updates) =>
+      super.copyWith((message) => updates(message as InternalQrTooLong))
+          as InternalQrTooLong;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use InternalQrTooLong() / InternalQrTooLong.new instead')
+  static InternalQrTooLong create() => InternalQrTooLong._();
+  static $pb.GeneratedMessage $_createMessage() => InternalQrTooLong._();
+  @$core.override
+  InternalQrTooLong createEmptyInstance() => InternalQrTooLong._();
+  @$core.pragma('dart2js:noInline')
+  static InternalQrTooLong getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<InternalQrTooLong>(
+          InternalQrTooLong.$_createMessage);
+  static InternalQrTooLong? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get bits => $_getI64(0);
+  @$pb.TagNumber(1)
+  set bits($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasBits() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearBits() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get capacityBits => $_getI64(1);
+  @$pb.TagNumber(2)
+  set capacityBits($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasCapacityBits() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearCapacityBits() => $_clearField(2);
+}
+
+class InternalResponseTooLarge extends $pb.GeneratedMessage {
+  factory InternalResponseTooLarge({
+    $core.String? problem,
+  }) {
+    final result = InternalResponseTooLarge._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  InternalResponseTooLarge._();
+
+  factory InternalResponseTooLarge.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalResponseTooLarge()..mergeFromBuffer(data, registry);
+  factory InternalResponseTooLarge.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalResponseTooLarge()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InternalResponseTooLarge',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: InternalResponseTooLarge.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalResponseTooLarge clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalResponseTooLarge copyWith(
+          void Function(InternalResponseTooLarge) updates) =>
+      super.copyWith((message) => updates(message as InternalResponseTooLarge))
+          as InternalResponseTooLarge;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InternalResponseTooLarge() / InternalResponseTooLarge.new instead')
+  static InternalResponseTooLarge create() => InternalResponseTooLarge._();
+  static $pb.GeneratedMessage $_createMessage() => InternalResponseTooLarge._();
+  @$core.override
+  InternalResponseTooLarge createEmptyInstance() =>
+      InternalResponseTooLarge._();
+  @$core.pragma('dart2js:noInline')
+  static InternalResponseTooLarge getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InternalResponseTooLarge>(
+          InternalResponseTooLarge.$_createMessage);
+  static InternalResponseTooLarge? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+/// A page row whose soul is not among the souls the page was selected from: a daemon bug.
+class InternalPageWithoutSoul extends $pb.GeneratedMessage {
+  factory InternalPageWithoutSoul({
+    $core.String? soulId,
+  }) {
+    final result = InternalPageWithoutSoul._();
+    if (soulId != null) result.soulId = soulId;
+    return result;
+  }
+
+  InternalPageWithoutSoul._();
+
+  factory InternalPageWithoutSoul.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalPageWithoutSoul()..mergeFromBuffer(data, registry);
+  factory InternalPageWithoutSoul.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalPageWithoutSoul()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InternalPageWithoutSoul',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: InternalPageWithoutSoul.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'soulId')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalPageWithoutSoul clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalPageWithoutSoul copyWith(
+          void Function(InternalPageWithoutSoul) updates) =>
+      super.copyWith((message) => updates(message as InternalPageWithoutSoul))
+          as InternalPageWithoutSoul;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InternalPageWithoutSoul() / InternalPageWithoutSoul.new instead')
+  static InternalPageWithoutSoul create() => InternalPageWithoutSoul._();
+  static $pb.GeneratedMessage $_createMessage() => InternalPageWithoutSoul._();
+  @$core.override
+  InternalPageWithoutSoul createEmptyInstance() => InternalPageWithoutSoul._();
+  @$core.pragma('dart2js:noInline')
+  static InternalPageWithoutSoul getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InternalPageWithoutSoul>(
+          InternalPageWithoutSoul.$_createMessage);
+  static InternalPageWithoutSoul? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get soulId => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set soulId($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasSoulId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearSoulId() => $_clearField(1);
+}
+
+class SessionMalformedFrame extends $pb.GeneratedMessage {
+  factory SessionMalformedFrame({
+    $core.String? problem,
+  }) {
+    final result = SessionMalformedFrame._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  SessionMalformedFrame._();
+
+  factory SessionMalformedFrame.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionMalformedFrame()..mergeFromBuffer(data, registry);
+  factory SessionMalformedFrame.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionMalformedFrame()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionMalformedFrame',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionMalformedFrame.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionMalformedFrame clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionMalformedFrame copyWith(
+          void Function(SessionMalformedFrame) updates) =>
+      super.copyWith((message) => updates(message as SessionMalformedFrame))
+          as SessionMalformedFrame;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SessionMalformedFrame() / SessionMalformedFrame.new instead')
+  static SessionMalformedFrame create() => SessionMalformedFrame._();
+  static $pb.GeneratedMessage $_createMessage() => SessionMalformedFrame._();
+  @$core.override
+  SessionMalformedFrame createEmptyInstance() => SessionMalformedFrame._();
+  @$core.pragma('dart2js:noInline')
+  static SessionMalformedFrame getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SessionMalformedFrame>(
+          SessionMalformedFrame.$_createMessage);
+  static SessionMalformedFrame? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class SessionMalformedMessage extends $pb.GeneratedMessage {
+  factory SessionMalformedMessage({
+    $core.String? problem,
+  }) {
+    final result = SessionMalformedMessage._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  SessionMalformedMessage._();
+
+  factory SessionMalformedMessage.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionMalformedMessage()..mergeFromBuffer(data, registry);
+  factory SessionMalformedMessage.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SessionMalformedMessage()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SessionMalformedMessage',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SessionMalformedMessage.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionMalformedMessage clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SessionMalformedMessage copyWith(
+          void Function(SessionMalformedMessage) updates) =>
+      super.copyWith((message) => updates(message as SessionMalformedMessage))
+          as SessionMalformedMessage;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use SessionMalformedMessage() / SessionMalformedMessage.new instead')
+  static SessionMalformedMessage create() => SessionMalformedMessage._();
+  static $pb.GeneratedMessage $_createMessage() => SessionMalformedMessage._();
+  @$core.override
+  SessionMalformedMessage createEmptyInstance() => SessionMalformedMessage._();
+  @$core.pragma('dart2js:noInline')
+  static SessionMalformedMessage getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SessionMalformedMessage>(
+          SessionMalformedMessage.$_createMessage);
+  static SessionMalformedMessage? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class InternalIo extends $pb.GeneratedMessage {
+  factory InternalIo({
+    $core.String? problem,
+  }) {
+    final result = InternalIo._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  InternalIo._();
+
+  factory InternalIo.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalIo()..mergeFromBuffer(data, registry);
+  factory InternalIo.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalIo()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InternalIo',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: InternalIo.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalIo clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalIo copyWith(void Function(InternalIo) updates) =>
+      super.copyWith((message) => updates(message as InternalIo)) as InternalIo;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use InternalIo() / InternalIo.new instead')
+  static InternalIo create() => InternalIo._();
+  static $pb.GeneratedMessage $_createMessage() => InternalIo._();
+  @$core.override
+  InternalIo createEmptyInstance() => InternalIo._();
+  @$core.pragma('dart2js:noInline')
+  static InternalIo getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InternalIo>(InternalIo.$_createMessage);
+  static InternalIo? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class ClientDaemonNotFound extends $pb.GeneratedMessage {
+  factory ClientDaemonNotFound({
+    $core.Iterable<$core.String>? searched,
+  }) {
+    final result = ClientDaemonNotFound._();
+    if (searched != null) result.searched.addAll(searched);
+    return result;
+  }
+
+  ClientDaemonNotFound._();
+
+  factory ClientDaemonNotFound.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDaemonNotFound()..mergeFromBuffer(data, registry);
+  factory ClientDaemonNotFound.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDaemonNotFound()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDaemonNotFound',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientDaemonNotFound.$_createMessage)
+    ..pPS(1, _omitFieldNames ? '' : 'searched')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDaemonNotFound clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDaemonNotFound copyWith(void Function(ClientDaemonNotFound) updates) =>
+      super.copyWith((message) => updates(message as ClientDaemonNotFound))
+          as ClientDaemonNotFound;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDaemonNotFound() / ClientDaemonNotFound.new instead')
+  static ClientDaemonNotFound create() => ClientDaemonNotFound._();
+  static $pb.GeneratedMessage $_createMessage() => ClientDaemonNotFound._();
+  @$core.override
+  ClientDaemonNotFound createEmptyInstance() => ClientDaemonNotFound._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDaemonNotFound getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDaemonNotFound>(
+          ClientDaemonNotFound.$_createMessage);
+  static ClientDaemonNotFound? _defaultInstance;
+
+  /// Every path tried, in order.
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.String> get searched => $_getList(0);
+}
+
+class ClientDaemonStartFailed extends $pb.GeneratedMessage {
+  factory ClientDaemonStartFailed({
+    $core.String? path,
+    $core.String? problem,
+  }) {
+    final result = ClientDaemonStartFailed._();
+    if (path != null) result.path = path;
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ClientDaemonStartFailed._();
+
+  factory ClientDaemonStartFailed.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDaemonStartFailed()..mergeFromBuffer(data, registry);
+  factory ClientDaemonStartFailed.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDaemonStartFailed()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDaemonStartFailed',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientDaemonStartFailed.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'path')
+    ..aOS(2, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDaemonStartFailed clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDaemonStartFailed copyWith(
+          void Function(ClientDaemonStartFailed) updates) =>
+      super.copyWith((message) => updates(message as ClientDaemonStartFailed))
+          as ClientDaemonStartFailed;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ClientDaemonStartFailed() / ClientDaemonStartFailed.new instead')
+  static ClientDaemonStartFailed create() => ClientDaemonStartFailed._();
+  static $pb.GeneratedMessage $_createMessage() => ClientDaemonStartFailed._();
+  @$core.override
+  ClientDaemonStartFailed createEmptyInstance() => ClientDaemonStartFailed._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDaemonStartFailed getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDaemonStartFailed>(
+          ClientDaemonStartFailed.$_createMessage);
+  static ClientDaemonStartFailed? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get path => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set path($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasPath() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearPath() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get problem => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set problem($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasProblem() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearProblem() => $_clearField(2);
+}
+
+class ClientDaemonExited extends $pb.GeneratedMessage {
+  factory ClientDaemonExited({
+    $core.int? exitCode,
+    $core.String? lastLogLine,
+  }) {
+    final result = ClientDaemonExited._();
+    if (exitCode != null) result.exitCode = exitCode;
+    if (lastLogLine != null) result.lastLogLine = lastLogLine;
+    return result;
+  }
+
+  ClientDaemonExited._();
+
+  factory ClientDaemonExited.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDaemonExited()..mergeFromBuffer(data, registry);
+  factory ClientDaemonExited.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientDaemonExited()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientDaemonExited',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientDaemonExited.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'exitCode')
+    ..aOS(2, _omitFieldNames ? '' : 'lastLogLine')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDaemonExited clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientDaemonExited copyWith(void Function(ClientDaemonExited) updates) =>
+      super.copyWith((message) => updates(message as ClientDaemonExited))
+          as ClientDaemonExited;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientDaemonExited() / ClientDaemonExited.new instead')
+  static ClientDaemonExited create() => ClientDaemonExited._();
+  static $pb.GeneratedMessage $_createMessage() => ClientDaemonExited._();
+  @$core.override
+  ClientDaemonExited createEmptyInstance() => ClientDaemonExited._();
+  @$core.pragma('dart2js:noInline')
+  static ClientDaemonExited getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientDaemonExited>(
+          ClientDaemonExited.$_createMessage);
+  static ClientDaemonExited? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.int get exitCode => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set exitCode($core.int value) => $_setSignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasExitCode() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearExitCode() => $_clearField(1);
+
+  /// The daemon's last stderr line; absent when it wrote none.
+  @$pb.TagNumber(2)
+  $core.String get lastLogLine => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set lastLogLine($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLastLogLine() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLastLogLine() => $_clearField(2);
+}
+
+class ClientTimeout extends $pb.GeneratedMessage {
+  factory ClientTimeout({
+    $fixnum.Int64? requestId,
+    $fixnum.Int64? limitMs,
+  }) {
+    final result = ClientTimeout._();
+    if (requestId != null) result.requestId = requestId;
+    if (limitMs != null) result.limitMs = limitMs;
+    return result;
+  }
+
+  ClientTimeout._();
+
+  factory ClientTimeout.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientTimeout()..mergeFromBuffer(data, registry);
+  factory ClientTimeout.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientTimeout()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientTimeout',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientTimeout.$_createMessage)
+    ..a<$fixnum.Int64>(
+        1, _omitFieldNames ? '' : 'requestId', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$fixnum.Int64>(2, _omitFieldNames ? '' : 'limitMs', $pb.PbFieldType.OU6,
+        defaultOrMaker: $fixnum.Int64.ZERO)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientTimeout clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientTimeout copyWith(void Function(ClientTimeout) updates) =>
+      super.copyWith((message) => updates(message as ClientTimeout))
+          as ClientTimeout;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientTimeout() / ClientTimeout.new instead')
+  static ClientTimeout create() => ClientTimeout._();
+  static $pb.GeneratedMessage $_createMessage() => ClientTimeout._();
+  @$core.override
+  ClientTimeout createEmptyInstance() => ClientTimeout._();
+  @$core.pragma('dart2js:noInline')
+  static ClientTimeout getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientTimeout>(
+          ClientTimeout.$_createMessage);
+  static ClientTimeout? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get requestId => $_getI64(0);
+  @$pb.TagNumber(1)
+  set requestId($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasRequestId() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearRequestId() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get limitMs => $_getI64(1);
+  @$pb.TagNumber(2)
+  set limitMs($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasLimitMs() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearLimitMs() => $_clearField(2);
+}
+
+class ClientProtocolError extends $pb.GeneratedMessage {
+  factory ClientProtocolError({
+    $core.String? problem,
+  }) {
+    final result = ClientProtocolError._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ClientProtocolError._();
+
+  factory ClientProtocolError.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientProtocolError()..mergeFromBuffer(data, registry);
+  factory ClientProtocolError.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientProtocolError()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientProtocolError',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientProtocolError.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientProtocolError clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientProtocolError copyWith(void Function(ClientProtocolError) updates) =>
+      super.copyWith((message) => updates(message as ClientProtocolError))
+          as ClientProtocolError;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use ClientProtocolError() / ClientProtocolError.new instead')
+  static ClientProtocolError create() => ClientProtocolError._();
+  static $pb.GeneratedMessage $_createMessage() => ClientProtocolError._();
+  @$core.override
+  ClientProtocolError createEmptyInstance() => ClientProtocolError._();
+  @$core.pragma('dart2js:noInline')
+  static ClientProtocolError getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientProtocolError>(
+          ClientProtocolError.$_createMessage);
+  static ClientProtocolError? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+class ClientNotConnected extends $pb.GeneratedMessage {
+  factory ClientNotConnected() => ClientNotConnected._();
+
+  ClientNotConnected._();
+
+  factory ClientNotConnected.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientNotConnected()..mergeFromBuffer(data, registry);
+  factory ClientNotConnected.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientNotConnected()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientNotConnected',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientNotConnected.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientNotConnected clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientNotConnected copyWith(void Function(ClientNotConnected) updates) =>
+      super.copyWith((message) => updates(message as ClientNotConnected))
+          as ClientNotConnected;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientNotConnected() / ClientNotConnected.new instead')
+  static ClientNotConnected create() => ClientNotConnected._();
+  static $pb.GeneratedMessage $_createMessage() => ClientNotConnected._();
+  @$core.override
+  ClientNotConnected createEmptyInstance() => ClientNotConnected._();
+  @$core.pragma('dart2js:noInline')
+  static ClientNotConnected getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ClientNotConnected>(
+          ClientNotConnected.$_createMessage);
+  static ClientNotConnected? _defaultInstance;
+}
+
+class ClientUnexpected extends $pb.GeneratedMessage {
+  factory ClientUnexpected({
+    $core.String? problem,
+  }) {
+    final result = ClientUnexpected._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ClientUnexpected._();
+
+  factory ClientUnexpected.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientUnexpected()..mergeFromBuffer(data, registry);
+  factory ClientUnexpected.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientUnexpected()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientUnexpected',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientUnexpected.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientUnexpected clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientUnexpected copyWith(void Function(ClientUnexpected) updates) =>
+      super.copyWith((message) => updates(message as ClientUnexpected))
+          as ClientUnexpected;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientUnexpected() / ClientUnexpected.new instead')
+  static ClientUnexpected create() => ClientUnexpected._();
+  static $pb.GeneratedMessage $_createMessage() => ClientUnexpected._();
+  @$core.override
+  ClientUnexpected createEmptyInstance() => ClientUnexpected._();
+  @$core.pragma('dart2js:noInline')
+  static ClientUnexpected getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientUnexpected>(
+          ClientUnexpected.$_createMessage);
+  static ClientUnexpected? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+enum Warning_Kind { clientOutdated, notSet }
+
+/// Surfaced to the user; changes no state and advances no revision. Not a failure: it has no
+/// code, only its kind.
+class Warning extends $pb.GeneratedMessage {
+  factory Warning({
+    $core.String? message,
+    ClientOutdated? clientOutdated,
+  }) {
+    final result = Warning._();
+    if (message != null) result.message = message;
+    if (clientOutdated != null) result.clientOutdated = clientOutdated;
+    return result;
+  }
+
+  Warning._();
+
+  factory Warning.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Warning()..mergeFromBuffer(data, registry);
+  factory Warning.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Warning()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, Warning_Kind> _Warning_KindByTag = {
+    10: Warning_Kind.clientOutdated,
+    0: Warning_Kind.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Warning',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: Warning.$_createMessage)
+    ..oo(0, [10])
+    ..aOS(2, _omitFieldNames ? '' : 'message')
+    ..aOM<ClientOutdated>(10, _omitFieldNames ? '' : 'clientOutdated',
+        subBuilder: ClientOutdated.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Warning clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Warning copyWith(void Function(Warning) updates) =>
+      super.copyWith((message) => updates(message as Warning)) as Warning;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Warning() / Warning.new instead')
+  static Warning create() => Warning._();
+  static $pb.GeneratedMessage $_createMessage() => Warning._();
+  @$core.override
+  Warning createEmptyInstance() => Warning._();
+  @$core.pragma('dart2js:noInline')
+  static Warning getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Warning>(Warning.$_createMessage);
+  static Warning? _defaultInstance;
+
+  @$pb.TagNumber(10)
+  Warning_Kind whichKind() => _Warning_KindByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(10)
+  void clearKind() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(2)
+  $core.String get message => $_getSZ(0);
+  @$pb.TagNumber(2)
+  set message($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMessage() => $_has(0);
+  @$pb.TagNumber(2)
+  void clearMessage() => $_clearField(2);
+
+  @$pb.TagNumber(10)
+  ClientOutdated get clientOutdated => $_getN(1);
+  @$pb.TagNumber(10)
+  set clientOutdated(ClientOutdated value) => $_setField(10, value);
+  @$pb.TagNumber(10)
+  $core.bool hasClientOutdated() => $_has(1);
+  @$pb.TagNumber(10)
+  void clearClientOutdated() => $_clearField(10);
+  @$pb.TagNumber(10)
+  ClientOutdated ensureClientOutdated() => $_ensure(1);
+}
+
+/// The client was built against an older major than the daemon's; the session opened anyway.
+class ClientOutdated extends $pb.GeneratedMessage {
+  factory ClientOutdated({
+    ProtocolVersion? client,
+    ProtocolVersion? daemon,
+  }) {
+    final result = ClientOutdated._();
+    if (client != null) result.client = client;
+    if (daemon != null) result.daemon = daemon;
+    return result;
+  }
+
+  ClientOutdated._();
+
+  factory ClientOutdated.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientOutdated()..mergeFromBuffer(data, registry);
+  factory ClientOutdated.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ClientOutdated()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ClientOutdated',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ClientOutdated.$_createMessage)
+    ..aOM<ProtocolVersion>(1, _omitFieldNames ? '' : 'client',
+        subBuilder: ProtocolVersion.$_createMessage)
+    ..aOM<ProtocolVersion>(2, _omitFieldNames ? '' : 'daemon',
+        subBuilder: ProtocolVersion.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientOutdated clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ClientOutdated copyWith(void Function(ClientOutdated) updates) =>
+      super.copyWith((message) => updates(message as ClientOutdated))
+          as ClientOutdated;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ClientOutdated() / ClientOutdated.new instead')
+  static ClientOutdated create() => ClientOutdated._();
+  static $pb.GeneratedMessage $_createMessage() => ClientOutdated._();
+  @$core.override
+  ClientOutdated createEmptyInstance() => ClientOutdated._();
+  @$core.pragma('dart2js:noInline')
+  static ClientOutdated getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ClientOutdated>(
+          ClientOutdated.$_createMessage);
+  static ClientOutdated? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  ProtocolVersion get client => $_getN(0);
+  @$pb.TagNumber(1)
+  set client(ProtocolVersion value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasClient() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearClient() => $_clearField(1);
+  @$pb.TagNumber(1)
+  ProtocolVersion ensureClient() => $_ensure(0);
+
+  @$pb.TagNumber(2)
+  ProtocolVersion get daemon => $_getN(1);
+  @$pb.TagNumber(2)
+  set daemon(ProtocolVersion value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasDaemon() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearDaemon() => $_clearField(2);
+  @$pb.TagNumber(2)
+  ProtocolVersion ensureDaemon() => $_ensure(1);
 }
 
 const $core.bool _omitFieldNames =

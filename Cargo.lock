@@ -1239,6 +1239,7 @@ dependencies = [
  "png",
  "prost",
  "prost-build",
+ "prost-types",
  "protox",
  "qrcodegen",
  "rqrr",

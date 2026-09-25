@@ -49,8 +49,8 @@ class SettingsPage extends ConsumerWidget {
               const SizedBox(height: 8),
               Text(switch (status) {
                 CoreReady(:final version) => '${l.statusCoreReady} · ${l.coreProtocol(version)}',
-                CoreStarting(cause: null) => l.statusCoreStarting,
-                CoreStarting() => l.statusCoreRestarting,
+                CoreStarting() => l.statusCoreStarting,
+                CoreRestarting() => l.statusCoreRestarting,
                 CoreFailed() => l.statusCoreFailed,
                 CoreStopped() => l.statusCoreStopped,
               }),

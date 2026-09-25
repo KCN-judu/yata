@@ -66,12 +66,8 @@ class MemoryTransport implements DaemonTransport {
 pb.ServerMessage response(pb.ClientMessage request, pb.Response r) =>
     pb.ServerMessage(response: r..id = request.id);
 
-pb.ServerMessage errorResponse(pb.ClientMessage request, String code) => response(
-  request,
-  pb.Response(
-    error: pb.Error(code: code, message: 'test: $code'),
-  ),
-);
+pb.ServerMessage errorResponse(pb.ClientMessage request, pb.Error error) =>
+    response(request, pb.Response(error: error..message = 'test refusal'));
 
 pb.ServerMessage opened(pb.ClientMessage request, {int revision = 1}) => response(
   request,

@@ -22,6 +22,7 @@ zstd = { workspace = true }
 
 [build-dependencies]
 prost-build = { workspace = true }
+prost-types = { workspace = true }
 protox = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]

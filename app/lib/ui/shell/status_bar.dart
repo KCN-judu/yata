@@ -21,8 +21,8 @@ class StatusBar extends ConsumerWidget {
     final selected = ref.watch(selectedProfileProvider);
     final (icon, text) = switch (status) {
       CoreStopped() => (Icons.stop_circle_outlined, l.statusCoreStopped),
-      CoreStarting(cause: null) => (Icons.hourglass_empty, l.statusCoreStarting),
-      CoreStarting() => (Icons.sync, l.statusCoreRestarting),
+      CoreStarting() => (Icons.hourglass_empty, l.statusCoreStarting),
+      CoreRestarting() => (Icons.sync, l.statusCoreRestarting),
       CoreReady() => (Icons.check_circle_outline, l.statusCoreReady),
       CoreFailed() => (Icons.error_outline, l.statusCoreFailed),
     };
@@ -38,14 +38,15 @@ class StatusBar extends ConsumerWidget {
               if (profiles.isEmpty)
                 Text(l.statusNoProfile, style: style)
               else
-                DropdownButton<String>(
+                DropdownButton<ProfileId>(
                   value: selected,
                   isDense: true,
                   underline: const SizedBox.shrink(),
                   style: style,
                   hint: Text(l.profileLabel, style: style),
                   items: [
-                    for (final p in profiles) DropdownMenuItem(value: p.id, child: Text(p.name)),
+                    for (final p in profiles)
+                      DropdownMenuItem(value: ProfileId(p.id), child: Text(p.name)),
                   ],
                   onChanged: (id) {
                     if (id != null) ref.read(selectedProfileProvider.notifier).select(id);

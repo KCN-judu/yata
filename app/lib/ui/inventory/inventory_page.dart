@@ -9,6 +9,7 @@ import '../../gen/l10n/app_localizations.dart';
 import '../../state/core.dart';
 import '../../state/inventory.dart';
 import '../../state/profiles.dart';
+import '../common/explanation.dart';
 import '../common/state_views.dart';
 import 'filter_pane.dart';
 import 'soul_detail.dart';
@@ -29,7 +30,7 @@ class InventoryPage extends ConsumerWidget {
         body: l.inventoryNoProfileBody,
       ),
       AsyncValue(:final error?) when profiles.value == null => ErrorView(
-        error: CoreError.of(error),
+        failure: failureOf(error),
         title: l.inventoryLoadFailed,
         onRetry: () => ref.invalidate(profilesProvider),
       ),
@@ -57,7 +58,7 @@ class _Workbench extends ConsumerWidget {
       ),
       AsyncValue(value: final page?) => SoulList(page: page),
       AsyncValue(:final error?) => ErrorView(
-        error: CoreError.of(error),
+        failure: failureOf(error),
         title: l.inventoryLoadFailed,
         onRetry: () => ref.invalidate(soulPagesProvider(spec)),
       ),
@@ -107,10 +108,13 @@ class _Toolbar extends ConsumerWidget {
             if (p != null) Text(l.inventoryCount('${p.total}'), style: theme.textTheme.bodySmall),
             const Spacer(),
             if (p != null && p.souls.isNotEmpty) ...[
-              if (p.turnError != null)
+              if (p.turn case TurnFailed(:final failure))
                 Padding(
                   padding: const EdgeInsets.only(right: 8),
-                  child: Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
+                  child: Tooltip(
+                    message: explain(l, failure).cause,
+                    child: Icon(Icons.error_outline, size: 16, color: theme.colorScheme.error),
+                  ),
                 ),
               Text(
                 l.inventoryPageRange(p.firstRow + 1, p.firstRow + p.souls.length),
