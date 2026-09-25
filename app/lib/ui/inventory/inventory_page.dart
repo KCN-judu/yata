@@ -9,42 +9,45 @@ import '../../gen/l10n/app_localizations.dart';
 import '../../state/core.dart';
 import '../../state/inventory.dart';
 import '../../state/profiles.dart';
+import '../common/capability_views.dart';
 import '../common/explanation.dart';
 import '../common/state_views.dart';
 import 'filter_pane.dart';
 import 'soul_detail.dart';
 import 'soul_list.dart';
 
-class InventoryPage extends ConsumerWidget {
+/// Shown only while the selected profile's inventory capability is available: its souls are
+/// queried then, and not before.
+class InventoryPage extends StatelessWidget {
   const InventoryPage({super.key});
 
   @override
+  Widget build(BuildContext context) => CapabilityGate(
+    capability: Capability.inventory,
+    feature: AppLocalizations.of(context).navInventory,
+    content: (completeness) => _Inventory(completeness: completeness),
+  );
+}
+
+class _Inventory extends ConsumerWidget {
+  const _Inventory({required this.completeness});
+
+  final Completeness completeness;
+
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l = AppLocalizations.of(context);
-    final profiles = ref.watch(profilesProvider);
     final spec = ref.watch(soulQuerySpecProvider);
-    final Widget body = switch (profiles) {
-      AsyncValue(value: final list?) when list.isEmpty => EmptyView(
-        icon: Icons.person_outline,
-        title: l.inventoryNoProfileTitle,
-        body: l.inventoryNoProfileBody,
-      ),
-      AsyncValue(:final error?) when profiles.value == null => ErrorView(
-        failure: failureOf(error),
-        title: l.inventoryLoadFailed,
-        onRetry: () => ref.invalidate(profilesProvider),
-      ),
-      _ when spec == null => LoadingView(label: l.inventoryLoading),
-      _ => _Workbench(spec: spec),
-    };
-    return body;
+    return spec == null
+        ? LoadingView(label: AppLocalizations.of(context).inventoryLoading)
+        : _Workbench(spec: spec, completeness: completeness);
   }
 }
 
 class _Workbench extends ConsumerWidget {
-  const _Workbench({required this.spec});
+  const _Workbench({required this.spec, required this.completeness});
 
   final SoulQuerySpec spec;
+  final Completeness completeness;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -66,7 +69,7 @@ class _Workbench extends ConsumerWidget {
     };
     return Column(
       children: [
-        _Toolbar(spec: spec, page: pages.value),
+        _Toolbar(spec: spec, page: pages.value, completeness: completeness),
         const Divider(height: 1),
         Expanded(
           child: Row(
@@ -86,10 +89,11 @@ class _Workbench extends ConsumerWidget {
 }
 
 class _Toolbar extends ConsumerWidget {
-  const _Toolbar({required this.spec, required this.page});
+  const _Toolbar({required this.spec, required this.page, required this.completeness});
 
   final SoulQuerySpec spec;
   final SoulPage? page;
+  final Completeness completeness;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -106,6 +110,8 @@ class _Toolbar extends ConsumerWidget {
             Text(l.inventoryTitle, style: theme.textTheme.titleSmall),
             const SizedBox(width: 12),
             if (p != null) Text(l.inventoryCount('${p.total}'), style: theme.textTheme.bodySmall),
+            const SizedBox(width: 12),
+            CompletenessNote(completeness: completeness),
             const Spacer(),
             if (p != null && p.souls.isNotEmpty) ...[
               if (p.turn case TurnFailed(:final failure))

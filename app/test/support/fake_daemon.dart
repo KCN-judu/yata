@@ -9,6 +9,7 @@ import 'package:yata/daemon/daemon_client.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
 import 'package:yata/platform/platform_services.dart';
 import 'package:yata/state/core.dart';
+import 'package:yata/state/profiles.dart';
 
 import 'recorded.dart';
 
@@ -80,6 +81,30 @@ class FakeDaemonClient implements DaemonClient {
 
   @override
   Future<pb.SchemeCodeDecoded> decodeSchemeCode(pb.DecodeSchemeCode request) => onDecode(request);
+}
+
+/// A capability the profile can use, as the daemon sends it.
+pb.ProfileCapability availableAs(Capability c, Completeness completeness) => pb.ProfileCapability(
+  capability: c.wire,
+  available: pb.CapabilityAvailable(completeness: completeness.wire),
+);
+
+/// A capability the profile lacks [missing] for, as the daemon sends it.
+pb.ProfileCapability unavailableFor(Capability c, List<SectionKind> missing) =>
+    pb.ProfileCapability(
+      capability: c.wire,
+      unavailable: pb.CapabilityUnavailable(missing: [for (final k in missing) k.wire]),
+    );
+
+/// The recorded profiles, each with [capabilities] in place of what the daemon's fixture holds.
+pb.ProfileList profilesWith(List<pb.ProfileCapability> capabilities) {
+  final list = recordedProfiles().deepCopy();
+  for (final p in list.profiles) {
+    p.capabilities
+      ..clear()
+      ..addAll(capabilities.map((c) => c.deepCopy()));
+  }
+  return list;
 }
 
 /// The daemon's refusal of one request, as the client raises it.

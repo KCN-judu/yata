@@ -5,29 +5,15 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:yata/daemon/daemon_client.dart';
 import 'package:yata/state/core.dart';
-import 'package:yata/gen/l10n/app_localizations.dart';
 import 'package:yata/gen/proto/core.pb.dart' as pb;
-import 'package:yata/ui/app.dart';
 import 'package:yata/ui/schemes/qr_matrix_view.dart';
 
+import '../support/app.dart';
 import '../support/fake_daemon.dart';
 import '../support/recorded.dart';
-
-final l = lookupAppLocalizations(const Locale('zh'));
-
-Future<void> pumpApp(WidgetTester tester, FakeDaemonClient client) async {
-  tester.view.physicalSize = const Size(1440, 900);
-  tester.view.devicePixelRatio = 1;
-  addTearDown(tester.view.reset);
-  await tester.pumpWidget(
-    ProviderScope(overrides: fakeOverrides(client), retry: (_, _) => null, child: const YataApp()),
-  );
-  await tester.pumpAndSettle();
-}
 
 void main() {
   testWidgets('the rail reaches every place', (tester) async {
@@ -38,7 +24,7 @@ void main() {
     expect(find.text(l.schemesImported), findsOneWidget);
     await tester.tap(find.text(l.navShikigami));
     await tester.pumpAndSettle();
-    expect(find.text(l.shikigamiUnavailableTitle), findsOneWidget);
+    expect(find.text(l.capabilityUnavailableTitle(l.sectionShikigami)), findsOneWidget);
     await tester.tap(find.text(l.navSettings));
     await tester.pumpAndSettle();
     expect(find.text(l.settingsAppearance), findsOneWidget);
@@ -73,7 +59,7 @@ void main() {
   testWidgets('no profile at all says so', (tester) async {
     final client = FakeDaemonClient()..onListProfiles = () async => pb.ProfileList();
     await pumpApp(tester, client);
-    expect(find.text(l.inventoryNoProfileTitle), findsOneWidget);
+    expect(find.text(l.noProfileTitle), findsOneWidget);
     expect(find.text(l.statusNoProfile), findsOneWidget);
   });
 

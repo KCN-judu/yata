@@ -45,8 +45,7 @@ class StatusBar extends ConsumerWidget {
                   style: style,
                   hint: Text(l.profileLabel, style: style),
                   items: [
-                    for (final p in profiles)
-                      DropdownMenuItem(value: ProfileId(p.id), child: Text(p.name)),
+                    for (final p in profiles) DropdownMenuItem(value: p.id, child: Text(p.name)),
                   ],
                   onChanged: (id) {
                     if (id != null) ref.read(selectedProfileProvider.notifier).select(id);

@@ -28,7 +28,7 @@ Matcher raised(pb.ClientFailure_Kind kind) =>
 void main() {
   test('profiles load, and the first becomes the selection', () async {
     final c = containerFor(FakeDaemonClient());
-    expect(c.read(profilesProvider), isA<AsyncLoading<List<pb.Profile>>>());
+    expect(c.read(profilesProvider), isA<AsyncLoading<List<Profile>>>());
     await c.read(profilesProvider.future);
     expect(c.read(selectedProfileProvider), fixtureProfile);
     c.read(selectedProfileProvider.notifier).select(emptyProfile);

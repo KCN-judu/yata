@@ -21,7 +21,7 @@
   "statusLocalOnly": "数据仅存本机",
   "statusNoProfile": "没有档案",
   "bannerCoreRestarting": "核心已退出，正在重启。重启完成前，这里的数据只读。",
-  "bannerCoreRestarted": "核心曾意外退出，已重新启动，数据已重新读取。",
+  "bannerCoreRestarted": "核心曾意外退出，已重新启动，数据已重新加载。",
   "bannerCoreFailed": "核心无法运行",
   "labelErrorCode": "错误代码：{code}",
   "@labelErrorCode": {
@@ -58,8 +58,8 @@
   "remedyRequestRefused": "请重新启动核心程序；如果反复出现，请带上错误代码反馈。",
   "causeUnknownProfile": "这个档案在核心程序中不存在，可能已被删除。",
   "remedyUnknownProfile": "请在状态栏重新选择档案。",
-  "causeStaleRevision": "读取期间数据发生了变化。",
-  "remedyStaleRevision": "列表会自动从第一页重新读取，无需操作。",
+  "causeStaleRevision": "加载期间数据发生了变化。",
+  "remedyStaleRevision": "列表会自动从第一页重新加载，无需操作。",
   "causeQueryMalformed": "本应用构造的查询核心程序无法理解。",
   "remedyQueryMalformed": "请更新应用；如果反复出现，请带上错误代码反馈。",
   "causeQueryUnknownField": "查询用到了核心程序不认识的字段，通常是应用与核心程序的版本不一致。",
@@ -84,7 +84,7 @@
   "remedyDecodeUnknownFormat": "请确认复制的是游戏导出的方案码。",
   "causeDecodeMalformed": "方案码的内容已损坏，或来自本软件尚不支持的游戏版本。",
   "remedyDecodeMalformed": "请在游戏中重新导出方案码；如果仍然失败，请带上错误代码反馈。",
-  "causeDecodeImageInvalid": "无法读取这张图片。",
+  "causeDecodeImageInvalid": "无法打开这张图片。",
   "remedyDecodeImageInvalid": "请选择一张 PNG 格式的截图。",
   "causeDecodeNoQrCode": "图片中没有找到二维码。",
   "remedyDecodeNoQrCode": "请截取包含完整二维码的区域。",
@@ -94,9 +94,9 @@
   "remedyDecodeQrUnreadable": "请用更清晰、更大的截图再试一次。",
   "causeImportUnknownFormat": "无法识别这个文件的格式。",
   "remedyImportUnknownFormat": "请确认选择的是八咫镜能导入的数据文件，并且文件没有被改动过。",
-  "causeImportAmbiguousFormat": "这个文件同时符合多种格式，无法确定该按哪一种读取。",
+  "causeImportAmbiguousFormat": "这个文件同时符合多种格式，无法确定该按哪一种解析。",
   "remedyImportAmbiguousFormat": "请带上错误代码反馈。",
-  "causeImportUnsupportedVersion": "这个文件的格式版本比本应用能读取的更新。",
+  "causeImportUnsupportedVersion": "这个文件的格式版本比本应用能解析的更新。",
   "remedyImportUnsupportedVersion": "请把应用更新到最新版本后再导入。",
   "causeImportMalformedSource": "文件内容不完整、已损坏，或超过了允许的大小。",
   "remedyImportMalformedSource": "请检查文件是否完整，然后重新导入。",
@@ -166,12 +166,50 @@
       }
     }
   },
-  "inventoryLoading": "正在读取御魂…",
+  "inventoryLoading": "正在加载御魂…",
   "inventoryEmptyTitle": "还没有御魂",
-  "inventoryEmptyBody": "从游戏读取御魂后，它们会显示在这里。",
-  "inventoryNoProfileTitle": "还没有档案",
-  "inventoryNoProfileBody": "第一次读取游戏数据时会创建档案。",
-  "inventoryLoadFailed": "御魂读取失败",
+  "inventoryEmptyBody": "这个档案导入的数据中没有御魂。导入含有御魂的数据文件后，它们会显示在这里。",
+  "inventoryLoadFailed": "御魂加载失败",
+  "noProfileTitle": "还没有档案",
+  "noProfileBody": "第一次导入数据文件时会创建档案。",
+  "profilesLoading": "正在加载档案…",
+  "profilesLoadFailed": "档案加载失败",
+  "sectionSouls": "御魂",
+  "sectionShikigami": "式神",
+  "sectionPresets": "御魂预设",
+  "sectionAssets": "游戏资产",
+  "sectionGuild": "寮",
+  "listSeparator": "、",
+  "capabilityUnavailableTitle": "尚未导入{sections}数据",
+  "@capabilityUnavailableTitle": {
+    "placeholders": {
+      "sections": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityUnavailableBody": "{feature}需要这个档案的{sections}数据。导入含有这些数据的文件后即可使用。",
+  "@capabilityUnavailableBody": {
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      },
+      "sections": {
+        "type": "String"
+      }
+    }
+  },
+  "capabilityNotReportedTitle": "无法确定能否使用",
+  "capabilityNotReportedBody": "核心程序没有说明这个档案能否使用{feature}，通常是它的版本比本应用旧。请安装版本一致的八咫镜。",
+  "@capabilityNotReportedBody": {
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
+  "completenessPartial": "导入的数据不完整，可能缺少部分记录",
+  "completenessUnstated": "导入的文件没有说明数据是否完整",
   "detailEmpty": "选择一枚御魂查看详情",
   "filterTitle": "筛选",
   "filterPending": "筛选条件将在这里设置，由核心程序执行。",
@@ -320,8 +358,8 @@
   "subCountFour": "4条",
   "valueUnknown": "未知",
   "shikigamiTitle": "式神录",
-  "shikigamiUnavailableTitle": "式神数据尚未接入",
-  "shikigamiUnavailableBody": "读取游戏数据后，这里会显示你拥有的式神和它们装备的御魂。",
+  "shikigamiPendingTitle": "式神数据已导入",
+  "shikigamiPendingBody": "式神列表将在之后的版本中显示在这里。",
   "settingsTitle": "设置",
   "settingsAppearance": "外观",
   "themeSystem": "跟随系统",
