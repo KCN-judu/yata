@@ -52,7 +52,7 @@ void main() {
     await c.read(soulPagesProvider(spec).notifier).next();
     final second = c.read(soulPagesProvider(spec)).requireValue;
     expect((second.index, second.firstRow, second.hasMore), (1, 8, false));
-    expect(client.queries.last.page.cursor, recordedFirstPage().cursor);
+    expect(client.queries.last.page.cursor, recordedFirstPage().nextCursor);
     expect(client.queries.last.scanRevision, first.revision);
     await c.read(soulPagesProvider(spec).notifier).previous();
     expect(c.read(soulPagesProvider(spec)).requireValue.index, 0);

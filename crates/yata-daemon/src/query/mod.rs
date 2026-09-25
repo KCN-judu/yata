@@ -15,6 +15,7 @@ use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use prost::Message;
+use yata_core::fact::GameSoulId;
 use yata_core::query::{CompiledQuery, Page, PageRequest, QueryError, RowVerdict, compile};
 use yata_core::scheme::evaluate::OpenRule;
 use yata_core::soul::Soul;
@@ -47,8 +48,10 @@ pub enum RequestError {
     RepeatedSoulId { index: usize },
     /// `query.too_complex`: more than [`MAX_INVENTORY_SOULS`].
     InventoryTooLarge { souls: usize },
-    /// `query.too_complex`: a budget above [`MAX_ROW_BUDGET`]; `query.malformed` for zero.
-    RowBudget { budget: u32 },
+    /// `query.malformed`: a row budget of zero.
+    RowBudgetZero,
+    /// `query.too_complex`: a row budget above [`MAX_ROW_BUDGET`].
+    RowBudgetTooLarge { budget: u32 },
     /// The core refused the query.
     Query(QueryError),
     /// `internal.panic`: a bug in the daemon; the request is abandoned and nothing else.
@@ -66,12 +69,10 @@ pub enum WireProblem {
     OutOfRange,
     /// Not the `Souls` collection.
     Collection { value: i32 },
-    /// An attribute on a field that takes none, or none on a field that takes one.
-    FieldAttribute { field: i32 },
-    /// A selection with `any_set` and suit codes both.
-    AnySetWithSets,
-    /// An attribute both included and excluded.
-    IncludedAndExcluded,
+    /// A chosen 类型 with no set: "every set" is `AnySet`, and has no second encoding.
+    NoSets,
+    /// One attribute given two ○ or ✕ choices in 副属性.
+    SubAttributeTwice,
     /// An innate choice, or a boss soul's innate attribute, outside the six innate attributes.
     NotInnate,
     /// A soul id that is empty or longer than [`MAX_SOUL_ID_BYTES`].
@@ -90,10 +91,10 @@ impl RequestError {
             | RequestError::Wire(_)
             | RequestError::BadSoul { .. }
             | RequestError::RepeatedSoulId { .. }
-            | RequestError::RowBudget { budget: 0 } => "query.malformed",
+            | RequestError::RowBudgetZero => "query.malformed",
             RequestError::ProtocolUnsupported { .. } => "session.protocol_unsupported",
             RequestError::UnknownField { .. } => "query.unknown_field",
-            RequestError::InventoryTooLarge { .. } | RequestError::RowBudget { .. } => {
+            RequestError::InventoryTooLarge { .. } | RequestError::RowBudgetTooLarge { .. } => {
                 "query.too_complex"
             }
             RequestError::Query(e) => match e {
@@ -126,9 +127,10 @@ impl RequestError {
 
 /// The answer to one request payload. Total: every payload gets exactly one result.
 pub fn handle(payload: &[u8]) -> wire::EvaluateQueryResult {
-    let (id, outcome) = match wire::EvaluateQuery::decode(payload) {
+    use wire::evaluate_query_result::{Outcome, Subject};
+    let (subject, outcome) = match wire::EvaluateQuery::decode(payload) {
         Err(e) => (
-            0,
+            Subject::Undecodable(wire::Undecodable {}),
             Err(RequestError::Undecodable {
                 reason: e.to_string(),
             }),
@@ -139,14 +141,14 @@ pub fn handle(payload: &[u8]) -> wire::EvaluateQueryResult {
             // must cost this request only. No state is shared, so nothing can be left half-done.
             let outcome = catch_unwind(AssertUnwindSafe(|| evaluate(request)))
                 .unwrap_or(Err(RequestError::Panicked));
-            (id, outcome)
+            (Subject::Id(id), outcome)
         }
     };
     wire::EvaluateQueryResult {
-        id,
+        subject: Some(subject),
         outcome: Some(match outcome {
-            Ok(page) => wire::evaluate_query_result::Outcome::Page(page),
-            Err(e) => wire::evaluate_query_result::Outcome::Error(e.to_wire()),
+            Ok(page) => Outcome::Page(page),
+            Err(e) => Outcome::Error(e.to_wire()),
         }),
     }
 }
@@ -167,13 +169,13 @@ fn evaluate(request: wire::EvaluateQuery) -> Result<wire::QueryPage, RequestErro
         )))?;
     let prepared = prepare(query)?;
     let souls = convert::inventory(request.inventory)?;
-    run(&prepared, &souls)
+    run(&prepared, &souls).map(render_headless)
 }
 
 /// A query checked and compiled, with its page request: everything but the souls.
 pub struct Prepared {
     compiled: CompiledQuery,
-    request: PageRequest<String>,
+    request: PageRequest<GameSoulId>,
 }
 
 /// Check and compile a wire query. The headless endpoint and the session both start here, so a
@@ -181,15 +183,15 @@ pub struct Prepared {
 pub fn prepare(query: wire::Query) -> Result<Prepared, RequestError> {
     let page = query.page.clone().unwrap_or_default();
     let budget = page.row_budget.unwrap_or(DEFAULT_ROW_BUDGET);
-    let row_budget = NonZeroUsize::new(budget as usize)
-        .filter(|_| budget <= MAX_ROW_BUDGET)
-        .ok_or(RequestError::RowBudget { budget })?;
-    let cursor = match page.cursor.as_slice() {
-        [] => None,
-        bytes => {
-            Some(cursor::decode(bytes).ok_or(RequestError::Query(QueryError::MalformedCursor))?)
-        }
-    };
+    if budget > MAX_ROW_BUDGET {
+        return Err(RequestError::RowBudgetTooLarge { budget });
+    }
+    let row_budget = NonZeroUsize::new(budget as usize).ok_or(RequestError::RowBudgetZero)?;
+    let cursor = page
+        .cursor
+        .as_deref()
+        .map(|bytes| cursor::decode(bytes).ok_or(RequestError::Query(QueryError::MalformedCursor)))
+        .transpose()?;
     let compiled = compile(convert::query(query)?).map_err(RequestError::Query)?;
     Ok(Prepared {
         compiled,
@@ -198,19 +200,20 @@ pub fn prepare(query: wire::Query) -> Result<Prepared, RequestError> {
 }
 
 /// The page a prepared query selects from `souls`, with the core's count of every row it keeps.
-/// The rows carry ids and verdicts; a caller that holds the souls adds their values.
 pub fn run(
     prepared: &Prepared,
-    souls: &BTreeMap<String, Soul>,
-) -> Result<wire::QueryPage, RequestError> {
-    let page = prepared
+    souls: &BTreeMap<GameSoulId, Soul>,
+) -> Result<Page<GameSoulId>, RequestError> {
+    prepared
         .compiled
         .page(souls, &prepared.request)
-        .map_err(RequestError::Query)?;
-    Ok(to_wire(page))
+        .map_err(RequestError::Query)
 }
 
-fn to_wire(page: Page<String>) -> wire::QueryPage {
+/// A page as the headless endpoint answers it: ids and verdicts, with no row values (its caller
+/// supplied the souls) and no revision (it has no projection).
+pub fn render_headless(page: Page<GameSoulId>) -> wire::QueryPage {
+    use wire::query_row::Verdict;
     let rule = |r: OpenRule| match r {
         OpenRule::Innate => wire::OpenRule::Innate as i32,
         OpenRule::UnknownConditions => wire::OpenRule::UnknownConditions as i32,
@@ -220,17 +223,18 @@ fn to_wire(page: Page<String>) -> wire::QueryPage {
         .into_iter()
         .map(|row| wire::QueryRow {
             soul: None,
-            soul_id: row.id,
-            open_rules: match row.verdict {
-                RowVerdict::Open(rules) => rules.iter().map(rule).collect(),
-                RowVerdict::Exact => Vec::new(),
-            },
+            soul_id: row.id.as_str().to_owned(),
+            verdict: Some(match row.verdict {
+                RowVerdict::Exact => Verdict::Exact(wire::ExactVerdict {}),
+                RowVerdict::Open(rules) => Verdict::Open(wire::OpenVerdict {
+                    rules: rules.iter().map(rule).collect(),
+                }),
+            }),
         })
         .collect();
     wire::QueryPage {
         rows,
-        has_more: page.next.is_some(),
-        cursor: page.next.as_ref().map(cursor::encode).unwrap_or_default(),
+        next_cursor: page.next.as_ref().map(cursor::encode),
         revision: 0,
         total: page.total as u64,
     }
@@ -271,16 +275,46 @@ pub fn respond(payload: &[u8]) -> Vec<u8> {
     let result = handle(payload);
     // A page is bounded by the row budget and the id length, far below a frame; were it not, the
     // client still gets exactly one answer, as an error.
-    frame::encode(&result.encode_to_vec()).unwrap_or_else(|e| {
-        let error = wire::EvaluateQueryResult {
-            id: result.id,
-            outcome: Some(wire::evaluate_query_result::Outcome::Error(wire::Error {
-                code: "internal.response_too_large".to_owned(),
-                message: format!("{e:?}"),
-                details: Vec::new(),
-            })),
-        };
-        // A short error message always fits a frame.
-        frame::encode(&error.encode_to_vec()).unwrap_or_default()
-    })
+    frame::encode(&result.encode_to_vec()).unwrap_or_else(|_| too_large(result.subject))
+}
+
+/// The error frame for a result too large to frame. Its payload is a few dozen bytes whatever the
+/// subject, so it is framed directly and cannot fail (`the_too_large_frame_decodes`).
+fn too_large(subject: Option<wire::evaluate_query_result::Subject>) -> Vec<u8> {
+    let payload = wire::EvaluateQueryResult {
+        subject,
+        outcome: Some(wire::evaluate_query_result::Outcome::Error(wire::Error {
+            code: "internal.response_too_large".to_owned(),
+            message: "the page does not fit a frame".to_owned(),
+            details: Vec::new(),
+        })),
+    }
+    .encode_to_vec();
+    // Under 100 bytes: at most a ten-byte id and two short strings.
+    let length = payload.len() as u32;
+    [length.to_be_bytes().as_slice(), &payload].concat()
+}
+
+#[cfg(test)]
+mod tests {
+    use yata_protocol::frame::decode_all;
+
+    use super::*;
+
+    #[test]
+    fn the_too_large_frame_decodes() {
+        use wire::evaluate_query_result::Subject;
+        for subject in [
+            Some(Subject::Id(u64::MAX)),
+            Some(Subject::Undecodable(wire::Undecodable {})),
+        ] {
+            let frames = decode_all(&too_large(subject)).expect("one frame");
+            let [payload] = frames.as_slice() else {
+                panic!("exactly one frame")
+            };
+            let result = wire::EvaluateQueryResult::decode(payload.as_slice()).expect("decodes");
+            assert_eq!(result.subject, subject);
+            assert!(payload.len() < 100);
+        }
+    }
 }

@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 
+use yata_core::fact::GameSoulId;
 use yata_core::soul::Soul;
 
 /// The projection a session serves.
@@ -21,7 +22,7 @@ pub struct Projection {
 pub struct ProfileEntry {
     pub id: String,
     pub name: String,
-    pub souls: BTreeMap<String, Soul>,
+    pub souls: BTreeMap<GameSoulId, Soul>,
 }
 
 impl Projection {
@@ -45,6 +46,7 @@ impl Projection {
 pub mod fixture {
     use std::collections::BTreeMap;
 
+    use yata_core::fact::GameSoulId;
     use yata_core::soul::{Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, SubAttribute};
 
     use super::{ProfileEntry, Projection};
@@ -67,7 +69,7 @@ pub mod fixture {
 
     /// `(id, suit code, slot, level, main, main value, subs)`, every soul 6★.
     #[rustfmt::skip]
-    const SOULS: [Row; 12] = [
+    pub(super) const SOULS: [Row; 12] = [
         ("fixture-01", 30, Slot2, 15, Spd, 57.0, &[(Crit, 8.4), (CritDmg, 7.2), (AtkPercent, 5.2), (HpPercent, 5.0)]),
         ("fixture-02", 30, Slot4, 15, AtkPercent, 55.0, &[(Spd, 16.8), (Crit, 2.7), (CritDmg, 3.5), (EffectHit, 3.9)]),
         ("fixture-03", 12, Slot6, 15, CritDmg, 89.0, &[(Spd, 11.2), (Crit, 5.4), (AtkPercent, 5.5), (HpFlat, 105.0)]),
@@ -84,10 +86,12 @@ pub mod fixture {
 
     /// The fixture souls, all ordinary. The fixture is invented and makes no claim about which sets
     /// are boss sets; a boss soul would need a sourced one (ADR-0029, rule 5).
-    pub fn souls() -> BTreeMap<String, Soul> {
+    pub fn souls() -> BTreeMap<GameSoulId, Soul> {
         SOULS
             .iter()
-            .map(|&(id, suit, slot, level, main, main_value, subs)| {
+            .filter_map(|&(id, suit, slot, level, main, main_value, subs)| {
+                // Every fixture id is non-empty; `every_fixture_row_is_a_soul` holds the table to it.
+                let id = GameSoulId::new(id).ok()?;
                 let soul = Soul {
                     set: SoulSet::from_suit_code(suit),
                     slot,
@@ -105,7 +109,7 @@ pub mod fixture {
                         .collect(),
                     kind: SoulKind::Ordinary,
                 };
-                (id.to_owned(), soul)
+                Some((id, soul))
             })
             .collect()
     }
@@ -138,10 +142,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn every_fixture_row_is_a_soul() {
+        assert_eq!(fixture::souls().len(), fixture::SOULS.len());
+    }
+
+    #[test]
     fn every_fixture_soul_is_well_formed() {
         for (id, soul) in fixture::souls() {
             let a = assess(&soul);
-            assert_eq!(a.verdict(), Verdict::WellFormed, "{id}: {a:?}");
+            assert_eq!(a.verdict(), Verdict::WellFormed, "{id:?}: {a:?}");
         }
     }
 }

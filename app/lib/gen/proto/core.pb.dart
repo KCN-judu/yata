@@ -539,32 +539,194 @@ class SubAttribute extends $pb.GeneratedMessage {
   void clearEnhancementCount() => $_clearField(3);
 }
 
+/// 全部: no restriction on the set. The game's 类型 with nothing chosen means the same, and is
+/// written this way only.
+class AnySet extends $pb.GeneratedMessage {
+  factory AnySet() => AnySet._();
+
+  AnySet._();
+
+  factory AnySet.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AnySet()..mergeFromBuffer(data, registry);
+  factory AnySet.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      AnySet()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'AnySet',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: AnySet.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AnySet clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  AnySet copyWith(void Function(AnySet) updates) =>
+      super.copyWith((message) => updates(message as AnySet)) as AnySet;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use AnySet() / AnySet.new instead')
+  static AnySet create() => AnySet._();
+  static $pb.GeneratedMessage $_createMessage() => AnySet._();
+  @$core.override
+  AnySet createEmptyInstance() => AnySet._();
+  @$core.pragma('dart2js:noInline')
+  static AnySet getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<AnySet>(AnySet.$_createMessage);
+  static AnySet? _defaultInstance;
+}
+
+/// Chosen sets, by suit code. Never empty: "every set" is `AnySet`. At most 256.
+class SuitCodes extends $pb.GeneratedMessage {
+  factory SuitCodes({
+    $core.Iterable<$core.int>? codes,
+  }) {
+    final result = SuitCodes._();
+    if (codes != null) result.codes.addAll(codes);
+    return result;
+  }
+
+  SuitCodes._();
+
+  factory SuitCodes.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SuitCodes()..mergeFromBuffer(data, registry);
+  factory SuitCodes.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SuitCodes()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SuitCodes',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SuitCodes.$_createMessage)
+    ..p<$core.int>(1, _omitFieldNames ? '' : 'codes', $pb.PbFieldType.KU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SuitCodes clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SuitCodes copyWith(void Function(SuitCodes) updates) =>
+      super.copyWith((message) => updates(message as SuitCodes)) as SuitCodes;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SuitCodes() / SuitCodes.new instead')
+  static SuitCodes create() => SuitCodes._();
+  static $pb.GeneratedMessage $_createMessage() => SuitCodes._();
+  @$core.override
+  SuitCodes createEmptyInstance() => SuitCodes._();
+  @$core.pragma('dart2js:noInline')
+  static SuitCodes getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SuitCodes>(SuitCodes.$_createMessage);
+  static SuitCodes? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.int> get codes => $_getList(0);
+}
+
+class SubAttributeChoice extends $pb.GeneratedMessage {
+  factory SubAttributeChoice({
+    SoulAttribute? attribute,
+    SubAttributeMode? mode,
+  }) {
+    final result = SubAttributeChoice._();
+    if (attribute != null) result.attribute = attribute;
+    if (mode != null) result.mode = mode;
+    return result;
+  }
+
+  SubAttributeChoice._();
+
+  factory SubAttributeChoice.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SubAttributeChoice()..mergeFromBuffer(data, registry);
+  factory SubAttributeChoice.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      SubAttributeChoice()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'SubAttributeChoice',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: SubAttributeChoice.$_createMessage)
+    ..aE<SoulAttribute>(1, _omitFieldNames ? '' : 'attribute',
+        enumValues: SoulAttribute.values)
+    ..aE<SubAttributeMode>(2, _omitFieldNames ? '' : 'mode',
+        enumValues: SubAttributeMode.values)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SubAttributeChoice clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  SubAttributeChoice copyWith(void Function(SubAttributeChoice) updates) =>
+      super.copyWith((message) => updates(message as SubAttributeChoice))
+          as SubAttributeChoice;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use SubAttributeChoice() / SubAttributeChoice.new instead')
+  static SubAttributeChoice create() => SubAttributeChoice._();
+  static $pb.GeneratedMessage $_createMessage() => SubAttributeChoice._();
+  @$core.override
+  SubAttributeChoice createEmptyInstance() => SubAttributeChoice._();
+  @$core.pragma('dart2js:noInline')
+  static SubAttributeChoice getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<SubAttributeChoice>(
+          SubAttributeChoice.$_createMessage);
+  static SubAttributeChoice? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  SoulAttribute get attribute => $_getN(0);
+  @$pb.TagNumber(1)
+  set attribute(SoulAttribute value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasAttribute() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearAttribute() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  SubAttributeMode get mode => $_getN(1);
+  @$pb.TagNumber(2)
+  set mode(SubAttributeMode value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMode() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMode() => $_clearField(2);
+}
+
+enum SoulSelection_Sets { all, chosen, notSet }
+
 /// A SoulSelection: each group a set of choices, an empty group no constraint. Each repeated
 /// field holds at most 256 values.
 class SoulSelection extends $pb.GeneratedMessage {
   factory SoulSelection({
-    $core.bool? anySet,
-    $core.Iterable<$core.int>? suitCodes,
     $core.Iterable<SoulSlot>? slots,
     $core.Iterable<$core.int>? stars,
     $core.Iterable<LevelBand>? levels,
     $core.Iterable<SoulAttribute>? mainAttributes,
     $core.Iterable<SoulAttribute>? innate,
-    $core.Iterable<SoulAttribute>? subIncluded,
-    $core.Iterable<SoulAttribute>? subExcluded,
     $core.Iterable<SubCount>? subCounts,
+    AnySet? all,
+    SuitCodes? chosen,
+    $core.Iterable<SubAttributeChoice>? subAttributes,
   }) {
     final result = SoulSelection._();
-    if (anySet != null) result.anySet = anySet;
-    if (suitCodes != null) result.suitCodes.addAll(suitCodes);
     if (slots != null) result.slots.addAll(slots);
     if (stars != null) result.stars.addAll(stars);
     if (levels != null) result.levels.addAll(levels);
     if (mainAttributes != null) result.mainAttributes.addAll(mainAttributes);
     if (innate != null) result.innate.addAll(innate);
-    if (subIncluded != null) result.subIncluded.addAll(subIncluded);
-    if (subExcluded != null) result.subExcluded.addAll(subExcluded);
     if (subCounts != null) result.subCounts.addAll(subCounts);
+    if (all != null) result.all = all;
+    if (chosen != null) result.chosen = chosen;
+    if (subAttributes != null) result.subAttributes.addAll(subAttributes);
     return result;
   }
 
@@ -577,12 +739,17 @@ class SoulSelection extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       SoulSelection()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, SoulSelection_Sets>
+      _SoulSelection_SetsByTag = {
+    11: SoulSelection_Sets.all,
+    12: SoulSelection_Sets.chosen,
+    0: SoulSelection_Sets.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'SoulSelection',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: SoulSelection.$_createMessage)
-    ..aOB(1, _omitFieldNames ? '' : 'anySet')
-    ..p<$core.int>(2, _omitFieldNames ? '' : 'suitCodes', $pb.PbFieldType.KU3)
+    ..oo(0, [11, 12])
     ..pc<SoulSlot>(3, _omitFieldNames ? '' : 'slots', $pb.PbFieldType.KE,
         valueOf: SoulSlot.valueOf,
         enumValues: SoulSlot.values,
@@ -601,20 +768,16 @@ class SoulSelection extends $pb.GeneratedMessage {
         valueOf: SoulAttribute.valueOf,
         enumValues: SoulAttribute.values,
         defaultEnumValue: SoulAttribute.SOUL_ATTRIBUTE_UNSPECIFIED)
-    ..pc<SoulAttribute>(
-        8, _omitFieldNames ? '' : 'subIncluded', $pb.PbFieldType.KE,
-        valueOf: SoulAttribute.valueOf,
-        enumValues: SoulAttribute.values,
-        defaultEnumValue: SoulAttribute.SOUL_ATTRIBUTE_UNSPECIFIED)
-    ..pc<SoulAttribute>(
-        9, _omitFieldNames ? '' : 'subExcluded', $pb.PbFieldType.KE,
-        valueOf: SoulAttribute.valueOf,
-        enumValues: SoulAttribute.values,
-        defaultEnumValue: SoulAttribute.SOUL_ATTRIBUTE_UNSPECIFIED)
     ..pc<SubCount>(10, _omitFieldNames ? '' : 'subCounts', $pb.PbFieldType.KE,
         valueOf: SubCount.valueOf,
         enumValues: SubCount.values,
         defaultEnumValue: SubCount.SUB_COUNT_UNSPECIFIED)
+    ..aOM<AnySet>(11, _omitFieldNames ? '' : 'all',
+        subBuilder: AnySet.$_createMessage)
+    ..aOM<SuitCodes>(12, _omitFieldNames ? '' : 'chosen',
+        subBuilder: SuitCodes.$_createMessage)
+    ..pPM<SubAttributeChoice>(13, _omitFieldNames ? '' : 'subAttributes',
+        subBuilder: SubAttributeChoice.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -639,54 +802,74 @@ class SoulSelection extends $pb.GeneratedMessage {
           SoulSelection.$_createMessage);
   static SoulSelection? _defaultInstance;
 
-  /// 全部: every set. `suit_codes` is then empty.
-  @$pb.TagNumber(1)
-  $core.bool get anySet => $_getBF(0);
-  @$pb.TagNumber(1)
-  set anySet($core.bool value) => $_setBool(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasAnySet() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearAnySet() => $_clearField(1);
-
-  @$pb.TagNumber(2)
-  $pb.PbList<$core.int> get suitCodes => $_getList(1);
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  SoulSelection_Sets whichSets() => _SoulSelection_SetsByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(11)
+  @$pb.TagNumber(12)
+  void clearSets() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(3)
-  $pb.PbList<SoulSlot> get slots => $_getList(2);
+  $pb.PbList<SoulSlot> get slots => $_getList(0);
 
   @$pb.TagNumber(4)
-  $pb.PbList<$core.int> get stars => $_getList(3);
+  $pb.PbList<$core.int> get stars => $_getList(1);
 
   @$pb.TagNumber(5)
-  $pb.PbList<LevelBand> get levels => $_getList(4);
+  $pb.PbList<LevelBand> get levels => $_getList(2);
 
   @$pb.TagNumber(6)
-  $pb.PbList<SoulAttribute> get mainAttributes => $_getList(5);
+  $pb.PbList<SoulAttribute> get mainAttributes => $_getList(3);
 
   /// One of the six innate attributes.
   @$pb.TagNumber(7)
-  $pb.PbList<SoulAttribute> get innate => $_getList(6);
-
-  /// ○ and ✕; an attribute is in at most one.
-  @$pb.TagNumber(8)
-  $pb.PbList<SoulAttribute> get subIncluded => $_getList(7);
-
-  @$pb.TagNumber(9)
-  $pb.PbList<SoulAttribute> get subExcluded => $_getList(8);
+  $pb.PbList<SoulAttribute> get innate => $_getList(4);
 
   @$pb.TagNumber(10)
-  $pb.PbList<SubCount> get subCounts => $_getList(9);
+  $pb.PbList<SubCount> get subCounts => $_getList(5);
+
+  @$pb.TagNumber(11)
+  AnySet get all => $_getN(6);
+  @$pb.TagNumber(11)
+  set all(AnySet value) => $_setField(11, value);
+  @$pb.TagNumber(11)
+  $core.bool hasAll() => $_has(6);
+  @$pb.TagNumber(11)
+  void clearAll() => $_clearField(11);
+  @$pb.TagNumber(11)
+  AnySet ensureAll() => $_ensure(6);
+
+  @$pb.TagNumber(12)
+  SuitCodes get chosen => $_getN(7);
+  @$pb.TagNumber(12)
+  set chosen(SuitCodes value) => $_setField(12, value);
+  @$pb.TagNumber(12)
+  $core.bool hasChosen() => $_has(7);
+  @$pb.TagNumber(12)
+  void clearChosen() => $_clearField(12);
+  @$pb.TagNumber(12)
+  SuitCodes ensureChosen() => $_ensure(7);
+
+  /// 副属性: ○ or ✕ per attribute, each attribute at most once.
+  @$pb.TagNumber(13)
+  $pb.PbList<SubAttributeChoice> get subAttributes => $_getList(8);
 }
 
+enum Field_Field { simple, subValue, hasSub, quality, notSet }
+
+/// A field of a soul row: exactly one is set, and a field that takes an attribute carries it.
 class Field extends $pb.GeneratedMessage {
   factory Field({
-    FieldName? name,
-    SoulAttribute? attribute,
+    SimpleField? simple,
+    SoulAttribute? subValue,
+    SoulAttribute? hasSub,
+    QualityComponent? quality,
   }) {
     final result = Field._();
-    if (name != null) result.name = name;
-    if (attribute != null) result.attribute = attribute;
+    if (simple != null) result.simple = simple;
+    if (subValue != null) result.subValue = subValue;
+    if (hasSub != null) result.hasSub = hasSub;
+    if (quality != null) result.quality = quality;
     return result;
   }
 
@@ -699,14 +882,26 @@ class Field extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       Field()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, Field_Field> _Field_FieldByTag = {
+    3: Field_Field.simple,
+    4: Field_Field.subValue,
+    5: Field_Field.hasSub,
+    6: Field_Field.quality,
+    0: Field_Field.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'Field',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: Field.$_createMessage)
-    ..aE<FieldName>(1, _omitFieldNames ? '' : 'name',
-        enumValues: FieldName.values)
-    ..aE<SoulAttribute>(2, _omitFieldNames ? '' : 'attribute',
+    ..oo(0, [3, 4, 5, 6])
+    ..aE<SimpleField>(3, _omitFieldNames ? '' : 'simple',
+        enumValues: SimpleField.values)
+    ..aE<SoulAttribute>(4, _omitFieldNames ? '' : 'subValue',
         enumValues: SoulAttribute.values)
+    ..aE<SoulAttribute>(5, _omitFieldNames ? '' : 'hasSub',
+        enumValues: SoulAttribute.values)
+    ..aE<QualityComponent>(6, _omitFieldNames ? '' : 'quality',
+        enumValues: QualityComponent.values)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -729,37 +924,171 @@ class Field extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<Field>(Field.$_createMessage);
   static Field? _defaultInstance;
 
-  @$pb.TagNumber(1)
-  FieldName get name => $_getN(0);
-  @$pb.TagNumber(1)
-  set name(FieldName value) => $_setField(1, value);
-  @$pb.TagNumber(1)
-  $core.bool hasName() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearName() => $_clearField(1);
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  @$pb.TagNumber(6)
+  Field_Field whichField_() => _Field_FieldByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  @$pb.TagNumber(6)
+  void clearField_() => $_clearField($_whichOneof(0));
 
-  /// For SUB_VALUE and HAS_SUB; unspecified for every other field.
-  @$pb.TagNumber(2)
-  SoulAttribute get attribute => $_getN(1);
-  @$pb.TagNumber(2)
-  set attribute(SoulAttribute value) => $_setField(2, value);
-  @$pb.TagNumber(2)
-  $core.bool hasAttribute() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearAttribute() => $_clearField(2);
+  @$pb.TagNumber(3)
+  SimpleField get simple => $_getN(0);
+  @$pb.TagNumber(3)
+  set simple(SimpleField value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasSimple() => $_has(0);
+  @$pb.TagNumber(3)
+  void clearSimple() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  SoulAttribute get subValue => $_getN(1);
+  @$pb.TagNumber(4)
+  set subValue(SoulAttribute value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasSubValue() => $_has(1);
+  @$pb.TagNumber(4)
+  void clearSubValue() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  SoulAttribute get hasSub => $_getN(2);
+  @$pb.TagNumber(5)
+  set hasSub(SoulAttribute value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasHasSub() => $_has(2);
+  @$pb.TagNumber(5)
+  void clearHasSub() => $_clearField(5);
+
+  @$pb.TagNumber(6)
+  QualityComponent get quality => $_getN(3);
+  @$pb.TagNumber(6)
+  set quality(QualityComponent value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasQuality() => $_has(3);
+  @$pb.TagNumber(6)
+  void clearQuality() => $_clearField(6);
 }
 
-/// The values of an `In`, in the one list that fits the field's type. At most 256.
+class Slots extends $pb.GeneratedMessage {
+  factory Slots({
+    $core.Iterable<SoulSlot>? values,
+  }) {
+    final result = Slots._();
+    if (values != null) result.values.addAll(values);
+    return result;
+  }
+
+  Slots._();
+
+  factory Slots.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Slots()..mergeFromBuffer(data, registry);
+  factory Slots.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Slots()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Slots',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: Slots.$_createMessage)
+    ..pc<SoulSlot>(1, _omitFieldNames ? '' : 'values', $pb.PbFieldType.KE,
+        valueOf: SoulSlot.valueOf,
+        enumValues: SoulSlot.values,
+        defaultEnumValue: SoulSlot.SOUL_SLOT_UNSPECIFIED)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Slots clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Slots copyWith(void Function(Slots) updates) =>
+      super.copyWith((message) => updates(message as Slots)) as Slots;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Slots() / Slots.new instead')
+  static Slots create() => Slots._();
+  static $pb.GeneratedMessage $_createMessage() => Slots._();
+  @$core.override
+  Slots createEmptyInstance() => Slots._();
+  @$core.pragma('dart2js:noInline')
+  static Slots getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Slots>(Slots.$_createMessage);
+  static Slots? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<SoulSlot> get values => $_getList(0);
+}
+
+class Attributes extends $pb.GeneratedMessage {
+  factory Attributes({
+    $core.Iterable<SoulAttribute>? values,
+  }) {
+    final result = Attributes._();
+    if (values != null) result.values.addAll(values);
+    return result;
+  }
+
+  Attributes._();
+
+  factory Attributes.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Attributes()..mergeFromBuffer(data, registry);
+  factory Attributes.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Attributes()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Attributes',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: Attributes.$_createMessage)
+    ..pc<SoulAttribute>(1, _omitFieldNames ? '' : 'values', $pb.PbFieldType.KE,
+        valueOf: SoulAttribute.valueOf,
+        enumValues: SoulAttribute.values,
+        defaultEnumValue: SoulAttribute.SOUL_ATTRIBUTE_UNSPECIFIED)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Attributes clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Attributes copyWith(void Function(Attributes) updates) =>
+      super.copyWith((message) => updates(message as Attributes)) as Attributes;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Attributes() / Attributes.new instead')
+  static Attributes create() => Attributes._();
+  static $pb.GeneratedMessage $_createMessage() => Attributes._();
+  @$core.override
+  Attributes createEmptyInstance() => Attributes._();
+  @$core.pragma('dart2js:noInline')
+  static Attributes getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<Attributes>(Attributes.$_createMessage);
+  static Attributes? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<SoulAttribute> get values => $_getList(0);
+}
+
+enum InTest_Values { setValues, slotValues, attributeValues, notSet }
+
+/// The values of an `In`: one list, of the field's type. At most 256; never empty.
 class InTest extends $pb.GeneratedMessage {
   factory InTest({
-    $core.Iterable<$core.int>? suitCodes,
-    $core.Iterable<SoulSlot>? slots,
-    $core.Iterable<SoulAttribute>? attributes,
+    SuitCodes? setValues,
+    Slots? slotValues,
+    Attributes? attributeValues,
   }) {
     final result = InTest._();
-    if (suitCodes != null) result.suitCodes.addAll(suitCodes);
-    if (slots != null) result.slots.addAll(slots);
-    if (attributes != null) result.attributes.addAll(attributes);
+    if (setValues != null) result.setValues = setValues;
+    if (slotValues != null) result.slotValues = slotValues;
+    if (attributeValues != null) result.attributeValues = attributeValues;
     return result;
   }
 
@@ -772,20 +1101,23 @@ class InTest extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       InTest()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, InTest_Values> _InTest_ValuesByTag = {
+    4: InTest_Values.setValues,
+    5: InTest_Values.slotValues,
+    6: InTest_Values.attributeValues,
+    0: InTest_Values.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'InTest',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: InTest.$_createMessage)
-    ..p<$core.int>(1, _omitFieldNames ? '' : 'suitCodes', $pb.PbFieldType.KU3)
-    ..pc<SoulSlot>(2, _omitFieldNames ? '' : 'slots', $pb.PbFieldType.KE,
-        valueOf: SoulSlot.valueOf,
-        enumValues: SoulSlot.values,
-        defaultEnumValue: SoulSlot.SOUL_SLOT_UNSPECIFIED)
-    ..pc<SoulAttribute>(
-        3, _omitFieldNames ? '' : 'attributes', $pb.PbFieldType.KE,
-        valueOf: SoulAttribute.valueOf,
-        enumValues: SoulAttribute.values,
-        defaultEnumValue: SoulAttribute.SOUL_ATTRIBUTE_UNSPECIFIED)
+    ..oo(0, [4, 5, 6])
+    ..aOM<SuitCodes>(4, _omitFieldNames ? '' : 'setValues',
+        subBuilder: SuitCodes.$_createMessage)
+    ..aOM<Slots>(5, _omitFieldNames ? '' : 'slotValues',
+        subBuilder: Slots.$_createMessage)
+    ..aOM<Attributes>(6, _omitFieldNames ? '' : 'attributeValues',
+        subBuilder: Attributes.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -808,25 +1140,129 @@ class InTest extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<InTest>(InTest.$_createMessage);
   static InTest? _defaultInstance;
 
-  @$pb.TagNumber(1)
-  $pb.PbList<$core.int> get suitCodes => $_getList(0);
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  @$pb.TagNumber(6)
+  InTest_Values whichValues() => _InTest_ValuesByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  @$pb.TagNumber(6)
+  void clearValues() => $_clearField($_whichOneof(0));
 
-  @$pb.TagNumber(2)
-  $pb.PbList<SoulSlot> get slots => $_getList(1);
+  @$pb.TagNumber(4)
+  SuitCodes get setValues => $_getN(0);
+  @$pb.TagNumber(4)
+  set setValues(SuitCodes value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasSetValues() => $_has(0);
+  @$pb.TagNumber(4)
+  void clearSetValues() => $_clearField(4);
+  @$pb.TagNumber(4)
+  SuitCodes ensureSetValues() => $_ensure(0);
 
-  @$pb.TagNumber(3)
-  $pb.PbList<SoulAttribute> get attributes => $_getList(2);
+  @$pb.TagNumber(5)
+  Slots get slotValues => $_getN(1);
+  @$pb.TagNumber(5)
+  set slotValues(Slots value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasSlotValues() => $_has(1);
+  @$pb.TagNumber(5)
+  void clearSlotValues() => $_clearField(5);
+  @$pb.TagNumber(5)
+  Slots ensureSlotValues() => $_ensure(1);
+
+  @$pb.TagNumber(6)
+  Attributes get attributeValues => $_getN(2);
+  @$pb.TagNumber(6)
+  set attributeValues(Attributes value) => $_setField(6, value);
+  @$pb.TagNumber(6)
+  $core.bool hasAttributeValues() => $_has(2);
+  @$pb.TagNumber(6)
+  void clearAttributeValues() => $_clearField(6);
+  @$pb.TagNumber(6)
+  Attributes ensureAttributeValues() => $_ensure(2);
 }
 
-/// Both bounds inclusive; at least one present.
-class IntRange extends $pb.GeneratedMessage {
-  factory IntRange({
+class IntBetween extends $pb.GeneratedMessage {
+  factory IntBetween({
     $fixnum.Int64? min,
     $fixnum.Int64? max,
   }) {
-    final result = IntRange._();
+    final result = IntBetween._();
     if (min != null) result.min = min;
     if (max != null) result.max = max;
+    return result;
+  }
+
+  IntBetween._();
+
+  factory IntBetween.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IntBetween()..mergeFromBuffer(data, registry);
+  factory IntBetween.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      IntBetween()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'IntBetween',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: IntBetween.$_createMessage)
+    ..aInt64(1, _omitFieldNames ? '' : 'min')
+    ..aInt64(2, _omitFieldNames ? '' : 'max')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IntBetween clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  IntBetween copyWith(void Function(IntBetween) updates) =>
+      super.copyWith((message) => updates(message as IntBetween)) as IntBetween;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use IntBetween() / IntBetween.new instead')
+  static IntBetween create() => IntBetween._();
+  static $pb.GeneratedMessage $_createMessage() => IntBetween._();
+  @$core.override
+  IntBetween createEmptyInstance() => IntBetween._();
+  @$core.pragma('dart2js:noInline')
+  static IntBetween getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<IntBetween>(IntBetween.$_createMessage);
+  static IntBetween? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $fixnum.Int64 get min => $_getI64(0);
+  @$pb.TagNumber(1)
+  set min($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasMin() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearMin() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $fixnum.Int64 get max => $_getI64(1);
+  @$pb.TagNumber(2)
+  set max($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasMax() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearMax() => $_clearField(2);
+}
+
+enum IntRange_Bound { atLeast, atMost, between, notSet }
+
+/// Inclusive bounds: exactly one is set; `between` with `min` above `max` is query.malformed.
+class IntRange extends $pb.GeneratedMessage {
+  factory IntRange({
+    $fixnum.Int64? atLeast,
+    $fixnum.Int64? atMost,
+    IntBetween? between,
+  }) {
+    final result = IntRange._();
+    if (atLeast != null) result.atLeast = atLeast;
+    if (atMost != null) result.atMost = atMost;
+    if (between != null) result.between = between;
     return result;
   }
 
@@ -839,12 +1275,21 @@ class IntRange extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       IntRange()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, IntRange_Bound> _IntRange_BoundByTag = {
+    3: IntRange_Bound.atLeast,
+    4: IntRange_Bound.atMost,
+    5: IntRange_Bound.between,
+    0: IntRange_Bound.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'IntRange',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: IntRange.$_createMessage)
-    ..aInt64(1, _omitFieldNames ? '' : 'min')
-    ..aInt64(2, _omitFieldNames ? '' : 'max')
+    ..oo(0, [3, 4, 5])
+    ..aInt64(3, _omitFieldNames ? '' : 'atLeast')
+    ..aInt64(4, _omitFieldNames ? '' : 'atMost')
+    ..aOM<IntBetween>(5, _omitFieldNames ? '' : 'between',
+        subBuilder: IntBetween.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -867,34 +1312,127 @@ class IntRange extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<IntRange>(IntRange.$_createMessage);
   static IntRange? _defaultInstance;
 
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  IntRange_Bound whichBound() => _IntRange_BoundByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  void clearBound() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(3)
+  $fixnum.Int64 get atLeast => $_getI64(0);
+  @$pb.TagNumber(3)
+  set atLeast($fixnum.Int64 value) => $_setInt64(0, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAtLeast() => $_has(0);
+  @$pb.TagNumber(3)
+  void clearAtLeast() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $fixnum.Int64 get atMost => $_getI64(1);
+  @$pb.TagNumber(4)
+  set atMost($fixnum.Int64 value) => $_setInt64(1, value);
+  @$pb.TagNumber(4)
+  $core.bool hasAtMost() => $_has(1);
+  @$pb.TagNumber(4)
+  void clearAtMost() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  IntBetween get between => $_getN(2);
+  @$pb.TagNumber(5)
+  set between(IntBetween value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasBetween() => $_has(2);
+  @$pb.TagNumber(5)
+  void clearBetween() => $_clearField(5);
+  @$pb.TagNumber(5)
+  IntBetween ensureBetween() => $_ensure(2);
+}
+
+class NumberBetween extends $pb.GeneratedMessage {
+  factory NumberBetween({
+    $core.double? min,
+    $core.double? max,
+  }) {
+    final result = NumberBetween._();
+    if (min != null) result.min = min;
+    if (max != null) result.max = max;
+    return result;
+  }
+
+  NumberBetween._();
+
+  factory NumberBetween.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NumberBetween()..mergeFromBuffer(data, registry);
+  factory NumberBetween.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      NumberBetween()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'NumberBetween',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: NumberBetween.$_createMessage)
+    ..aD(1, _omitFieldNames ? '' : 'min')
+    ..aD(2, _omitFieldNames ? '' : 'max')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NumberBetween clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  NumberBetween copyWith(void Function(NumberBetween) updates) =>
+      super.copyWith((message) => updates(message as NumberBetween))
+          as NumberBetween;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use NumberBetween() / NumberBetween.new instead')
+  static NumberBetween create() => NumberBetween._();
+  static $pb.GeneratedMessage $_createMessage() => NumberBetween._();
+  @$core.override
+  NumberBetween createEmptyInstance() => NumberBetween._();
+  @$core.pragma('dart2js:noInline')
+  static NumberBetween getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<NumberBetween>(
+          NumberBetween.$_createMessage);
+  static NumberBetween? _defaultInstance;
+
   @$pb.TagNumber(1)
-  $fixnum.Int64 get min => $_getI64(0);
+  $core.double get min => $_getN(0);
   @$pb.TagNumber(1)
-  set min($fixnum.Int64 value) => $_setInt64(0, value);
+  set min($core.double value) => $_setDouble(0, value);
   @$pb.TagNumber(1)
   $core.bool hasMin() => $_has(0);
   @$pb.TagNumber(1)
   void clearMin() => $_clearField(1);
 
   @$pb.TagNumber(2)
-  $fixnum.Int64 get max => $_getI64(1);
+  $core.double get max => $_getN(1);
   @$pb.TagNumber(2)
-  set max($fixnum.Int64 value) => $_setInt64(1, value);
+  set max($core.double value) => $_setDouble(1, value);
   @$pb.TagNumber(2)
   $core.bool hasMax() => $_has(1);
   @$pb.TagNumber(2)
   void clearMax() => $_clearField(2);
 }
 
-/// Both bounds inclusive and finite; at least one present.
+enum NumberRange_Bound { atLeast, atMost, between, notSet }
+
+/// As `IntRange`, over finite numbers.
 class NumberRange extends $pb.GeneratedMessage {
   factory NumberRange({
-    $core.double? min,
-    $core.double? max,
+    $core.double? atLeast,
+    $core.double? atMost,
+    NumberBetween? between,
   }) {
     final result = NumberRange._();
-    if (min != null) result.min = min;
-    if (max != null) result.max = max;
+    if (atLeast != null) result.atLeast = atLeast;
+    if (atMost != null) result.atMost = atMost;
+    if (between != null) result.between = between;
     return result;
   }
 
@@ -907,12 +1445,22 @@ class NumberRange extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       NumberRange()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, NumberRange_Bound> _NumberRange_BoundByTag =
+      {
+    3: NumberRange_Bound.atLeast,
+    4: NumberRange_Bound.atMost,
+    5: NumberRange_Bound.between,
+    0: NumberRange_Bound.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'NumberRange',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: NumberRange.$_createMessage)
-    ..aD(1, _omitFieldNames ? '' : 'min')
-    ..aD(2, _omitFieldNames ? '' : 'max')
+    ..oo(0, [3, 4, 5])
+    ..aD(3, _omitFieldNames ? '' : 'atLeast')
+    ..aD(4, _omitFieldNames ? '' : 'atMost')
+    ..aOM<NumberBetween>(5, _omitFieldNames ? '' : 'between',
+        subBuilder: NumberBetween.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -937,23 +1485,43 @@ class NumberRange extends $pb.GeneratedMessage {
           NumberRange.$_createMessage);
   static NumberRange? _defaultInstance;
 
-  @$pb.TagNumber(1)
-  $core.double get min => $_getN(0);
-  @$pb.TagNumber(1)
-  set min($core.double value) => $_setDouble(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasMin() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearMin() => $_clearField(1);
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  NumberRange_Bound whichBound() => _NumberRange_BoundByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(3)
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  void clearBound() => $_clearField($_whichOneof(0));
 
-  @$pb.TagNumber(2)
-  $core.double get max => $_getN(1);
-  @$pb.TagNumber(2)
-  set max($core.double value) => $_setDouble(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasMax() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearMax() => $_clearField(2);
+  @$pb.TagNumber(3)
+  $core.double get atLeast => $_getN(0);
+  @$pb.TagNumber(3)
+  set atLeast($core.double value) => $_setDouble(0, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAtLeast() => $_has(0);
+  @$pb.TagNumber(3)
+  void clearAtLeast() => $_clearField(3);
+
+  @$pb.TagNumber(4)
+  $core.double get atMost => $_getN(1);
+  @$pb.TagNumber(4)
+  set atMost($core.double value) => $_setDouble(1, value);
+  @$pb.TagNumber(4)
+  $core.bool hasAtMost() => $_has(1);
+  @$pb.TagNumber(4)
+  void clearAtMost() => $_clearField(4);
+
+  @$pb.TagNumber(5)
+  NumberBetween get between => $_getN(2);
+  @$pb.TagNumber(5)
+  set between(NumberBetween value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasBetween() => $_has(2);
+  @$pb.TagNumber(5)
+  void clearBetween() => $_clearField(5);
+  @$pb.TagNumber(5)
+  NumberBetween ensureBetween() => $_ensure(2);
 }
 
 enum Predicate_Test { in_2, intRange, numberRange, is_5, notSet }
@@ -1575,7 +2143,7 @@ class PageRequest extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearRowBudget() => $_clearField(1);
 
-  /// Absent or empty: the first page. Otherwise a cursor this query returned, unmodified.
+  /// Absent: the first page. Otherwise a cursor this query returned, unmodified.
   @$pb.TagNumber(2)
   $core.List<$core.int> get cursor => $_getN(1);
   @$pb.TagNumber(2)
@@ -1726,16 +2294,117 @@ class Query extends $pb.GeneratedMessage {
   void clearScanRevision() => $_clearField(7);
 }
 
+/// The row is in the game's selection however the open rules are settled (ADR-0026).
+class ExactVerdict extends $pb.GeneratedMessage {
+  factory ExactVerdict() => ExactVerdict._();
+
+  ExactVerdict._();
+
+  factory ExactVerdict.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ExactVerdict()..mergeFromBuffer(data, registry);
+  factory ExactVerdict.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ExactVerdict()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ExactVerdict',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ExactVerdict.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ExactVerdict clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ExactVerdict copyWith(void Function(ExactVerdict) updates) =>
+      super.copyWith((message) => updates(message as ExactVerdict))
+          as ExactVerdict;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ExactVerdict() / ExactVerdict.new instead')
+  static ExactVerdict create() => ExactVerdict._();
+  static $pb.GeneratedMessage $_createMessage() => ExactVerdict._();
+  @$core.override
+  ExactVerdict createEmptyInstance() => ExactVerdict._();
+  @$core.pragma('dart2js:noInline')
+  static ExactVerdict getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ExactVerdict>(
+          ExactVerdict.$_createMessage);
+  static ExactVerdict? _defaultInstance;
+}
+
+/// The row is open, and rests on these rules: at least one, each once.
+class OpenVerdict extends $pb.GeneratedMessage {
+  factory OpenVerdict({
+    $core.Iterable<OpenRule>? rules,
+  }) {
+    final result = OpenVerdict._();
+    if (rules != null) result.rules.addAll(rules);
+    return result;
+  }
+
+  OpenVerdict._();
+
+  factory OpenVerdict.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OpenVerdict()..mergeFromBuffer(data, registry);
+  factory OpenVerdict.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      OpenVerdict()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'OpenVerdict',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: OpenVerdict.$_createMessage)
+    ..pc<OpenRule>(1, _omitFieldNames ? '' : 'rules', $pb.PbFieldType.KE,
+        valueOf: OpenRule.valueOf,
+        enumValues: OpenRule.values,
+        defaultEnumValue: OpenRule.OPEN_RULE_UNSPECIFIED)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OpenVerdict clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  OpenVerdict copyWith(void Function(OpenVerdict) updates) =>
+      super.copyWith((message) => updates(message as OpenVerdict))
+          as OpenVerdict;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use OpenVerdict() / OpenVerdict.new instead')
+  static OpenVerdict create() => OpenVerdict._();
+  static $pb.GeneratedMessage $_createMessage() => OpenVerdict._();
+  @$core.override
+  OpenVerdict createEmptyInstance() => OpenVerdict._();
+  @$core.pragma('dart2js:noInline')
+  static OpenVerdict getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<OpenVerdict>(
+          OpenVerdict.$_createMessage);
+  static OpenVerdict? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $pb.PbList<OpenRule> get rules => $_getList(0);
+}
+
+enum QueryRow_Verdict { exact, open, notSet }
+
 class QueryRow extends $pb.GeneratedMessage {
   factory QueryRow({
     $core.String? soulId,
-    $core.Iterable<OpenRule>? openRules,
     Soul? soul,
+    ExactVerdict? exact,
+    OpenVerdict? open,
   }) {
     final result = QueryRow._();
     if (soulId != null) result.soulId = soulId;
-    if (openRules != null) result.openRules.addAll(openRules);
     if (soul != null) result.soul = soul;
+    if (exact != null) result.exact = exact;
+    if (open != null) result.open = open;
     return result;
   }
 
@@ -1748,17 +2417,23 @@ class QueryRow extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       QueryRow()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, QueryRow_Verdict> _QueryRow_VerdictByTag = {
+    4: QueryRow_Verdict.exact,
+    5: QueryRow_Verdict.open,
+    0: QueryRow_Verdict.notSet
+  };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
       _omitMessageNames ? '' : 'QueryRow',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: QueryRow.$_createMessage)
+    ..oo(0, [4, 5])
     ..aOS(1, _omitFieldNames ? '' : 'soulId')
-    ..pc<OpenRule>(2, _omitFieldNames ? '' : 'openRules', $pb.PbFieldType.KE,
-        valueOf: OpenRule.valueOf,
-        enumValues: OpenRule.values,
-        defaultEnumValue: OpenRule.OPEN_RULE_UNSPECIFIED)
     ..aOM<Soul>(3, _omitFieldNames ? '' : 'soul',
         subBuilder: Soul.$_createMessage)
+    ..aOM<ExactVerdict>(4, _omitFieldNames ? '' : 'exact',
+        subBuilder: ExactVerdict.$_createMessage)
+    ..aOM<OpenVerdict>(5, _omitFieldNames ? '' : 'open',
+        subBuilder: OpenVerdict.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1781,6 +2456,13 @@ class QueryRow extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<QueryRow>(QueryRow.$_createMessage);
   static QueryRow? _defaultInstance;
 
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  QueryRow_Verdict whichVerdict() => _QueryRow_VerdictByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(4)
+  @$pb.TagNumber(5)
+  void clearVerdict() => $_clearField($_whichOneof(0));
+
   @$pb.TagNumber(1)
   $core.String get soulId => $_getSZ(0);
   @$pb.TagNumber(1)
@@ -1790,39 +2472,54 @@ class QueryRow extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   void clearSoulId() => $_clearField(1);
 
-  /// Empty: the game's answer is exact. Otherwise the row is open and rests on these rules
-  /// (ADR-0026).
-  @$pb.TagNumber(2)
-  $pb.PbList<OpenRule> get openRules => $_getList(1);
-
   /// The session only: the row's values, so the application shows what the daemon holds without a
   /// second request. The headless endpoint leaves it absent; its caller supplied the souls.
   @$pb.TagNumber(3)
-  Soul get soul => $_getN(2);
+  Soul get soul => $_getN(1);
   @$pb.TagNumber(3)
   set soul(Soul value) => $_setField(3, value);
   @$pb.TagNumber(3)
-  $core.bool hasSoul() => $_has(2);
+  $core.bool hasSoul() => $_has(1);
   @$pb.TagNumber(3)
   void clearSoul() => $_clearField(3);
   @$pb.TagNumber(3)
-  Soul ensureSoul() => $_ensure(2);
+  Soul ensureSoul() => $_ensure(1);
+
+  @$pb.TagNumber(4)
+  ExactVerdict get exact => $_getN(2);
+  @$pb.TagNumber(4)
+  set exact(ExactVerdict value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasExact() => $_has(2);
+  @$pb.TagNumber(4)
+  void clearExact() => $_clearField(4);
+  @$pb.TagNumber(4)
+  ExactVerdict ensureExact() => $_ensure(2);
+
+  @$pb.TagNumber(5)
+  OpenVerdict get open => $_getN(3);
+  @$pb.TagNumber(5)
+  set open(OpenVerdict value) => $_setField(5, value);
+  @$pb.TagNumber(5)
+  $core.bool hasOpen() => $_has(3);
+  @$pb.TagNumber(5)
+  void clearOpen() => $_clearField(5);
+  @$pb.TagNumber(5)
+  OpenVerdict ensureOpen() => $_ensure(3);
 }
 
 class QueryPage extends $pb.GeneratedMessage {
   factory QueryPage({
     $core.Iterable<QueryRow>? rows,
-    $core.bool? hasMore,
-    $core.List<$core.int>? cursor,
     $fixnum.Int64? revision,
     $fixnum.Int64? total,
+    $core.List<$core.int>? nextCursor,
   }) {
     final result = QueryPage._();
     if (rows != null) result.rows.addAll(rows);
-    if (hasMore != null) result.hasMore = hasMore;
-    if (cursor != null) result.cursor = cursor;
     if (revision != null) result.revision = revision;
     if (total != null) result.total = total;
+    if (nextCursor != null) result.nextCursor = nextCursor;
     return result;
   }
 
@@ -1841,14 +2538,13 @@ class QueryPage extends $pb.GeneratedMessage {
       createEmptyInstance: QueryPage.$_createMessage)
     ..pPM<QueryRow>(1, _omitFieldNames ? '' : 'rows',
         subBuilder: QueryRow.$_createMessage)
-    ..aOB(2, _omitFieldNames ? '' : 'hasMore')
-    ..a<$core.List<$core.int>>(
-        3, _omitFieldNames ? '' : 'cursor', $pb.PbFieldType.OY)
     ..a<$fixnum.Int64>(
         4, _omitFieldNames ? '' : 'revision', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..a<$fixnum.Int64>(5, _omitFieldNames ? '' : 'total', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
+    ..a<$core.List<$core.int>>(
+        6, _omitFieldNames ? '' : 'nextCursor', $pb.PbFieldType.OY)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -1874,44 +2570,36 @@ class QueryPage extends $pb.GeneratedMessage {
   @$pb.TagNumber(1)
   $pb.PbList<QueryRow> get rows => $_getList(0);
 
-  @$pb.TagNumber(2)
-  $core.bool get hasMore => $_getBF(1);
-  @$pb.TagNumber(2)
-  set hasMore($core.bool value) => $_setBool(1, value);
-  @$pb.TagNumber(2)
-  $core.bool hasHasMore() => $_has(1);
-  @$pb.TagNumber(2)
-  void clearHasMore() => $_clearField(2);
-
-  /// Empty when `has_more` is false. Opaque: sent back unmodified, never parsed.
-  @$pb.TagNumber(3)
-  $core.List<$core.int> get cursor => $_getN(2);
-  @$pb.TagNumber(3)
-  set cursor($core.List<$core.int> value) => $_setBytes(2, value);
-  @$pb.TagNumber(3)
-  $core.bool hasCursor() => $_has(2);
-  @$pb.TagNumber(3)
-  void clearCursor() => $_clearField(3);
-
   /// The revision the page is valid at; zero from the headless endpoint, which has no projection.
   @$pb.TagNumber(4)
-  $fixnum.Int64 get revision => $_getI64(3);
+  $fixnum.Int64 get revision => $_getI64(1);
   @$pb.TagNumber(4)
-  set revision($fixnum.Int64 value) => $_setInt64(3, value);
+  set revision($fixnum.Int64 value) => $_setInt64(1, value);
   @$pb.TagNumber(4)
-  $core.bool hasRevision() => $_has(3);
+  $core.bool hasRevision() => $_has(1);
   @$pb.TagNumber(4)
   void clearRevision() => $_clearField(4);
 
   /// Every row the query keeps, exact or open, across all pages.
   @$pb.TagNumber(5)
-  $fixnum.Int64 get total => $_getI64(4);
+  $fixnum.Int64 get total => $_getI64(2);
   @$pb.TagNumber(5)
-  set total($fixnum.Int64 value) => $_setInt64(4, value);
+  set total($fixnum.Int64 value) => $_setInt64(2, value);
   @$pb.TagNumber(5)
-  $core.bool hasTotal() => $_has(4);
+  $core.bool hasTotal() => $_has(2);
   @$pb.TagNumber(5)
   void clearTotal() => $_clearField(5);
+
+  /// Present when more rows follow: the cursor of the next page. Opaque: sent back unmodified,
+  /// never parsed.
+  @$pb.TagNumber(6)
+  $core.List<$core.int> get nextCursor => $_getN(3);
+  @$pb.TagNumber(6)
+  set nextCursor($core.List<$core.int> value) => $_setBytes(3, value);
+  @$pb.TagNumber(6)
+  $core.bool hasNextCursor() => $_has(3);
+  @$pb.TagNumber(6)
+  void clearNextCursor() => $_clearField(6);
 }
 
 /// A query over an inventory the request supplies, until the projection exists. One
@@ -2012,6 +2700,50 @@ class EvaluateQuery extends $pb.GeneratedMessage {
   Query ensureQuery() => $_ensure(3);
 }
 
+/// A request frame that is not an `EvaluateQuery`, so no id can be answered.
+class Undecodable extends $pb.GeneratedMessage {
+  factory Undecodable() => Undecodable._();
+
+  Undecodable._();
+
+  factory Undecodable.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Undecodable()..mergeFromBuffer(data, registry);
+  factory Undecodable.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      Undecodable()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'Undecodable',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: Undecodable.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Undecodable clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  Undecodable copyWith(void Function(Undecodable) updates) =>
+      super.copyWith((message) => updates(message as Undecodable))
+          as Undecodable;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use Undecodable() / Undecodable.new instead')
+  static Undecodable create() => Undecodable._();
+  static $pb.GeneratedMessage $_createMessage() => Undecodable._();
+  @$core.override
+  Undecodable createEmptyInstance() => Undecodable._();
+  @$core.pragma('dart2js:noInline')
+  static Undecodable getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<Undecodable>(
+          Undecodable.$_createMessage);
+  static Undecodable? _defaultInstance;
+}
+
+enum EvaluateQueryResult_Subject { id, undecodable, notSet }
+
 enum EvaluateQueryResult_Outcome { page, error, notSet }
 
 class EvaluateQueryResult extends $pb.GeneratedMessage {
@@ -2019,11 +2751,13 @@ class EvaluateQueryResult extends $pb.GeneratedMessage {
     $fixnum.Int64? id,
     QueryPage? page,
     Error? error,
+    Undecodable? undecodable,
   }) {
     final result = EvaluateQueryResult._();
     if (id != null) result.id = id;
     if (page != null) result.page = page;
     if (error != null) result.error = error;
+    if (undecodable != null) result.undecodable = undecodable;
     return result;
   }
 
@@ -2036,6 +2770,12 @@ class EvaluateQueryResult extends $pb.GeneratedMessage {
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
       EvaluateQueryResult()..mergeFromJson(json, registry);
 
+  static const $core.Map<$core.int, EvaluateQueryResult_Subject>
+      _EvaluateQueryResult_SubjectByTag = {
+    1: EvaluateQueryResult_Subject.id,
+    4: EvaluateQueryResult_Subject.undecodable,
+    0: EvaluateQueryResult_Subject.notSet
+  };
   static const $core.Map<$core.int, EvaluateQueryResult_Outcome>
       _EvaluateQueryResult_OutcomeByTag = {
     2: EvaluateQueryResult_Outcome.page,
@@ -2046,13 +2786,16 @@ class EvaluateQueryResult extends $pb.GeneratedMessage {
       _omitMessageNames ? '' : 'EvaluateQueryResult',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
       createEmptyInstance: EvaluateQueryResult.$_createMessage)
-    ..oo(0, [2, 3])
+    ..oo(0, [1, 4])
+    ..oo(1, [2, 3])
     ..a<$fixnum.Int64>(1, _omitFieldNames ? '' : 'id', $pb.PbFieldType.OU6,
         defaultOrMaker: $fixnum.Int64.ZERO)
     ..aOM<QueryPage>(2, _omitFieldNames ? '' : 'page',
         subBuilder: QueryPage.$_createMessage)
     ..aOM<Error>(3, _omitFieldNames ? '' : 'error',
         subBuilder: Error.$_createMessage)
+    ..aOM<Undecodable>(4, _omitFieldNames ? '' : 'undecodable',
+        subBuilder: Undecodable.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -2078,13 +2821,21 @@ class EvaluateQueryResult extends $pb.GeneratedMessage {
           EvaluateQueryResult.$_createMessage);
   static EvaluateQueryResult? _defaultInstance;
 
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(4)
+  EvaluateQueryResult_Subject whichSubject() =>
+      _EvaluateQueryResult_SubjectByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(1)
+  @$pb.TagNumber(4)
+  void clearSubject() => $_clearField($_whichOneof(0));
+
   @$pb.TagNumber(2)
   @$pb.TagNumber(3)
   EvaluateQueryResult_Outcome whichOutcome() =>
-      _EvaluateQueryResult_OutcomeByTag[$_whichOneof(0)]!;
+      _EvaluateQueryResult_OutcomeByTag[$_whichOneof(1)]!;
   @$pb.TagNumber(2)
   @$pb.TagNumber(3)
-  void clearOutcome() => $_clearField($_whichOneof(0));
+  void clearOutcome() => $_clearField($_whichOneof(1));
 
   @$pb.TagNumber(1)
   $fixnum.Int64 get id => $_getI64(0);
@@ -2116,6 +2867,17 @@ class EvaluateQueryResult extends $pb.GeneratedMessage {
   void clearError() => $_clearField(3);
   @$pb.TagNumber(3)
   Error ensureError() => $_ensure(2);
+
+  @$pb.TagNumber(4)
+  Undecodable get undecodable => $_getN(3);
+  @$pb.TagNumber(4)
+  set undecodable(Undecodable value) => $_setField(4, value);
+  @$pb.TagNumber(4)
+  $core.bool hasUndecodable() => $_has(3);
+  @$pb.TagNumber(4)
+  void clearUndecodable() => $_clearField(4);
+  @$pb.TagNumber(4)
+  Undecodable ensureUndecodable() => $_ensure(3);
 }
 
 enum ClientMessage_Kind {

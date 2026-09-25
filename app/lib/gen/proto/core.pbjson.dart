@@ -103,6 +103,22 @@ final $typed_data.Uint8List subCountDescriptor = $convert.base64Decode(
     'JfVEhBTl9UV08QARIRCg1TVUJfQ09VTlRfVFdPEAISEwoPU1VCX0NPVU5UX1RIUkVFEAMSEgoO'
     'U1VCX0NPVU5UX0ZPVVIQBA==');
 
+@$core.Deprecated('Use subAttributeModeDescriptor instead')
+const SubAttributeMode$json = {
+  '1': 'SubAttributeMode',
+  '2': [
+    {'1': 'SUB_ATTRIBUTE_MODE_UNSPECIFIED', '2': 0},
+    {'1': 'SUB_ATTRIBUTE_MODE_INCLUDE', '2': 1},
+    {'1': 'SUB_ATTRIBUTE_MODE_EXCLUDE', '2': 2},
+  ],
+};
+
+/// Descriptor for `SubAttributeMode`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List subAttributeModeDescriptor = $convert.base64Decode(
+    'ChBTdWJBdHRyaWJ1dGVNb2RlEiIKHlNVQl9BVFRSSUJVVEVfTU9ERV9VTlNQRUNJRklFRBAAEh'
+    '4KGlNVQl9BVFRSSUJVVEVfTU9ERV9JTkNMVURFEAESHgoaU1VCX0FUVFJJQlVURV9NT0RFX0VY'
+    'Q0xVREUQAg==');
+
 @$core.Deprecated('Use collectionDescriptor instead')
 const Collection$json = {
   '1': 'Collection',
@@ -117,36 +133,46 @@ final $typed_data.Uint8List collectionDescriptor = $convert.base64Decode(
     'CgpDb2xsZWN0aW9uEhoKFkNPTExFQ1RJT05fVU5TUEVDSUZJRUQQABIUChBDT0xMRUNUSU9OX1'
     'NPVUxTEAE=');
 
-@$core.Deprecated('Use fieldNameDescriptor instead')
-const FieldName$json = {
-  '1': 'FieldName',
+@$core.Deprecated('Use simpleFieldDescriptor instead')
+const SimpleField$json = {
+  '1': 'SimpleField',
   '2': [
-    {'1': 'FIELD_NAME_UNSPECIFIED', '2': 0},
-    {'1': 'FIELD_NAME_SET', '2': 1},
-    {'1': 'FIELD_NAME_SLOT', '2': 2},
-    {'1': 'FIELD_NAME_STAR', '2': 3},
-    {'1': 'FIELD_NAME_LEVEL', '2': 4},
-    {'1': 'FIELD_NAME_MAIN_ATTRIBUTE', '2': 5},
-    {'1': 'FIELD_NAME_MAIN_VALUE', '2': 6},
-    {'1': 'FIELD_NAME_SUB_VALUE', '2': 7},
-    {'1': 'FIELD_NAME_HAS_SUB', '2': 8},
-    {'1': 'FIELD_NAME_SUB_COUNT', '2': 9},
-    {'1': 'FIELD_NAME_PRISTINE', '2': 10},
-    {'1': 'FIELD_NAME_QUALITY_TOTAL', '2': 11},
-    {'1': 'FIELD_NAME_QUALITY_DEPTH', '2': 12},
-    {'1': 'FIELD_NAME_QUALITY_BREADTH', '2': 13},
+    {'1': 'SIMPLE_FIELD_UNSPECIFIED', '2': 0},
+    {'1': 'SIMPLE_FIELD_SET', '2': 1},
+    {'1': 'SIMPLE_FIELD_SLOT', '2': 2},
+    {'1': 'SIMPLE_FIELD_STAR', '2': 3},
+    {'1': 'SIMPLE_FIELD_LEVEL', '2': 4},
+    {'1': 'SIMPLE_FIELD_MAIN_ATTRIBUTE', '2': 5},
+    {'1': 'SIMPLE_FIELD_MAIN_VALUE', '2': 6},
+    {'1': 'SIMPLE_FIELD_SUB_COUNT', '2': 7},
+    {'1': 'SIMPLE_FIELD_PRISTINE', '2': 8},
   ],
 };
 
-/// Descriptor for `FieldName`. Decode as a `google.protobuf.EnumDescriptorProto`.
-final $typed_data.Uint8List fieldNameDescriptor = $convert.base64Decode(
-    'CglGaWVsZE5hbWUSGgoWRklFTERfTkFNRV9VTlNQRUNJRklFRBAAEhIKDkZJRUxEX05BTUVfU0'
-    'VUEAESEwoPRklFTERfTkFNRV9TTE9UEAISEwoPRklFTERfTkFNRV9TVEFSEAMSFAoQRklFTERf'
-    'TkFNRV9MRVZFTBAEEh0KGUZJRUxEX05BTUVfTUFJTl9BVFRSSUJVVEUQBRIZChVGSUVMRF9OQU'
-    '1FX01BSU5fVkFMVUUQBhIYChRGSUVMRF9OQU1FX1NVQl9WQUxVRRAHEhYKEkZJRUxEX05BTUVf'
-    'SEFTX1NVQhAIEhgKFEZJRUxEX05BTUVfU1VCX0NPVU5UEAkSFwoTRklFTERfTkFNRV9QUklTVE'
-    'lORRAKEhwKGEZJRUxEX05BTUVfUVVBTElUWV9UT1RBTBALEhwKGEZJRUxEX05BTUVfUVVBTElU'
-    'WV9ERVBUSBAMEh4KGkZJRUxEX05BTUVfUVVBTElUWV9CUkVBRFRIEA0=');
+/// Descriptor for `SimpleField`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List simpleFieldDescriptor = $convert.base64Decode(
+    'CgtTaW1wbGVGaWVsZBIcChhTSU1QTEVfRklFTERfVU5TUEVDSUZJRUQQABIUChBTSU1QTEVfRk'
+    'lFTERfU0VUEAESFQoRU0lNUExFX0ZJRUxEX1NMT1QQAhIVChFTSU1QTEVfRklFTERfU1RBUhAD'
+    'EhYKElNJTVBMRV9GSUVMRF9MRVZFTBAEEh8KG1NJTVBMRV9GSUVMRF9NQUlOX0FUVFJJQlVURR'
+    'AFEhsKF1NJTVBMRV9GSUVMRF9NQUlOX1ZBTFVFEAYSGgoWU0lNUExFX0ZJRUxEX1NVQl9DT1VO'
+    'VBAHEhkKFVNJTVBMRV9GSUVMRF9QUklTVElORRAI');
+
+@$core.Deprecated('Use qualityComponentDescriptor instead')
+const QualityComponent$json = {
+  '1': 'QualityComponent',
+  '2': [
+    {'1': 'QUALITY_COMPONENT_UNSPECIFIED', '2': 0},
+    {'1': 'QUALITY_COMPONENT_TOTAL', '2': 1},
+    {'1': 'QUALITY_COMPONENT_DEPTH', '2': 2},
+    {'1': 'QUALITY_COMPONENT_BREADTH', '2': 3},
+  ],
+};
+
+/// Descriptor for `QualityComponent`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List qualityComponentDescriptor = $convert.base64Decode(
+    'ChBRdWFsaXR5Q29tcG9uZW50EiEKHVFVQUxJVFlfQ09NUE9ORU5UX1VOU1BFQ0lGSUVEEAASGw'
+    'oXUVVBTElUWV9DT01QT05FTlRfVE9UQUwQARIbChdRVUFMSVRZX0NPTVBPTkVOVF9ERVBUSBAC'
+    'Eh0KGVFVQUxJVFlfQ09NUE9ORU5UX0JSRUFEVEgQAw==');
 
 @$core.Deprecated('Use directionDescriptor instead')
 const Direction$json = {
@@ -358,12 +384,78 @@ final $typed_data.Uint8List subAttributeDescriptor = $convert.base64Decode(
     'Y291bnQYAyABKA1IAFIQZW5oYW5jZW1lbnRDb3VudIgBAUIUChJfZW5oYW5jZW1lbnRfY291bn'
     'Q=');
 
+@$core.Deprecated('Use anySetDescriptor instead')
+const AnySet$json = {
+  '1': 'AnySet',
+};
+
+/// Descriptor for `AnySet`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List anySetDescriptor =
+    $convert.base64Decode('CgZBbnlTZXQ=');
+
+@$core.Deprecated('Use suitCodesDescriptor instead')
+const SuitCodes$json = {
+  '1': 'SuitCodes',
+  '2': [
+    {'1': 'codes', '3': 1, '4': 3, '5': 13, '10': 'codes'},
+  ],
+};
+
+/// Descriptor for `SuitCodes`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List suitCodesDescriptor =
+    $convert.base64Decode('CglTdWl0Q29kZXMSFAoFY29kZXMYASADKA1SBWNvZGVz');
+
+@$core.Deprecated('Use subAttributeChoiceDescriptor instead')
+const SubAttributeChoice$json = {
+  '1': 'SubAttributeChoice',
+  '2': [
+    {
+      '1': 'attribute',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.yata.core.v1.SoulAttribute',
+      '10': 'attribute'
+    },
+    {
+      '1': 'mode',
+      '3': 2,
+      '4': 1,
+      '5': 14,
+      '6': '.yata.core.v1.SubAttributeMode',
+      '10': 'mode'
+    },
+  ],
+};
+
+/// Descriptor for `SubAttributeChoice`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List subAttributeChoiceDescriptor = $convert.base64Decode(
+    'ChJTdWJBdHRyaWJ1dGVDaG9pY2USOQoJYXR0cmlidXRlGAEgASgOMhsueWF0YS5jb3JlLnYxLl'
+    'NvdWxBdHRyaWJ1dGVSCWF0dHJpYnV0ZRIyCgRtb2RlGAIgASgOMh4ueWF0YS5jb3JlLnYxLlN1'
+    'YkF0dHJpYnV0ZU1vZGVSBG1vZGU=');
+
 @$core.Deprecated('Use soulSelectionDescriptor instead')
 const SoulSelection$json = {
   '1': 'SoulSelection',
   '2': [
-    {'1': 'any_set', '3': 1, '4': 1, '5': 8, '10': 'anySet'},
-    {'1': 'suit_codes', '3': 2, '4': 3, '5': 13, '10': 'suitCodes'},
+    {
+      '1': 'all',
+      '3': 11,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.AnySet',
+      '9': 0,
+      '10': 'all'
+    },
+    {
+      '1': 'chosen',
+      '3': 12,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.SuitCodes',
+      '9': 0,
+      '10': 'chosen'
+    },
     {
       '1': 'slots',
       '3': 3,
@@ -398,20 +490,12 @@ const SoulSelection$json = {
       '10': 'innate'
     },
     {
-      '1': 'sub_included',
-      '3': 8,
+      '1': 'sub_attributes',
+      '3': 13,
       '4': 3,
-      '5': 14,
-      '6': '.yata.core.v1.SoulAttribute',
-      '10': 'subIncluded'
-    },
-    {
-      '1': 'sub_excluded',
-      '3': 9,
-      '4': 3,
-      '5': 14,
-      '6': '.yata.core.v1.SoulAttribute',
-      '10': 'subExcluded'
+      '5': 11,
+      '6': '.yata.core.v1.SubAttributeChoice',
+      '10': 'subAttributes'
     },
     {
       '1': 'sub_counts',
@@ -422,113 +506,271 @@ const SoulSelection$json = {
       '10': 'subCounts'
     },
   ],
+  '8': [
+    {'1': 'sets'},
+  ],
+  '9': [
+    {'1': 1, '2': 2},
+    {'1': 2, '2': 3},
+    {'1': 8, '2': 9},
+    {'1': 9, '2': 10},
+  ],
+  '10': ['any_set', 'suit_codes', 'sub_included', 'sub_excluded'],
 };
 
 /// Descriptor for `SoulSelection`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List soulSelectionDescriptor = $convert.base64Decode(
-    'Cg1Tb3VsU2VsZWN0aW9uEhcKB2FueV9zZXQYASABKAhSBmFueVNldBIdCgpzdWl0X2NvZGVzGA'
-    'IgAygNUglzdWl0Q29kZXMSLAoFc2xvdHMYAyADKA4yFi55YXRhLmNvcmUudjEuU291bFNsb3RS'
-    'BXNsb3RzEhQKBXN0YXJzGAQgAygNUgVzdGFycxIvCgZsZXZlbHMYBSADKA4yFy55YXRhLmNvcm'
-    'UudjEuTGV2ZWxCYW5kUgZsZXZlbHMSRAoPbWFpbl9hdHRyaWJ1dGVzGAYgAygOMhsueWF0YS5j'
-    'b3JlLnYxLlNvdWxBdHRyaWJ1dGVSDm1haW5BdHRyaWJ1dGVzEjMKBmlubmF0ZRgHIAMoDjIbLn'
-    'lhdGEuY29yZS52MS5Tb3VsQXR0cmlidXRlUgZpbm5hdGUSPgoMc3ViX2luY2x1ZGVkGAggAygO'
-    'MhsueWF0YS5jb3JlLnYxLlNvdWxBdHRyaWJ1dGVSC3N1YkluY2x1ZGVkEj4KDHN1Yl9leGNsdW'
-    'RlZBgJIAMoDjIbLnlhdGEuY29yZS52MS5Tb3VsQXR0cmlidXRlUgtzdWJFeGNsdWRlZBI1Cgpz'
-    'dWJfY291bnRzGAogAygOMhYueWF0YS5jb3JlLnYxLlN1YkNvdW50UglzdWJDb3VudHM=');
+    'Cg1Tb3VsU2VsZWN0aW9uEigKA2FsbBgLIAEoCzIULnlhdGEuY29yZS52MS5BbnlTZXRIAFIDYW'
+    'xsEjEKBmNob3NlbhgMIAEoCzIXLnlhdGEuY29yZS52MS5TdWl0Q29kZXNIAFIGY2hvc2VuEiwK'
+    'BXNsb3RzGAMgAygOMhYueWF0YS5jb3JlLnYxLlNvdWxTbG90UgVzbG90cxIUCgVzdGFycxgEIA'
+    'MoDVIFc3RhcnMSLwoGbGV2ZWxzGAUgAygOMhcueWF0YS5jb3JlLnYxLkxldmVsQmFuZFIGbGV2'
+    'ZWxzEkQKD21haW5fYXR0cmlidXRlcxgGIAMoDjIbLnlhdGEuY29yZS52MS5Tb3VsQXR0cmlidX'
+    'RlUg5tYWluQXR0cmlidXRlcxIzCgZpbm5hdGUYByADKA4yGy55YXRhLmNvcmUudjEuU291bEF0'
+    'dHJpYnV0ZVIGaW5uYXRlEkcKDnN1Yl9hdHRyaWJ1dGVzGA0gAygLMiAueWF0YS5jb3JlLnYxLl'
+    'N1YkF0dHJpYnV0ZUNob2ljZVINc3ViQXR0cmlidXRlcxI1CgpzdWJfY291bnRzGAogAygOMhYu'
+    'eWF0YS5jb3JlLnYxLlN1YkNvdW50UglzdWJDb3VudHNCBgoEc2V0c0oECAEQAkoECAIQA0oECA'
+    'gQCUoECAkQClIHYW55X3NldFIKc3VpdF9jb2Rlc1IMc3ViX2luY2x1ZGVkUgxzdWJfZXhjbHVk'
+    'ZWQ=');
 
 @$core.Deprecated('Use fieldDescriptor instead')
 const Field$json = {
   '1': 'Field',
   '2': [
     {
-      '1': 'name',
-      '3': 1,
+      '1': 'simple',
+      '3': 3,
       '4': 1,
       '5': 14,
-      '6': '.yata.core.v1.FieldName',
-      '10': 'name'
+      '6': '.yata.core.v1.SimpleField',
+      '9': 0,
+      '10': 'simple'
     },
     {
-      '1': 'attribute',
-      '3': 2,
+      '1': 'sub_value',
+      '3': 4,
       '4': 1,
       '5': 14,
       '6': '.yata.core.v1.SoulAttribute',
-      '10': 'attribute'
+      '9': 0,
+      '10': 'subValue'
+    },
+    {
+      '1': 'has_sub',
+      '3': 5,
+      '4': 1,
+      '5': 14,
+      '6': '.yata.core.v1.SoulAttribute',
+      '9': 0,
+      '10': 'hasSub'
+    },
+    {
+      '1': 'quality',
+      '3': 6,
+      '4': 1,
+      '5': 14,
+      '6': '.yata.core.v1.QualityComponent',
+      '9': 0,
+      '10': 'quality'
     },
   ],
+  '8': [
+    {'1': 'field'},
+  ],
+  '9': [
+    {'1': 1, '2': 2},
+    {'1': 2, '2': 3},
+  ],
+  '10': ['name', 'attribute'],
 };
 
 /// Descriptor for `Field`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List fieldDescriptor = $convert.base64Decode(
-    'CgVGaWVsZBIrCgRuYW1lGAEgASgOMhcueWF0YS5jb3JlLnYxLkZpZWxkTmFtZVIEbmFtZRI5Cg'
-    'lhdHRyaWJ1dGUYAiABKA4yGy55YXRhLmNvcmUudjEuU291bEF0dHJpYnV0ZVIJYXR0cmlidXRl');
+    'CgVGaWVsZBIzCgZzaW1wbGUYAyABKA4yGS55YXRhLmNvcmUudjEuU2ltcGxlRmllbGRIAFIGc2'
+    'ltcGxlEjoKCXN1Yl92YWx1ZRgEIAEoDjIbLnlhdGEuY29yZS52MS5Tb3VsQXR0cmlidXRlSABS'
+    'CHN1YlZhbHVlEjYKB2hhc19zdWIYBSABKA4yGy55YXRhLmNvcmUudjEuU291bEF0dHJpYnV0ZU'
+    'gAUgZoYXNTdWISOgoHcXVhbGl0eRgGIAEoDjIeLnlhdGEuY29yZS52MS5RdWFsaXR5Q29tcG9u'
+    'ZW50SABSB3F1YWxpdHlCBwoFZmllbGRKBAgBEAJKBAgCEANSBG5hbWVSCWF0dHJpYnV0ZQ==');
+
+@$core.Deprecated('Use slotsDescriptor instead')
+const Slots$json = {
+  '1': 'Slots',
+  '2': [
+    {
+      '1': 'values',
+      '3': 1,
+      '4': 3,
+      '5': 14,
+      '6': '.yata.core.v1.SoulSlot',
+      '10': 'values'
+    },
+  ],
+};
+
+/// Descriptor for `Slots`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List slotsDescriptor = $convert.base64Decode(
+    'CgVTbG90cxIuCgZ2YWx1ZXMYASADKA4yFi55YXRhLmNvcmUudjEuU291bFNsb3RSBnZhbHVlcw'
+    '==');
+
+@$core.Deprecated('Use attributesDescriptor instead')
+const Attributes$json = {
+  '1': 'Attributes',
+  '2': [
+    {
+      '1': 'values',
+      '3': 1,
+      '4': 3,
+      '5': 14,
+      '6': '.yata.core.v1.SoulAttribute',
+      '10': 'values'
+    },
+  ],
+};
+
+/// Descriptor for `Attributes`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List attributesDescriptor = $convert.base64Decode(
+    'CgpBdHRyaWJ1dGVzEjMKBnZhbHVlcxgBIAMoDjIbLnlhdGEuY29yZS52MS5Tb3VsQXR0cmlidX'
+    'RlUgZ2YWx1ZXM=');
 
 @$core.Deprecated('Use inTestDescriptor instead')
 const InTest$json = {
   '1': 'InTest',
   '2': [
-    {'1': 'suit_codes', '3': 1, '4': 3, '5': 13, '10': 'suitCodes'},
     {
-      '1': 'slots',
-      '3': 2,
-      '4': 3,
-      '5': 14,
-      '6': '.yata.core.v1.SoulSlot',
-      '10': 'slots'
+      '1': 'set_values',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.SuitCodes',
+      '9': 0,
+      '10': 'setValues'
     },
     {
-      '1': 'attributes',
-      '3': 3,
-      '4': 3,
-      '5': 14,
-      '6': '.yata.core.v1.SoulAttribute',
-      '10': 'attributes'
+      '1': 'slot_values',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.Slots',
+      '9': 0,
+      '10': 'slotValues'
+    },
+    {
+      '1': 'attribute_values',
+      '3': 6,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.Attributes',
+      '9': 0,
+      '10': 'attributeValues'
     },
   ],
+  '8': [
+    {'1': 'values'},
+  ],
+  '9': [
+    {'1': 1, '2': 2},
+    {'1': 2, '2': 3},
+    {'1': 3, '2': 4},
+  ],
+  '10': ['suit_codes', 'slots', 'attributes'],
 };
 
 /// Descriptor for `InTest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List inTestDescriptor = $convert.base64Decode(
-    'CgZJblRlc3QSHQoKc3VpdF9jb2RlcxgBIAMoDVIJc3VpdENvZGVzEiwKBXNsb3RzGAIgAygOMh'
-    'YueWF0YS5jb3JlLnYxLlNvdWxTbG90UgVzbG90cxI7CgphdHRyaWJ1dGVzGAMgAygOMhsueWF0'
-    'YS5jb3JlLnYxLlNvdWxBdHRyaWJ1dGVSCmF0dHJpYnV0ZXM=');
+    'CgZJblRlc3QSOAoKc2V0X3ZhbHVlcxgEIAEoCzIXLnlhdGEuY29yZS52MS5TdWl0Q29kZXNIAF'
+    'IJc2V0VmFsdWVzEjYKC3Nsb3RfdmFsdWVzGAUgASgLMhMueWF0YS5jb3JlLnYxLlNsb3RzSABS'
+    'CnNsb3RWYWx1ZXMSRQoQYXR0cmlidXRlX3ZhbHVlcxgGIAEoCzIYLnlhdGEuY29yZS52MS5BdH'
+    'RyaWJ1dGVzSABSD2F0dHJpYnV0ZVZhbHVlc0IICgZ2YWx1ZXNKBAgBEAJKBAgCEANKBAgDEARS'
+    'CnN1aXRfY29kZXNSBXNsb3RzUgphdHRyaWJ1dGVz');
+
+@$core.Deprecated('Use intBetweenDescriptor instead')
+const IntBetween$json = {
+  '1': 'IntBetween',
+  '2': [
+    {'1': 'min', '3': 1, '4': 1, '5': 3, '10': 'min'},
+    {'1': 'max', '3': 2, '4': 1, '5': 3, '10': 'max'},
+  ],
+};
+
+/// Descriptor for `IntBetween`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List intBetweenDescriptor = $convert.base64Decode(
+    'CgpJbnRCZXR3ZWVuEhAKA21pbhgBIAEoA1IDbWluEhAKA21heBgCIAEoA1IDbWF4');
 
 @$core.Deprecated('Use intRangeDescriptor instead')
 const IntRange$json = {
   '1': 'IntRange',
   '2': [
-    {'1': 'min', '3': 1, '4': 1, '5': 3, '9': 0, '10': 'min', '17': true},
-    {'1': 'max', '3': 2, '4': 1, '5': 3, '9': 1, '10': 'max', '17': true},
+    {'1': 'at_least', '3': 3, '4': 1, '5': 3, '9': 0, '10': 'atLeast'},
+    {'1': 'at_most', '3': 4, '4': 1, '5': 3, '9': 0, '10': 'atMost'},
+    {
+      '1': 'between',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.IntBetween',
+      '9': 0,
+      '10': 'between'
+    },
   ],
   '8': [
-    {'1': '_min'},
-    {'1': '_max'},
+    {'1': 'bound'},
   ],
+  '9': [
+    {'1': 1, '2': 2},
+    {'1': 2, '2': 3},
+  ],
+  '10': ['min', 'max'],
 };
 
 /// Descriptor for `IntRange`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List intRangeDescriptor = $convert.base64Decode(
-    'CghJbnRSYW5nZRIVCgNtaW4YASABKANIAFIDbWluiAEBEhUKA21heBgCIAEoA0gBUgNtYXiIAQ'
-    'FCBgoEX21pbkIGCgRfbWF4');
+    'CghJbnRSYW5nZRIbCghhdF9sZWFzdBgDIAEoA0gAUgdhdExlYXN0EhkKB2F0X21vc3QYBCABKA'
+    'NIAFIGYXRNb3N0EjQKB2JldHdlZW4YBSABKAsyGC55YXRhLmNvcmUudjEuSW50QmV0d2VlbkgA'
+    'UgdiZXR3ZWVuQgcKBWJvdW5kSgQIARACSgQIAhADUgNtaW5SA21heA==');
+
+@$core.Deprecated('Use numberBetweenDescriptor instead')
+const NumberBetween$json = {
+  '1': 'NumberBetween',
+  '2': [
+    {'1': 'min', '3': 1, '4': 1, '5': 1, '10': 'min'},
+    {'1': 'max', '3': 2, '4': 1, '5': 1, '10': 'max'},
+  ],
+};
+
+/// Descriptor for `NumberBetween`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List numberBetweenDescriptor = $convert.base64Decode(
+    'Cg1OdW1iZXJCZXR3ZWVuEhAKA21pbhgBIAEoAVIDbWluEhAKA21heBgCIAEoAVIDbWF4');
 
 @$core.Deprecated('Use numberRangeDescriptor instead')
 const NumberRange$json = {
   '1': 'NumberRange',
   '2': [
-    {'1': 'min', '3': 1, '4': 1, '5': 1, '9': 0, '10': 'min', '17': true},
-    {'1': 'max', '3': 2, '4': 1, '5': 1, '9': 1, '10': 'max', '17': true},
+    {'1': 'at_least', '3': 3, '4': 1, '5': 1, '9': 0, '10': 'atLeast'},
+    {'1': 'at_most', '3': 4, '4': 1, '5': 1, '9': 0, '10': 'atMost'},
+    {
+      '1': 'between',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.NumberBetween',
+      '9': 0,
+      '10': 'between'
+    },
   ],
   '8': [
-    {'1': '_min'},
-    {'1': '_max'},
+    {'1': 'bound'},
   ],
+  '9': [
+    {'1': 1, '2': 2},
+    {'1': 2, '2': 3},
+  ],
+  '10': ['min', 'max'],
 };
 
 /// Descriptor for `NumberRange`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List numberRangeDescriptor = $convert.base64Decode(
-    'CgtOdW1iZXJSYW5nZRIVCgNtaW4YASABKAFIAFIDbWluiAEBEhUKA21heBgCIAEoAUgBUgNtYX'
-    'iIAQFCBgoEX21pbkIGCgRfbWF4');
+    'CgtOdW1iZXJSYW5nZRIbCghhdF9sZWFzdBgDIAEoAUgAUgdhdExlYXN0EhkKB2F0X21vc3QYBC'
+    'ABKAFIAFIGYXRNb3N0EjcKB2JldHdlZW4YBSABKAsyGy55YXRhLmNvcmUudjEuTnVtYmVyQmV0'
+    'd2VlbkgAUgdiZXR3ZWVuQgcKBWJvdW5kSgQIARACSgQIAhADUgNtaW5SA21heA==');
 
 @$core.Deprecated('Use predicateDescriptor instead')
 const Predicate$json = {
@@ -748,17 +990,26 @@ const PageRequest$json = {
       '10': 'rowBudget',
       '17': true
     },
-    {'1': 'cursor', '3': 2, '4': 1, '5': 12, '10': 'cursor'},
+    {
+      '1': 'cursor',
+      '3': 2,
+      '4': 1,
+      '5': 12,
+      '9': 1,
+      '10': 'cursor',
+      '17': true
+    },
   ],
   '8': [
     {'1': '_row_budget'},
+    {'1': '_cursor'},
   ],
 };
 
 /// Descriptor for `PageRequest`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List pageRequestDescriptor = $convert.base64Decode(
-    'CgtQYWdlUmVxdWVzdBIiCgpyb3dfYnVkZ2V0GAEgASgNSABSCXJvd0J1ZGdldIgBARIWCgZjdX'
-    'Jzb3IYAiABKAxSBmN1cnNvckINCgtfcm93X2J1ZGdldA==');
+    'CgtQYWdlUmVxdWVzdBIiCgpyb3dfYnVkZ2V0GAEgASgNSABSCXJvd0J1ZGdldIgBARIbCgZjdX'
+    'Jzb3IYAiABKAxIAVIGY3Vyc29yiAEBQg0KC19yb3dfYnVkZ2V0QgkKB19jdXJzb3I=');
 
 @$core.Deprecated('Use queryDescriptor instead')
 const Query$json = {
@@ -830,18 +1081,57 @@ final $typed_data.Uint8List queryDescriptor = $convert.base64Decode(
     'xlSWQSKAoNc2Nhbl9yZXZpc2lvbhgHIAEoBEgAUgxzY2FuUmV2aXNpb26IAQFCEAoOX3NjYW5f'
     'cmV2aXNpb24=');
 
+@$core.Deprecated('Use exactVerdictDescriptor instead')
+const ExactVerdict$json = {
+  '1': 'ExactVerdict',
+};
+
+/// Descriptor for `ExactVerdict`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List exactVerdictDescriptor =
+    $convert.base64Decode('CgxFeGFjdFZlcmRpY3Q=');
+
+@$core.Deprecated('Use openVerdictDescriptor instead')
+const OpenVerdict$json = {
+  '1': 'OpenVerdict',
+  '2': [
+    {
+      '1': 'rules',
+      '3': 1,
+      '4': 3,
+      '5': 14,
+      '6': '.yata.core.v1.OpenRule',
+      '10': 'rules'
+    },
+  ],
+};
+
+/// Descriptor for `OpenVerdict`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List openVerdictDescriptor = $convert.base64Decode(
+    'CgtPcGVuVmVyZGljdBIsCgVydWxlcxgBIAMoDjIWLnlhdGEuY29yZS52MS5PcGVuUnVsZVIFcn'
+    'VsZXM=');
+
 @$core.Deprecated('Use queryRowDescriptor instead')
 const QueryRow$json = {
   '1': 'QueryRow',
   '2': [
     {'1': 'soul_id', '3': 1, '4': 1, '5': 9, '10': 'soulId'},
     {
-      '1': 'open_rules',
-      '3': 2,
-      '4': 3,
-      '5': 14,
-      '6': '.yata.core.v1.OpenRule',
-      '10': 'openRules'
+      '1': 'exact',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.ExactVerdict',
+      '9': 0,
+      '10': 'exact'
+    },
+    {
+      '1': 'open',
+      '3': 5,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.OpenVerdict',
+      '9': 0,
+      '10': 'open'
     },
     {
       '1': 'soul',
@@ -852,13 +1142,21 @@ const QueryRow$json = {
       '10': 'soul'
     },
   ],
+  '8': [
+    {'1': 'verdict'},
+  ],
+  '9': [
+    {'1': 2, '2': 3},
+  ],
+  '10': ['open_rules'],
 };
 
 /// Descriptor for `QueryRow`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List queryRowDescriptor = $convert.base64Decode(
-    'CghRdWVyeVJvdxIXCgdzb3VsX2lkGAEgASgJUgZzb3VsSWQSNQoKb3Blbl9ydWxlcxgCIAMoDj'
-    'IWLnlhdGEuY29yZS52MS5PcGVuUnVsZVIJb3BlblJ1bGVzEiYKBHNvdWwYAyABKAsyEi55YXRh'
-    'LmNvcmUudjEuU291bFIEc291bA==');
+    'CghRdWVyeVJvdxIXCgdzb3VsX2lkGAEgASgJUgZzb3VsSWQSMgoFZXhhY3QYBCABKAsyGi55YX'
+    'RhLmNvcmUudjEuRXhhY3RWZXJkaWN0SABSBWV4YWN0Ei8KBG9wZW4YBSABKAsyGS55YXRhLmNv'
+    'cmUudjEuT3BlblZlcmRpY3RIAFIEb3BlbhImCgRzb3VsGAMgASgLMhIueWF0YS5jb3JlLnYxLl'
+    'NvdWxSBHNvdWxCCQoHdmVyZGljdEoECAIQA1IKb3Blbl9ydWxlcw==');
 
 @$core.Deprecated('Use queryPageDescriptor instead')
 const QueryPage$json = {
@@ -872,18 +1170,34 @@ const QueryPage$json = {
       '6': '.yata.core.v1.QueryRow',
       '10': 'rows'
     },
-    {'1': 'has_more', '3': 2, '4': 1, '5': 8, '10': 'hasMore'},
-    {'1': 'cursor', '3': 3, '4': 1, '5': 12, '10': 'cursor'},
+    {
+      '1': 'next_cursor',
+      '3': 6,
+      '4': 1,
+      '5': 12,
+      '9': 0,
+      '10': 'nextCursor',
+      '17': true
+    },
     {'1': 'revision', '3': 4, '4': 1, '5': 4, '10': 'revision'},
     {'1': 'total', '3': 5, '4': 1, '5': 4, '10': 'total'},
   ],
+  '8': [
+    {'1': '_next_cursor'},
+  ],
+  '9': [
+    {'1': 2, '2': 3},
+    {'1': 3, '2': 4},
+  ],
+  '10': ['has_more', 'cursor'],
 };
 
 /// Descriptor for `QueryPage`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List queryPageDescriptor = $convert.base64Decode(
     'CglRdWVyeVBhZ2USKgoEcm93cxgBIAMoCzIWLnlhdGEuY29yZS52MS5RdWVyeVJvd1IEcm93cx'
-    'IZCghoYXNfbW9yZRgCIAEoCFIHaGFzTW9yZRIWCgZjdXJzb3IYAyABKAxSBmN1cnNvchIaCghy'
-    'ZXZpc2lvbhgEIAEoBFIIcmV2aXNpb24SFAoFdG90YWwYBSABKARSBXRvdGFs');
+    'IkCgtuZXh0X2N1cnNvchgGIAEoDEgAUgpuZXh0Q3Vyc29yiAEBEhoKCHJldmlzaW9uGAQgASgE'
+    'UghyZXZpc2lvbhIUCgV0b3RhbBgFIAEoBFIFdG90YWxCDgoMX25leHRfY3Vyc29ySgQIAhADSg'
+    'QIAxAEUghoYXNfbW9yZVIGY3Vyc29y');
 
 @$core.Deprecated('Use evaluateQueryDescriptor instead')
 const EvaluateQuery$json = {
@@ -924,18 +1238,36 @@ final $typed_data.Uint8List evaluateQueryDescriptor = $convert.base64Decode(
     'dmVudG9yeRgDIAMoCzISLnlhdGEuY29yZS52MS5Tb3VsUglpbnZlbnRvcnkSKQoFcXVlcnkYBC'
     'ABKAsyEy55YXRhLmNvcmUudjEuUXVlcnlSBXF1ZXJ5');
 
+@$core.Deprecated('Use undecodableDescriptor instead')
+const Undecodable$json = {
+  '1': 'Undecodable',
+};
+
+/// Descriptor for `Undecodable`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List undecodableDescriptor =
+    $convert.base64Decode('CgtVbmRlY29kYWJsZQ==');
+
 @$core.Deprecated('Use evaluateQueryResultDescriptor instead')
 const EvaluateQueryResult$json = {
   '1': 'EvaluateQueryResult',
   '2': [
-    {'1': 'id', '3': 1, '4': 1, '5': 4, '10': 'id'},
+    {'1': 'id', '3': 1, '4': 1, '5': 4, '9': 0, '10': 'id'},
+    {
+      '1': 'undecodable',
+      '3': 4,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.Undecodable',
+      '9': 0,
+      '10': 'undecodable'
+    },
     {
       '1': 'page',
       '3': 2,
       '4': 1,
       '5': 11,
       '6': '.yata.core.v1.QueryPage',
-      '9': 0,
+      '9': 1,
       '10': 'page'
     },
     {
@@ -944,20 +1276,22 @@ const EvaluateQueryResult$json = {
       '4': 1,
       '5': 11,
       '6': '.yata.core.v1.Error',
-      '9': 0,
+      '9': 1,
       '10': 'error'
     },
   ],
   '8': [
+    {'1': 'subject'},
     {'1': 'outcome'},
   ],
 };
 
 /// Descriptor for `EvaluateQueryResult`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List evaluateQueryResultDescriptor = $convert.base64Decode(
-    'ChNFdmFsdWF0ZVF1ZXJ5UmVzdWx0Eg4KAmlkGAEgASgEUgJpZBItCgRwYWdlGAIgASgLMhcueW'
-    'F0YS5jb3JlLnYxLlF1ZXJ5UGFnZUgAUgRwYWdlEisKBWVycm9yGAMgASgLMhMueWF0YS5jb3Jl'
-    'LnYxLkVycm9ySABSBWVycm9yQgkKB291dGNvbWU=');
+    'ChNFdmFsdWF0ZVF1ZXJ5UmVzdWx0EhAKAmlkGAEgASgESABSAmlkEj0KC3VuZGVjb2RhYmxlGA'
+    'QgASgLMhkueWF0YS5jb3JlLnYxLlVuZGVjb2RhYmxlSABSC3VuZGVjb2RhYmxlEi0KBHBhZ2UY'
+    'AiABKAsyFy55YXRhLmNvcmUudjEuUXVlcnlQYWdlSAFSBHBhZ2USKwoFZXJyb3IYAyABKAsyEy'
+    '55YXRhLmNvcmUudjEuRXJyb3JIAVIFZXJyb3JCCQoHc3ViamVjdEIJCgdvdXRjb21l');
 
 @$core.Deprecated('Use clientMessageDescriptor instead')
 const ClientMessage$json = {

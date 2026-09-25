@@ -41,7 +41,7 @@ void main() {
     );
     expect(page.rows, hasLength(5));
     expect(page.rows.every((r) => r.soul.soulId == r.soulId), isTrue);
-    expect(page.hasMore, isTrue);
+    expect(page.hasNextCursor(), isTrue);
     await expectLater(
       c.query(pb.Query(profileId: 'nobody', collection: pb.Collection.COLLECTION_SOULS)),
       throwsA(isA<DaemonException>().having((e) => e.code, 'code', 'query.unknown_profile')),

@@ -6,6 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use yata_core::fact::GameSoulId;
 use yata_core::query::{
     Bound, Direction, EnumValue, Expr, Field, Limit, MAX_EXPR_DEPTH, MAX_EXPR_NODES, MAX_SORT_KEYS,
     MAX_TEST_VALUES, ParamSetId, ParamSetRef, QualityComponent, QueryError, SchemeCodeText,
@@ -30,25 +31,27 @@ fn malformed(p: WireProblem) -> RequestError {
 }
 
 /// The inventory keyed by soul id; a repeated id is refused, never resolved by position.
-pub fn inventory(souls: Vec<wire::Soul>) -> Result<BTreeMap<String, Soul>, RequestError> {
+pub fn inventory(souls: Vec<wire::Soul>) -> Result<BTreeMap<GameSoulId, Soul>, RequestError> {
     if souls.len() > MAX_INVENTORY_SOULS {
         return Err(RequestError::InventoryTooLarge { souls: souls.len() });
     }
     let mut out = BTreeMap::new();
     for (index, s) in souls.into_iter().enumerate() {
-        let id = s.soul_id.clone();
-        if id.is_empty() || id.len() > MAX_SOUL_ID_BYTES {
-            return Err(RequestError::BadSoul {
-                index,
-                problem: WireProblem::SoulId,
-            });
-        }
+        let id = soul_id(&s.soul_id).map_err(|problem| RequestError::BadSoul { index, problem })?;
         let soul = soul(s).map_err(|problem| RequestError::BadSoul { index, problem })?;
         if out.insert(id, soul).is_some() {
             return Err(RequestError::RepeatedSoulId { index });
         }
     }
     Ok(out)
+}
+
+/// A soul id from the wire: the game's id, non-empty and at most [`MAX_SOUL_ID_BYTES`] long.
+pub fn soul_id(id: &str) -> Result<GameSoulId, WireProblem> {
+    if id.len() > MAX_SOUL_ID_BYTES {
+        return Err(WireProblem::SoulId);
+    }
+    GameSoulId::new(id).map_err(|_| WireProblem::SoulId)
 }
 
 fn soul(s: wire::Soul) -> Result<Soul, WireProblem> {
@@ -222,30 +225,34 @@ fn sort_key(k: &wire::SortKey) -> Result<SortKey, RequestError> {
 }
 
 fn field(f: &wire::Field) -> Result<Field, RequestError> {
-    use wire::FieldName as N;
-    let name = N::try_from(f.name).map_err(|_| RequestError::UnknownField { value: f.name })?;
-    let takes_attribute = matches!(name, N::SubValue | N::HasSub);
-    let given = f.attribute != wire::SoulAttribute::Unspecified as i32;
-    if takes_attribute != given {
-        return Err(malformed(WireProblem::FieldAttribute { field: f.name }));
+    use wire::SimpleField as S;
+    use wire::field::Field as F;
+    let unknown = |value: i32| RequestError::UnknownField { value };
+    match *f
+        .field
+        .as_ref()
+        .ok_or(malformed(WireProblem::Missing("Field.field")))?
+    {
+        F::Simple(v) => Ok(match S::try_from(v) {
+            Ok(S::Set) => Field::Set,
+            Ok(S::Slot) => Field::Slot,
+            Ok(S::Star) => Field::Star,
+            Ok(S::Level) => Field::Level,
+            Ok(S::MainAttribute) => Field::MainAttribute,
+            Ok(S::MainValue) => Field::MainValue,
+            Ok(S::SubCount) => Field::SubCount,
+            Ok(S::Pristine) => Field::Pristine,
+            Ok(S::Unspecified) | Err(_) => return Err(unknown(v)),
+        }),
+        F::SubValue(a) => attribute(a).map(Field::SubValue).map_err(malformed),
+        F::HasSub(a) => attribute(a).map(Field::HasSub).map_err(malformed),
+        F::Quality(q) => match wire::QualityComponent::try_from(q) {
+            Ok(wire::QualityComponent::Total) => Ok(Field::Quality(QualityComponent::Total)),
+            Ok(wire::QualityComponent::Depth) => Ok(Field::Quality(QualityComponent::Depth)),
+            Ok(wire::QualityComponent::Breadth) => Ok(Field::Quality(QualityComponent::Breadth)),
+            Ok(wire::QualityComponent::Unspecified) | Err(_) => Err(unknown(q)),
+        },
     }
-    let a = || attribute(f.attribute).map_err(malformed);
-    Ok(match name {
-        N::Unspecified => return Err(RequestError::UnknownField { value: f.name }),
-        N::Set => Field::Set,
-        N::Slot => Field::Slot,
-        N::Star => Field::Star,
-        N::Level => Field::Level,
-        N::MainAttribute => Field::MainAttribute,
-        N::MainValue => Field::MainValue,
-        N::SubValue => Field::SubValue(a()?),
-        N::HasSub => Field::HasSub(a()?),
-        N::SubCount => Field::SubCount,
-        N::Pristine => Field::Pristine,
-        N::QualityTotal => Field::Quality(QualityComponent::Total),
-        N::QualityDepth => Field::Quality(QualityComponent::Depth),
-        N::QualityBreadth => Field::Quality(QualityComponent::Breadth),
-    })
 }
 
 /// A filter node. The walk stops at the core's node and depth limits, so a large tree costs no
@@ -268,26 +275,45 @@ fn expr(e: wire::Expr, depth: usize, nodes: &mut usize) -> Result<Expr, RequestE
     match e.kind.ok_or(malformed(WireProblem::Missing("Expr.kind")))? {
         Kind::And(l) => list(l).map(Expr::And),
         Kind::Or(l) => list(l).map(Expr::Or),
-        Kind::Not(e) => {
-            list(wire::ExprList { items: vec![*e] }).map(|mut v| Expr::Not(Box::new(v.remove(0))))
-        }
+        Kind::Not(e) => expr(*e, depth + 1, nodes).map(|e| Expr::Not(Box::new(e))),
         Kind::Pred(p) => predicate(p),
         Kind::Matches(s) => selection(&s).map(Expr::Matches),
         Kind::MatchesScheme(r) => Ok(Expr::MatchesScheme(SchemeRef {
             code: SchemeCodeText(r.code),
-            entry: r.entry.and_then(|e| usize::try_from(e).ok()),
+            entry: r
+                .entry
+                .map(|e| usize::try_from(e).map_err(|_| malformed(WireProblem::OutOfRange)))
+                .transpose()?,
         })),
     }
 }
 
-/// A range's bounds: at least one end is given.
-fn bound<T>(min: Option<T>, max: Option<T>) -> Result<Bound<T>, RequestError> {
-    match (min, max) {
-        (Some(min), Some(max)) => Ok(Bound::Between { min, max }),
-        (Some(min), None) => Ok(Bound::AtLeast(min)),
-        (None, Some(max)) => Ok(Bound::AtMost(max)),
-        (None, None) => Err(malformed(WireProblem::Missing("range bound"))),
-    }
+fn int_bound(b: Option<wire::int_range::Bound>) -> Result<Bound<i64>, RequestError> {
+    use wire::int_range::Bound as B;
+    Ok(
+        match b.ok_or(malformed(WireProblem::Missing("IntRange.bound")))? {
+            B::AtLeast(v) => Bound::AtLeast(v),
+            B::AtMost(v) => Bound::AtMost(v),
+            B::Between(b) => Bound::Between {
+                min: b.min,
+                max: b.max,
+            },
+        },
+    )
+}
+
+fn number_bound(b: Option<wire::number_range::Bound>) -> Result<Bound<f64>, RequestError> {
+    use wire::number_range::Bound as B;
+    Ok(
+        match b.ok_or(malformed(WireProblem::Missing("NumberRange.bound")))? {
+            B::AtLeast(v) => Bound::AtLeast(v),
+            B::AtMost(v) => Bound::AtMost(v),
+            B::Between(b) => Bound::Between {
+                min: b.min,
+                max: b.max,
+            },
+        },
+    )
 }
 
 fn too_complex(limit: Limit, actual: usize) -> RequestError {
@@ -306,26 +332,26 @@ fn predicate(p: wire::Predicate) -> Result<Expr, RequestError> {
         .ok_or(malformed(WireProblem::Missing("Predicate.test")))?
     {
         W::In(t) => Test::In(in_values(&t)?),
-        W::IntRange(r) => Test::IntRange(bound(r.min, r.max)?),
-        W::NumberRange(r) => Test::NumberRange(bound(r.min, r.max)?),
+        W::IntRange(r) => Test::IntRange(int_bound(r.bound)?),
+        W::NumberRange(r) => Test::NumberRange(number_bound(r.bound)?),
         W::Is(b) => Test::Is(b),
     };
     Ok(Expr::Pred(field, test))
 }
 
-/// The values of an `In`: the one non-empty list. Values in two lists cannot fit one field, so
-/// they reach `compile` together and are refused there as a type mismatch.
+/// The values of an `In`: one list, of one type. An empty list reaches `compile`, which refuses it
+/// as `In []`.
 fn in_values(t: &wire::InTest) -> Result<Vec<EnumValue>, RequestError> {
-    let total = t.suit_codes.len() + t.slots.len() + t.attributes.len();
-    if total > MAX_TEST_VALUES {
-        return Err(too_complex(Limit::TestValues, total));
+    use wire::in_test::Values as V;
+    match t
+        .values
+        .as_ref()
+        .ok_or(malformed(WireProblem::Missing("InTest.values")))?
+    {
+        V::SetValues(c) => bounded(&c.codes, |c| suit(c).map(EnumValue::Set)),
+        V::SlotValues(s) => bounded(&s.values, |k| slot(k).map(EnumValue::Slot)),
+        V::AttributeValues(a) => bounded(&a.values, |a| attribute(a).map(EnumValue::Attribute)),
     }
-    let mut out = bounded(&t.suit_codes, |c| suit(c).map(EnumValue::Set))?;
-    out.extend(bounded(&t.slots, |k| slot(k).map(EnumValue::Slot))?);
-    out.extend(bounded(&t.attributes, |a| {
-        attribute(a).map(EnumValue::Attribute)
-    })?);
-    Ok(out)
 }
 
 fn level_band(v: i32) -> Result<LevelBand, WireProblem> {
@@ -354,10 +380,16 @@ fn sub_count(v: i32) -> Result<SubCount, WireProblem> {
 
 /// An inline official filter.
 pub fn selection(s: &wire::SoulSelection) -> Result<SoulSelection, RequestError> {
-    let sets = match (s.any_set, s.suit_codes.as_slice()) {
-        (true, []) => SetChoice::AnySet,
-        (true, _) => return Err(malformed(WireProblem::AnySetWithSets)),
-        (false, codes) => SetChoice::Sets(bounded(codes, suit)?.into_iter().collect()),
+    use wire::soul_selection::Sets;
+    let sets = match s
+        .sets
+        .as_ref()
+        .ok_or(malformed(WireProblem::Missing("SoulSelection.sets")))?
+    {
+        Sets::All(wire::AnySet {}) => SetChoice::AnySet,
+        // "Every set" has one encoding, `all`: an empty list is not a second one.
+        Sets::Chosen(c) if c.codes.is_empty() => return Err(malformed(WireProblem::NoSets)),
+        Sets::Chosen(c) => SetChoice::Sets(bounded(&c.codes, suit)?.into_iter().collect()),
     };
     let mut out = SoulSelection::new(sets);
     out.slots = bounded(&s.slots, slot)?.into_iter().collect();
@@ -375,16 +407,22 @@ pub fn selection(s: &wire::SoulSelection) -> Result<SoulSelection, RequestError>
     })?
     .into_iter()
     .collect();
-    let included = bounded(&s.sub_included, attribute)?;
-    let excluded = bounded(&s.sub_excluded, attribute)?;
-    if included.iter().any(|a| excluded.contains(a)) {
-        return Err(malformed(WireProblem::IncludedAndExcluded));
+    if s.sub_attributes.len() > MAX_TEST_VALUES {
+        return Err(too_complex(Limit::TestValues, s.sub_attributes.len()));
     }
-    for a in included {
-        out.sub_attributes.set(a, SubAttributeMode::Include);
-    }
-    for a in excluded {
-        out.sub_attributes.set(a, SubAttributeMode::Exclude);
+    for c in &s.sub_attributes {
+        let a = attribute(c.attribute).map_err(malformed)?;
+        let mode = match wire::SubAttributeMode::try_from(c.mode) {
+            Ok(wire::SubAttributeMode::Include) => SubAttributeMode::Include,
+            Ok(wire::SubAttributeMode::Exclude) => SubAttributeMode::Exclude,
+            Ok(wire::SubAttributeMode::Unspecified) | Err(_) => {
+                return Err(malformed(WireProblem::Enum { value: c.mode }));
+            }
+        };
+        if out.sub_attributes.get(a) != SubAttributeMode::Ignore {
+            return Err(malformed(WireProblem::SubAttributeTwice));
+        }
+        out.sub_attributes.set(a, mode);
     }
     out.sub_counts = bounded(&s.sub_counts, sub_count)?.into_iter().collect();
     Ok(out)

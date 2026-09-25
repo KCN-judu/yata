@@ -80,7 +80,7 @@ fn souls_query(
     id: u64,
     profile: &str,
     budget: u32,
-    cursor: Vec<u8>,
+    cursor: Option<Vec<u8>>,
     scan: Option<u64>,
 ) -> pb::ClientMessage {
     request(
@@ -166,17 +166,17 @@ fn an_older_major_opens_with_a_warning_event() {
 fn a_scan_pages_by_cursor_to_the_end() {
     let (_, out, _) = run(
         fixture::projection(),
-        &frames(&[
-            open(1),
-            souls_query(2, fixture::PROFILE_ID, 5, vec![], None),
-        ]),
+        &frames(&[open(1), souls_query(2, fixture::PROFILE_ID, 5, None, None)]),
     );
     let Reply::QueryPage(first) = reply(&out[1]).1 else {
         panic!()
     };
-    assert_eq!((first.total, first.has_more, first.revision), (12, true, 1));
+    assert_eq!(
+        (first.total, first.next_cursor.is_some(), first.revision),
+        (12, true, 1)
+    );
     let mut seen = Vec::new();
-    let mut cursor = first.cursor.clone();
+    let mut cursor = first.next_cursor.clone();
     // Every row carries its values under its own id.
     let rows = |r: &pb::QueryPage| {
         r.rows
@@ -205,11 +205,10 @@ fn a_scan_pages_by_cursor_to_the_end() {
         };
         seen.extend(rows(page));
         id += 1;
-        if !page.has_more {
-            assert!(page.cursor.is_empty());
-            break;
+        match &page.next_cursor {
+            None => break,
+            Some(next) => cursor = Some(next.clone()),
         }
-        cursor = page.cursor.clone();
     }
     let unique: BTreeSet<&String> = seen.iter().collect();
     assert_eq!((seen.len(), unique.len()), (12, 12));
@@ -220,9 +219,9 @@ fn a_scan_pages_by_cursor_to_the_end() {
 fn query_failures_carry_their_codes() {
     let input = frames(&[
         open(1),
-        souls_query(2, "nobody", 5, vec![], None),
-        souls_query(3, fixture::PROFILE_ID, 5, vec![], Some(0)),
-        souls_query(4, fixture::PROFILE_ID, 5, vec![7, 7], None),
+        souls_query(2, "nobody", 5, None, None),
+        souls_query(3, fixture::PROFILE_ID, 5, None, Some(0)),
+        souls_query(4, fixture::PROFILE_ID, 5, Some(vec![7, 7]), None),
         request(
             5,
             Kind::Query(pb::Query {
@@ -331,9 +330,24 @@ fn a_scheme_code_decodes_from_text_and_from_its_qr_image() {
         let names: Vec<&str> = d.entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(names, ["spd", "six"]);
         let spd = d.entries[0].selection.as_ref().expect("selection");
-        assert_eq!(spd.suit_codes, [30]);
-        assert_eq!((spd.sub_included.len(), spd.sub_excluded.len()), (1, 1));
-        assert!(d.entries[1].selection.as_ref().expect("selection").any_set);
+        assert_eq!(
+            spd.sets,
+            Some(pb::soul_selection::Sets::Chosen(pb::SuitCodes {
+                codes: vec![30]
+            }))
+        );
+        let modes: Vec<i32> = spd.sub_attributes.iter().map(|c| c.mode).collect();
+        assert_eq!(
+            modes,
+            [
+                pb::SubAttributeMode::Include as i32,
+                pb::SubAttributeMode::Exclude as i32
+            ]
+        );
+        assert_eq!(
+            d.entries[1].selection.as_ref().expect("selection").sets,
+            Some(pb::soul_selection::Sets::All(pb::AnySet {}))
+        );
         let encoded = d.encoded.as_ref().expect("encoded");
         assert_eq!(encoded.text, text);
         let qr = encoded.qr.as_ref().expect("a QR matrix");
@@ -422,15 +436,12 @@ fn golden(name: &str, bytes: &[u8]) {
 
 /// The cursor after the first eight fixture souls, as the daemon writes it.
 fn first_page_cursor() -> Vec<u8> {
-    let input = frames(&[
-        open(1),
-        souls_query(2, fixture::PROFILE_ID, 8, vec![], None),
-    ]);
+    let input = frames(&[open(1), souls_query(2, fixture::PROFILE_ID, 8, None, None)]);
     let (_, out, _) = run(fixture::projection(), &input);
     let Reply::QueryPage(page) = reply(&out[1]).1 else {
         panic!("{:?}", out[1])
     };
-    page.cursor.clone()
+    page.next_cursor.clone().expect("more than one page")
 }
 
 /// The recorded session: every request kind the application sends, and the daemon's frames in
@@ -442,9 +453,15 @@ fn the_recorded_session_matches_the_shared_fixtures() {
         open(1),
         request(2, Kind::Subscribe(pb::Subscribe { revision: 0 })),
         request(3, Kind::ListProfiles(pb::ListProfiles {})),
-        souls_query(4, fixture::PROFILE_ID, 8, vec![], None),
-        souls_query(5, fixture::PROFILE_ID, 8, first_page_cursor(), Some(1)),
-        souls_query(6, "nobody", 0, vec![], None),
+        souls_query(4, fixture::PROFILE_ID, 8, None, None),
+        souls_query(
+            5,
+            fixture::PROFILE_ID,
+            8,
+            Some(first_page_cursor()),
+            Some(1),
+        ),
+        souls_query(6, "nobody", 0, None, None),
         decode(
             7,
             pb::decode_scheme_code::Source::Text(sample_scheme_text()),

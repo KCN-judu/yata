@@ -32,7 +32,7 @@ void main() {
     expect(first.writeToBuffer(), recordedRequests()[3].query.writeToBuffer());
     final second = soulQuery(
       const SoulQuerySpec(profileId: 'fixture', rowBudget: 8),
-      cursor: recordedFirstPage().cursor,
+      cursor: recordedFirstPage().nextCursor,
       scan: Int64.ONE,
     );
     expect(second.writeToBuffer(), recordedRequests()[4].query.writeToBuffer());
@@ -50,19 +50,18 @@ void main() {
     expect(recordedProfiles().profiles.map((p) => p.id), ['fixture', 'fixture-empty']);
     final first = recordedFirstPage();
     expect(first.total, Int64(12));
-    expect(first.hasMore, isTrue);
+    expect(first.hasNextCursor(), isTrue);
     expect(first.rows, hasLength(8));
     expect(first.revision, Int64.ONE);
     final soul = first.rows.first.soul;
     expect(soul.soulId, 'fixture-01');
-    expect(first.rows.first.openRules, isEmpty);
+    expect(first.rows.first.whichVerdict(), pb.QueryRow_Verdict.exact);
     expect(soul.whichKind(), pb.Soul_Kind.ordinary);
     expect(soul.slot, pb.SoulSlot.SOUL_SLOT_2);
     expect(soul.main, pb.SoulAttribute.SOUL_ATTRIBUTE_SPD);
     expect(soul.subs.first.hasEnhancementCount(), isFalse);
     final second = recordedSecondPage();
-    expect(second.hasMore, isFalse);
-    expect(second.cursor, isEmpty);
+    expect(second.hasNextCursor(), isFalse);
     expect(second.rows.map((r) => r.soulId).first, 'fixture-09');
     expect(recordedUnknownProfile().code, 'query.unknown_profile');
     final scheme = recordedScheme();

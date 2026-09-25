@@ -172,12 +172,21 @@ impl Session {
         })?;
         let refused = |e: RequestError| Failure::new(e.code(), format!("{e:?}"));
         let prepared = query::prepare(q).map_err(refused)?;
-        let mut page = query::run(&prepared, &profile.souls).map_err(refused)?;
-        for row in &mut page.rows {
-            row.soul = profile
-                .souls
-                .get(&row.soul_id)
-                .map(|s| wire::soul(&row.soul_id, s));
+        let page = query::run(&prepared, &profile.souls).map_err(refused)?;
+        // Every row's id is a key of the souls the page was selected from.
+        let values: Vec<Option<pb::Soul>> = page
+            .rows
+            .iter()
+            .map(|row| {
+                profile
+                    .souls
+                    .get(&row.id)
+                    .map(|s| wire::soul(row.id.as_str(), s))
+            })
+            .collect();
+        let mut page = query::render_headless(page);
+        for (row, soul) in page.rows.iter_mut().zip(values) {
+            row.soul = soul;
         }
         page.revision = revision;
         Ok(Reply::QueryPage(page))

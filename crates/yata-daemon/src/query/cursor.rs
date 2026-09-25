@@ -3,6 +3,7 @@
 //! message of the last row's sort-key values and id.
 
 use prost::{Message, Oneof};
+use yata_core::fact::GameSoulId;
 use yata_core::query::{Cursor, SortValue};
 use yata_core::soul::SoulSet;
 
@@ -38,7 +39,7 @@ enum Key {
     Bool(bool),
 }
 
-pub fn encode(cursor: &Cursor<String>) -> Vec<u8> {
+pub fn encode(cursor: &Cursor<GameSoulId>) -> Vec<u8> {
     let key = |v: &SortValue| KeyBytes {
         key: Some(match *v {
             SortValue::Set(s) => Key::Set(u32::from(s.suit_code())),
@@ -51,14 +52,14 @@ pub fn encode(cursor: &Cursor<String>) -> Vec<u8> {
     };
     CursorBytes {
         keys: cursor.keys.iter().map(key).collect(),
-        soul_id: cursor.id.clone(),
+        soul_id: cursor.id.as_str().to_owned(),
     }
     .encode_to_vec()
 }
 
 /// The cursor these bytes hold, if they are one this daemon wrote. Whether it continues the
 /// query's order is the core's to decide.
-pub fn decode(bytes: &[u8]) -> Option<Cursor<String>> {
+pub fn decode(bytes: &[u8]) -> Option<Cursor<GameSoulId>> {
     let c = CursorBytes::decode(bytes).ok()?;
     let value = |k: KeyBytes| {
         Some(match k.key? {
@@ -72,6 +73,7 @@ pub fn decode(bytes: &[u8]) -> Option<Cursor<String>> {
     };
     Some(Cursor {
         keys: c.keys.into_iter().map(value).collect::<Option<_>>()?,
-        id: c.soul_id,
+        // An empty id names no row: not a cursor this daemon wrote.
+        id: GameSoulId::new(c.soul_id).ok()?,
     })
 }

@@ -77,7 +77,14 @@ class _Entry extends StatelessWidget {
     final s = entry.selection;
     String list(Iterable<String> values) => values.isEmpty ? l.groupAny : values.join('、');
     final groups = [
-      (l.groupSets, s.anySet ? l.anySet : list(s.suitCodes.map((c) => setName(l, c)))),
+      (
+        l.groupSets,
+        switch (s.whichSets()) {
+          pb.SoulSelection_Sets.all => l.anySet,
+          pb.SoulSelection_Sets.chosen => list(s.chosen.codes.map((c) => setName(l, c))),
+          pb.SoulSelection_Sets.notSet => l.valueUnknown,
+        },
+      ),
       (l.groupSlots, list(s.slots.map((k) => slotName(l, k)))),
       (l.groupStars, list(s.stars.map(l.soulStar))),
       (l.groupLevels, list(s.levels.map((b) => levelBandName(l, b)))),
@@ -86,8 +93,11 @@ class _Entry extends StatelessWidget {
       (
         l.groupSubs,
         list([
-          for (final a in s.subIncluded) l.subInclude(attributeName(l, a)),
-          for (final a in s.subExcluded) l.subExclude(attributeName(l, a)),
+          for (final c in s.subAttributes)
+            if (c.mode == pb.SubAttributeMode.SUB_ATTRIBUTE_MODE_INCLUDE)
+              l.subInclude(attributeName(l, c.attribute))
+            else if (c.mode == pb.SubAttributeMode.SUB_ATTRIBUTE_MODE_EXCLUDE)
+              l.subExclude(attributeName(l, c.attribute)),
         ]),
       ),
       (l.groupCounts, list(s.subCounts.map((c) => subCountName(l, c)))),

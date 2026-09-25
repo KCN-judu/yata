@@ -51,8 +51,8 @@ final class SoulPage {
     this.turnError,
   });
 
-  /// The rows as the daemon returned them: each soul's values and its verdict (`open_rules`
-  /// empty when the game's answer is exact).
+  /// The rows as the daemon returned them: each soul's values and its verdict, exact or open
+  /// (ADR-0026).
   final List<pb.QueryRow> rows;
 
   List<pb.Soul> get souls => [for (final r in rows) r.soul];
@@ -134,14 +134,14 @@ class SoulPages extends AsyncNotifier<SoulPage> {
     final query = soulQuery(spec, cursor: _cursors[index], scan: scan);
     final r = await coreCall(ref.read(daemonClientProvider).query(query));
     ref.read(projectionRevisionProvider.notifier).observe(r.revision);
-    _nextCursor = r.cursor;
+    _nextCursor = r.hasNextCursor() ? r.nextCursor : const [];
     return SoulPage(
       rows: r.rows,
       total: r.total,
       revision: r.revision,
       index: index,
       firstRow: _firstRows[index],
-      hasMore: r.hasMore,
+      hasMore: r.hasNextCursor(),
     );
   }
 

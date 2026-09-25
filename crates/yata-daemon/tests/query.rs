@@ -8,14 +8,20 @@ use yata_core::scheme::selection::{SetChoice, SoulSelection};
 use yata_core::scheme::transport::encode_text;
 use yata_core::soul::SoulSlot as DomainSlot;
 use yata_daemon::query::{MAX_ROW_BUDGET, ServeError, handle, respond, serve};
-use yata_protocol::core::evaluate_query_result::Outcome;
+use yata_protocol::core::evaluate_query_result::{Outcome, Subject};
 use yata_protocol::core::expr::Kind;
+use yata_protocol::core::field::Field as FieldKind;
+use yata_protocol::core::in_test::Values;
 use yata_protocol::core::predicate::Test;
+use yata_protocol::core::query_row::Verdict;
+use yata_protocol::core::soul_selection::Sets;
 use yata_protocol::core::{
-    BossSoul, Collection, Direction, EvaluateQuery, EvaluateQueryResult, Expr, ExprList, Field,
-    FieldName, InTest, IntRange, NumberRange, OrdinarySoul, PageRequest, ParamSetRef, Predicate,
-    ProtocolVersion, Query, QueryPage, SchemeRef, SortKey, Soul, SoulAttribute,
-    SoulSelection as WireSelection, SoulSlot, SubAttribute, VERSION, soul::Kind as SoulKind,
+    AnySet, BossSoul, Collection, Direction, EvaluateQuery, EvaluateQueryResult, ExactVerdict,
+    Expr, ExprList, Field, InTest, IntRange, NumberRange, OpenRule, OpenVerdict, OrdinarySoul,
+    PageRequest, ParamSetRef, Predicate, ProtocolVersion, Query, QueryPage, SchemeRef, SimpleField,
+    Slots, SortKey, Soul, SoulAttribute, SoulSelection as WireSelection, SoulSlot, SubAttribute,
+    SubAttributeChoice, SubAttributeMode, SuitCodes, VERSION, int_range, number_range,
+    soul::Kind as SoulKind,
 };
 use yata_protocol::frame::{FrameError, decode_all, encode};
 
@@ -51,30 +57,32 @@ fn node(kind: Kind) -> Expr {
     Expr { kind: Some(kind) }
 }
 
-fn field(name: FieldName) -> Option<Field> {
+fn simple(f: SimpleField) -> Option<Field> {
     Some(Field {
-        name: name as i32,
-        attribute: 0,
+        field: Some(FieldKind::Simple(f as i32)),
     })
 }
 
-fn star_at_least(min: i64) -> Expr {
+fn pred(field: Option<Field>, test: Test) -> Expr {
     node(Kind::Pred(Predicate {
-        field: field(FieldName::Star),
-        test: Some(Test::IntRange(IntRange {
-            min: Some(min),
-            max: None,
-        })),
+        field,
+        test: Some(test),
     }))
+}
+
+fn star_at_least(min: i64) -> Expr {
+    pred(
+        simple(SimpleField::Star),
+        Test::IntRange(IntRange {
+            bound: Some(int_range::Bound::AtLeast(min)),
+        }),
+    )
 }
 
 fn query(filter: Option<Expr>) -> Query {
     Query {
         collection: Collection::Souls as i32,
         filter,
-        sort: Vec::new(),
-        params: None,
-        page: None,
         ..Query::default()
     }
 }
@@ -114,17 +122,21 @@ fn ids(p: &QueryPage) -> Vec<&str> {
     p.rows.iter().map(|r| r.soul_id.as_str()).collect()
 }
 
+fn exact() -> Option<Verdict> {
+    Some(Verdict::Exact(ExactVerdict {}))
+}
+
 #[test]
 fn a_query_over_a_supplied_inventory_returns_its_rows_in_identity_order() {
     let r = request(7, query(Some(star_at_least(5))));
     let result = ask(&r);
-    assert_eq!(result.id, 7);
+    assert_eq!(result.subject, Some(Subject::Id(7)));
     let Some(Outcome::Page(p)) = result.outcome else {
         panic!("a page")
     };
     assert_eq!(ids(&p), ["s1", "s3", "s4", "s5"]);
-    assert!(!p.has_more && p.cursor.is_empty());
-    assert!(p.rows.iter().all(|r| r.open_rules.is_empty()));
+    assert_eq!(p.next_cursor, None);
+    assert!(p.rows.iter().all(|r| r.verdict == exact()));
 }
 
 #[test]
@@ -132,8 +144,7 @@ fn the_same_rows_in_any_order_give_the_same_bytes() {
     let mut q = query(None);
     q.sort = vec![SortKey {
         field: Some(Field {
-            name: FieldName::SubValue as i32,
-            attribute: SoulAttribute::Crit as i32,
+            field: Some(FieldKind::SubValue(SoulAttribute::Crit as i32)),
         }),
         direction: Direction::Desc as i32,
     }];
@@ -149,11 +160,11 @@ fn the_same_rows_in_any_order_give_the_same_bytes() {
 fn pages_follow_their_cursor_across_requests() {
     let mut q = query(None);
     q.sort = vec![SortKey {
-        field: field(FieldName::Star),
+        field: simple(SimpleField::Star),
         direction: Direction::Desc as i32,
     }];
     let mut seen = Vec::new();
-    let mut cursor = Vec::new();
+    let mut cursor = None;
     loop {
         q.page = Some(PageRequest {
             row_budget: Some(2),
@@ -161,10 +172,10 @@ fn pages_follow_their_cursor_across_requests() {
         });
         let p = page(&request(1, q.clone()));
         seen.extend(ids(&p).into_iter().map(str::to_owned));
-        if !p.has_more {
-            break;
+        match p.next_cursor {
+            None => break,
+            Some(next) => cursor = Some(next),
         }
-        cursor = p.cursor;
     }
     assert_eq!(seen, ["s1", "s3", "s5", "s4", "s2"]);
 }
@@ -200,7 +211,7 @@ fn a_scheme_filter_reports_each_rows_verdict() {
     // Matches: every soul is in slot 2.
     let p = page(&request(1, query(Some(scheme(code.clone(), Some(0))))));
     assert_eq!(p.rows.len(), 5);
-    assert!(p.rows.iter().all(|r| r.open_rules.is_empty()));
+    assert!(p.rows.iter().all(|r| r.verdict == exact()));
     // DoesNotMatch: none is in slot 4.
     assert!(
         page(&request(1, query(Some(scheme(code, Some(1))))))
@@ -216,30 +227,52 @@ fn a_scheme_filter_reports_each_rows_verdict() {
     let unknown = text(&SchemeLayout::discard(account(), vec![record]).expect("valid"));
     let p = page(&request(1, query(Some(scheme(unknown, None)))));
     assert_eq!(ids(&p), ["s1", "s3", "s5"]);
-    let unknown_conditions = yata_protocol::core::OpenRule::UnknownConditions as i32;
-    assert!(p.rows.iter().all(|r| r.open_rules == [unknown_conditions]));
+    let open = Some(Verdict::Open(OpenVerdict {
+        rules: vec![OpenRule::UnknownConditions as i32],
+    }));
+    assert!(p.rows.iter().all(|r| r.verdict == open));
+}
+
+fn choice(a: SoulAttribute, mode: SubAttributeMode) -> SubAttributeChoice {
+    SubAttributeChoice {
+        attribute: a as i32,
+        mode: mode as i32,
+    }
 }
 
 #[test]
 fn an_inline_selection_is_converted_and_evaluated() {
     let selection = WireSelection {
-        suit_codes: vec![30],
+        sets: Some(Sets::Chosen(SuitCodes { codes: vec![30] })),
         stars: vec![6],
-        sub_included: vec![SoulAttribute::Crit as i32],
+        sub_attributes: vec![choice(SoulAttribute::Crit, SubAttributeMode::Include)],
         ..WireSelection::default()
     };
     let p = page(&request(1, query(Some(node(Kind::Matches(selection))))));
     assert_eq!(ids(&p), ["s1", "s3", "s5"]);
-    let both = WireSelection {
-        any_set: true,
-        sub_included: vec![SoulAttribute::Crit as i32],
-        sub_excluded: vec![SoulAttribute::Crit as i32],
-        ..WireSelection::default()
-    };
+    let malformed = |selection| code(&request(1, query(Some(node(Kind::Matches(selection))))));
+    // One attribute given two choices.
     assert_eq!(
-        code(&request(1, query(Some(node(Kind::Matches(both)))))),
+        malformed(WireSelection {
+            sets: Some(Sets::All(AnySet {})),
+            sub_attributes: vec![
+                choice(SoulAttribute::Crit, SubAttributeMode::Include),
+                choice(SoulAttribute::Crit, SubAttributeMode::Exclude),
+            ],
+            ..WireSelection::default()
+        }),
         "query.malformed"
     );
+    // "Every set" is `all`; an empty chosen list is not a second encoding of it, and a selection
+    // must say which it is.
+    assert_eq!(
+        malformed(WireSelection {
+            sets: Some(Sets::Chosen(SuitCodes { codes: vec![] })),
+            ..WireSelection::default()
+        }),
+        "query.malformed"
+    );
+    assert_eq!(malformed(WireSelection::default()), "query.malformed");
 }
 
 fn nest(depth: usize) -> Expr {
@@ -253,54 +286,71 @@ fn malformed_trees_are_refused_with_their_code() {
     let cases: Vec<(Query, &str)> = vec![
         (query(Some(Expr { kind: None })), "query.malformed"),
         (
-            query(Some(node(Kind::Pred(Predicate {
-                field: Some(Field {
-                    name: 99,
-                    attribute: 0,
+            query(Some(pred(simple(SimpleField::Star), Test::Is(true)))),
+            "query.type_mismatch",
+        ),
+        (
+            query(Some(pred(
+                Some(Field {
+                    field: Some(FieldKind::Simple(99)),
                 }),
-                test: Some(Test::Is(true)),
-            })))),
+                Test::Is(true),
+            ))),
             "query.unknown_field",
         ),
         (
+            query(Some(pred(Some(Field { field: None }), Test::Is(true)))),
+            "query.malformed",
+        ),
+        (
             query(Some(node(Kind::Pred(Predicate {
-                field: field(FieldName::Star),
+                field: simple(SimpleField::Star),
                 test: None,
             })))),
             "query.malformed",
         ),
         (
-            query(Some(node(Kind::Pred(Predicate {
-                field: field(FieldName::Slot),
-                test: Some(Test::In(InTest {
-                    slots: vec![42],
-                    ..InTest::default()
-                })),
-            })))),
+            query(Some(pred(
+                simple(SimpleField::Slot),
+                Test::In(InTest {
+                    values: Some(Values::SlotValues(Slots { values: vec![42] })),
+                }),
+            ))),
             "query.malformed",
         ),
         (
-            query(Some(node(Kind::Pred(Predicate {
-                field: field(FieldName::SubValue),
-                test: Some(Test::NumberRange(NumberRange {
-                    min: Some(1.0),
-                    max: None,
-                })),
-            })))),
+            query(Some(pred(
+                simple(SimpleField::Slot),
+                Test::In(InTest { values: None }),
+            ))),
             "query.malformed",
         ),
         (
-            query(Some(node(Kind::Pred(Predicate {
-                field: field(FieldName::Star),
-                test: Some(Test::Is(true)),
-            })))),
-            "query.type_mismatch",
+            query(Some(pred(
+                simple(SimpleField::Set),
+                Test::In(InTest {
+                    values: Some(Values::SetValues(SuitCodes { codes: vec![] })),
+                }),
+            ))),
+            "query.malformed",
         ),
         (
-            query(Some(node(Kind::Pred(Predicate {
-                field: field(FieldName::Set),
-                test: Some(Test::In(InTest::default())),
-            })))),
+            query(Some(pred(
+                simple(SimpleField::MainValue),
+                Test::NumberRange(NumberRange { bound: None }),
+            ))),
+            "query.malformed",
+        ),
+        (
+            query(Some(pred(
+                simple(SimpleField::Star),
+                Test::IntRange(IntRange {
+                    bound: Some(int_range::Bound::Between(yata_protocol::core::IntBetween {
+                        min: 6,
+                        max: 5,
+                    })),
+                }),
+            ))),
             "query.malformed",
         ),
         (query(Some(nest(17))), "query.too_complex"),
@@ -333,38 +383,48 @@ fn malformed_trees_are_refused_with_their_code() {
 }
 
 #[test]
-fn a_tree_past_the_decoders_recursion_limit_is_malformed_not_a_crash() {
+fn a_tree_past_the_decoders_recursion_limit_is_undecodable_not_a_crash() {
     let result = handle(&request(9, query(Some(nest(500)))).encode_to_vec());
     assert_eq!(
-        result.id, 0,
-        "the request did not decode, so its id is unknown"
+        result.subject,
+        Some(Subject::Undecodable(yata_protocol::core::Undecodable {})),
+        "the request did not decode, so it has no id to answer"
     );
     assert_eq!(error_code(&result), "query.malformed");
 }
 
 #[test]
 fn bytes_that_are_not_a_request_are_malformed() {
-    assert_eq!(error_code(&handle(&[0xff, 0xff, 0xff])), "query.malformed");
+    let result = handle(&[0xff, 0xff, 0xff]);
+    assert!(matches!(result.subject, Some(Subject::Undecodable(_))));
+    assert_eq!(error_code(&result), "query.malformed");
 }
 
 #[test]
 fn score_fields_are_refused_until_pass_one_exists() {
-    let q = query(Some(node(Kind::Pred(Predicate {
-        field: field(FieldName::QualityTotal),
-        test: Some(Test::NumberRange(NumberRange {
-            min: Some(50.0),
-            max: None,
-        })),
-    }))));
+    let q = query(Some(pred(
+        Some(Field {
+            field: Some(FieldKind::Quality(
+                yata_protocol::core::QualityComponent::Total as i32,
+            )),
+        }),
+        Test::NumberRange(NumberRange {
+            bound: Some(number_range::Bound::AtLeast(50.0)),
+        }),
+    )));
     assert_eq!(code(&request(1, q.clone())), "query.param_set_required");
-    let with_params = Query {
+    let with_params = |id: &str| Query {
         params: Some(ParamSetRef {
-            id: "yata-quality".into(),
+            id: id.into(),
             version: 1,
         }),
-        ..q
+        ..q.clone()
     };
-    assert_eq!(code(&request(1, with_params)), "query.field_unavailable");
+    assert_eq!(
+        code(&request(1, with_params("yata-quality"))),
+        "query.field_unavailable"
+    );
+    assert_eq!(code(&request(1, with_params(""))), "query.malformed");
 }
 
 #[test]
@@ -378,22 +438,25 @@ fn request_level_refusals_carry_their_codes() {
     let mut repeated = request(1, query(None));
     repeated.inventory.push(soul("s1", 6, 1.0));
     assert_eq!(code(&repeated), "query.malformed");
-    let budget = |b| {
+    let mut unnamed = request(1, query(None));
+    unnamed.inventory[0].soul_id = String::new();
+    assert_eq!(code(&unnamed), "query.malformed");
+    let with_page = |row_budget, cursor| {
         let mut q = query(None);
-        q.page = Some(PageRequest {
-            row_budget: Some(b),
-            cursor: Vec::new(),
-        });
+        q.page = Some(PageRequest { row_budget, cursor });
         code(&request(1, q))
     };
-    assert_eq!(budget(0), "query.malformed");
-    assert_eq!(budget(MAX_ROW_BUDGET + 1), "query.too_complex");
-    let mut foreign = query(None);
-    foreign.page = Some(PageRequest {
-        row_budget: None,
-        cursor: vec![0xff, 0x01],
-    });
-    assert_eq!(code(&request(1, foreign)), "query.malformed_cursor");
+    assert_eq!(with_page(Some(0), None), "query.malformed");
+    assert_eq!(
+        with_page(Some(MAX_ROW_BUDGET + 1), None),
+        "query.too_complex"
+    );
+    assert_eq!(
+        with_page(None, Some(vec![0xff, 0x01])),
+        "query.malformed_cursor"
+    );
+    // A present, empty cursor is not the first page: it names no row.
+    assert_eq!(with_page(None, Some(vec![])), "query.malformed_cursor");
 }
 
 #[test]

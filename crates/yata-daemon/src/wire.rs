@@ -95,24 +95,36 @@ pub fn soul(id: &str, s: &Soul) -> pb::Soul {
 }
 
 pub fn selection(s: &SoulSelection) -> pb::SoulSelection {
-    let (any_set, suit_codes) = match &s.sets {
-        SetChoice::AnySet => (true, Vec::new()),
-        SetChoice::Sets(sets) => (
-            false,
-            sets.iter().map(|x| u32::from(x.suit_code())).collect(),
-        ),
+    use pb::soul_selection::Sets;
+    let sets = match &s.sets {
+        // An empty 类型 is no restriction, as `AnySet` is: the game's one meaning, one encoding.
+        SetChoice::AnySet => Sets::All(pb::AnySet {}),
+        SetChoice::Sets(sets) if sets.is_empty() => Sets::All(pb::AnySet {}),
+        SetChoice::Sets(sets) => Sets::Chosen(pb::SuitCodes {
+            codes: sets.iter().map(|x| u32::from(x.suit_code())).collect(),
+        }),
     };
-    let marked = |mode| s.sub_attributes.with(mode).map(attribute).collect();
+    let marked = |mode, wire_mode: pb::SubAttributeMode| {
+        s.sub_attributes
+            .with(mode)
+            .map(move |a| pb::SubAttributeChoice {
+                attribute: attribute(a),
+                mode: wire_mode.into(),
+            })
+    };
     pb::SoulSelection {
-        any_set,
-        suit_codes,
+        sets: Some(sets),
         slots: s.slots.iter().map(|&k| wire_slot(k).into()).collect(),
         stars: s.stars.iter().map(|&n| u32::from(n)).collect(),
         levels: s.levels.iter().map(|&b| level_band(b).into()).collect(),
         main_attributes: s.main_attributes.iter().map(|&a| attribute(a)).collect(),
         innate: s.innate.iter().map(|i| attribute(i.attribute())).collect(),
-        sub_included: marked(SubAttributeMode::Include),
-        sub_excluded: marked(SubAttributeMode::Exclude),
+        sub_attributes: marked(SubAttributeMode::Include, pb::SubAttributeMode::Include)
+            .chain(marked(
+                SubAttributeMode::Exclude,
+                pb::SubAttributeMode::Exclude,
+            ))
+            .collect(),
         sub_counts: s.sub_counts.iter().map(|&c| sub_count(c).into()).collect(),
     }
 }
@@ -224,7 +236,8 @@ mod tests {
         for kind in [SoulKind::Ordinary, crit_boss()] {
             let wire = soul("s-1", &a_soul(kind));
             let back = crate::query::convert::inventory(vec![wire]).expect("valid");
-            assert_eq!(back.get("s-1"), Some(&a_soul(kind)));
+            let id = yata_core::fact::GameSoulId::new("s-1").expect("non-empty");
+            assert_eq!(back.get(&id), Some(&a_soul(kind)));
         }
     }
 }

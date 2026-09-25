@@ -160,6 +160,33 @@ class SubCount extends $pb.ProtobufEnum {
   const SubCount._(super.value, super.name);
 }
 
+class SubAttributeMode extends $pb.ProtobufEnum {
+  static const SubAttributeMode SUB_ATTRIBUTE_MODE_UNSPECIFIED =
+      SubAttributeMode._(
+          0, _omitEnumNames ? '' : 'SUB_ATTRIBUTE_MODE_UNSPECIFIED');
+
+  /// ○: the soul has it.
+  static const SubAttributeMode SUB_ATTRIBUTE_MODE_INCLUDE =
+      SubAttributeMode._(1, _omitEnumNames ? '' : 'SUB_ATTRIBUTE_MODE_INCLUDE');
+
+  /// ✕: the soul does not have it.
+  static const SubAttributeMode SUB_ATTRIBUTE_MODE_EXCLUDE =
+      SubAttributeMode._(2, _omitEnumNames ? '' : 'SUB_ATTRIBUTE_MODE_EXCLUDE');
+
+  static const $core.List<SubAttributeMode> values = <SubAttributeMode>[
+    SUB_ATTRIBUTE_MODE_UNSPECIFIED,
+    SUB_ATTRIBUTE_MODE_INCLUDE,
+    SUB_ATTRIBUTE_MODE_EXCLUDE,
+  ];
+
+  static final $core.List<SubAttributeMode?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 2);
+  static SubAttributeMode? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const SubAttributeMode._(super.value, super.name);
+}
+
 class Collection extends $pb.ProtobufEnum {
   static const Collection COLLECTION_UNSPECIFIED =
       Collection._(0, _omitEnumNames ? '' : 'COLLECTION_UNSPECIFIED');
@@ -179,66 +206,73 @@ class Collection extends $pb.ProtobufEnum {
   const Collection._(super.value, super.name);
 }
 
-/// The soul fields this build can name. A field is added here when it can be evaluated.
-class FieldName extends $pb.ProtobufEnum {
-  static const FieldName FIELD_NAME_UNSPECIFIED =
-      FieldName._(0, _omitEnumNames ? '' : 'FIELD_NAME_UNSPECIFIED');
-  static const FieldName FIELD_NAME_SET =
-      FieldName._(1, _omitEnumNames ? '' : 'FIELD_NAME_SET');
-  static const FieldName FIELD_NAME_SLOT =
-      FieldName._(2, _omitEnumNames ? '' : 'FIELD_NAME_SLOT');
-  static const FieldName FIELD_NAME_STAR =
-      FieldName._(3, _omitEnumNames ? '' : 'FIELD_NAME_STAR');
-  static const FieldName FIELD_NAME_LEVEL =
-      FieldName._(4, _omitEnumNames ? '' : 'FIELD_NAME_LEVEL');
-  static const FieldName FIELD_NAME_MAIN_ATTRIBUTE =
-      FieldName._(5, _omitEnumNames ? '' : 'FIELD_NAME_MAIN_ATTRIBUTE');
-  static const FieldName FIELD_NAME_MAIN_VALUE =
-      FieldName._(6, _omitEnumNames ? '' : 'FIELD_NAME_MAIN_VALUE');
+/// The soul fields that take nothing beside their name. A field is added when it can be evaluated.
+class SimpleField extends $pb.ProtobufEnum {
+  static const SimpleField SIMPLE_FIELD_UNSPECIFIED =
+      SimpleField._(0, _omitEnumNames ? '' : 'SIMPLE_FIELD_UNSPECIFIED');
+  static const SimpleField SIMPLE_FIELD_SET =
+      SimpleField._(1, _omitEnumNames ? '' : 'SIMPLE_FIELD_SET');
+  static const SimpleField SIMPLE_FIELD_SLOT =
+      SimpleField._(2, _omitEnumNames ? '' : 'SIMPLE_FIELD_SLOT');
+  static const SimpleField SIMPLE_FIELD_STAR =
+      SimpleField._(3, _omitEnumNames ? '' : 'SIMPLE_FIELD_STAR');
+  static const SimpleField SIMPLE_FIELD_LEVEL =
+      SimpleField._(4, _omitEnumNames ? '' : 'SIMPLE_FIELD_LEVEL');
+  static const SimpleField SIMPLE_FIELD_MAIN_ATTRIBUTE =
+      SimpleField._(5, _omitEnumNames ? '' : 'SIMPLE_FIELD_MAIN_ATTRIBUTE');
+  static const SimpleField SIMPLE_FIELD_MAIN_VALUE =
+      SimpleField._(6, _omitEnumNames ? '' : 'SIMPLE_FIELD_MAIN_VALUE');
+  static const SimpleField SIMPLE_FIELD_SUB_COUNT =
+      SimpleField._(7, _omitEnumNames ? '' : 'SIMPLE_FIELD_SUB_COUNT');
+  static const SimpleField SIMPLE_FIELD_PRISTINE =
+      SimpleField._(8, _omitEnumNames ? '' : 'SIMPLE_FIELD_PRISTINE');
 
-  /// Takes an attribute.
-  static const FieldName FIELD_NAME_SUB_VALUE =
-      FieldName._(7, _omitEnumNames ? '' : 'FIELD_NAME_SUB_VALUE');
-
-  /// Takes an attribute.
-  static const FieldName FIELD_NAME_HAS_SUB =
-      FieldName._(8, _omitEnumNames ? '' : 'FIELD_NAME_HAS_SUB');
-  static const FieldName FIELD_NAME_SUB_COUNT =
-      FieldName._(9, _omitEnumNames ? '' : 'FIELD_NAME_SUB_COUNT');
-  static const FieldName FIELD_NAME_PRISTINE =
-      FieldName._(10, _omitEnumNames ? '' : 'FIELD_NAME_PRISTINE');
-
-  /// Scores: need `params`; refused with query.field_unavailable until pass 1 exists.
-  static const FieldName FIELD_NAME_QUALITY_TOTAL =
-      FieldName._(11, _omitEnumNames ? '' : 'FIELD_NAME_QUALITY_TOTAL');
-  static const FieldName FIELD_NAME_QUALITY_DEPTH =
-      FieldName._(12, _omitEnumNames ? '' : 'FIELD_NAME_QUALITY_DEPTH');
-  static const FieldName FIELD_NAME_QUALITY_BREADTH =
-      FieldName._(13, _omitEnumNames ? '' : 'FIELD_NAME_QUALITY_BREADTH');
-
-  static const $core.List<FieldName> values = <FieldName>[
-    FIELD_NAME_UNSPECIFIED,
-    FIELD_NAME_SET,
-    FIELD_NAME_SLOT,
-    FIELD_NAME_STAR,
-    FIELD_NAME_LEVEL,
-    FIELD_NAME_MAIN_ATTRIBUTE,
-    FIELD_NAME_MAIN_VALUE,
-    FIELD_NAME_SUB_VALUE,
-    FIELD_NAME_HAS_SUB,
-    FIELD_NAME_SUB_COUNT,
-    FIELD_NAME_PRISTINE,
-    FIELD_NAME_QUALITY_TOTAL,
-    FIELD_NAME_QUALITY_DEPTH,
-    FIELD_NAME_QUALITY_BREADTH,
+  static const $core.List<SimpleField> values = <SimpleField>[
+    SIMPLE_FIELD_UNSPECIFIED,
+    SIMPLE_FIELD_SET,
+    SIMPLE_FIELD_SLOT,
+    SIMPLE_FIELD_STAR,
+    SIMPLE_FIELD_LEVEL,
+    SIMPLE_FIELD_MAIN_ATTRIBUTE,
+    SIMPLE_FIELD_MAIN_VALUE,
+    SIMPLE_FIELD_SUB_COUNT,
+    SIMPLE_FIELD_PRISTINE,
   ];
 
-  static final $core.List<FieldName?> _byValue =
-      $pb.ProtobufEnum.$_initByValueList(values, 13);
-  static FieldName? valueOf($core.int value) =>
+  static final $core.List<SimpleField?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 8);
+  static SimpleField? valueOf($core.int value) =>
       value < 0 || value >= _byValue.length ? null : _byValue[value];
 
-  const FieldName._(super.value, super.name);
+  const SimpleField._(super.value, super.name);
+}
+
+/// The components of a quality score. Need `params`; refused with query.field_unavailable until
+/// pass 1 exists.
+class QualityComponent extends $pb.ProtobufEnum {
+  static const QualityComponent QUALITY_COMPONENT_UNSPECIFIED =
+      QualityComponent._(
+          0, _omitEnumNames ? '' : 'QUALITY_COMPONENT_UNSPECIFIED');
+  static const QualityComponent QUALITY_COMPONENT_TOTAL =
+      QualityComponent._(1, _omitEnumNames ? '' : 'QUALITY_COMPONENT_TOTAL');
+  static const QualityComponent QUALITY_COMPONENT_DEPTH =
+      QualityComponent._(2, _omitEnumNames ? '' : 'QUALITY_COMPONENT_DEPTH');
+  static const QualityComponent QUALITY_COMPONENT_BREADTH =
+      QualityComponent._(3, _omitEnumNames ? '' : 'QUALITY_COMPONENT_BREADTH');
+
+  static const $core.List<QualityComponent> values = <QualityComponent>[
+    QUALITY_COMPONENT_UNSPECIFIED,
+    QUALITY_COMPONENT_TOTAL,
+    QUALITY_COMPONENT_DEPTH,
+    QUALITY_COMPONENT_BREADTH,
+  ];
+
+  static final $core.List<QualityComponent?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 3);
+  static QualityComponent? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const QualityComponent._(super.value, super.name);
 }
 
 class Direction extends $pb.ProtobufEnum {

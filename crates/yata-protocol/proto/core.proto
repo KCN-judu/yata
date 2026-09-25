@@ -113,21 +113,46 @@ enum SubCount {
   SUB_COUNT_FOUR = 4;
 }
 
+// 全部: no restriction on the set. The game's 类型 with nothing chosen means the same, and is
+// written this way only.
+message AnySet {}
+
+// Chosen sets, by suit code. Never empty: "every set" is `AnySet`. At most 256.
+message SuitCodes {
+  repeated uint32 codes = 1;
+}
+
+enum SubAttributeMode {
+  SUB_ATTRIBUTE_MODE_UNSPECIFIED = 0;
+  // ○: the soul has it.
+  SUB_ATTRIBUTE_MODE_INCLUDE = 1;
+  // ✕: the soul does not have it.
+  SUB_ATTRIBUTE_MODE_EXCLUDE = 2;
+}
+
+message SubAttributeChoice {
+  SoulAttribute attribute = 1;
+  SubAttributeMode mode = 2;
+}
+
 // A SoulSelection: each group a set of choices, an empty group no constraint. Each repeated
 // field holds at most 256 values.
 message SoulSelection {
-  // 全部: every set. `suit_codes` is then empty.
-  bool any_set = 1;
-  repeated uint32 suit_codes = 2;
+  reserved 1, 2, 8, 9;
+  reserved "any_set", "suit_codes", "sub_included", "sub_excluded";
+  // 类型: exactly one is set.
+  oneof sets {
+    AnySet all = 11;
+    SuitCodes chosen = 12;
+  }
   repeated SoulSlot slots = 3;
   repeated uint32 stars = 4;
   repeated LevelBand levels = 5;
   repeated SoulAttribute main_attributes = 6;
   // One of the six innate attributes.
   repeated SoulAttribute innate = 7;
-  // ○ and ✕; an attribute is in at most one.
-  repeated SoulAttribute sub_included = 8;
-  repeated SoulAttribute sub_excluded = 9;
+  // 副属性: ○ or ✕ per attribute, each attribute at most once.
+  repeated SubAttributeChoice sub_attributes = 13;
   repeated SubCount sub_counts = 10;
 }
 
@@ -138,50 +163,89 @@ enum Collection {
   COLLECTION_SOULS = 1;
 }
 
-// The soul fields this build can name. A field is added here when it can be evaluated.
-enum FieldName {
-  FIELD_NAME_UNSPECIFIED = 0;
-  FIELD_NAME_SET = 1;
-  FIELD_NAME_SLOT = 2;
-  FIELD_NAME_STAR = 3;
-  FIELD_NAME_LEVEL = 4;
-  FIELD_NAME_MAIN_ATTRIBUTE = 5;
-  FIELD_NAME_MAIN_VALUE = 6;
-  // Takes an attribute.
-  FIELD_NAME_SUB_VALUE = 7;
-  // Takes an attribute.
-  FIELD_NAME_HAS_SUB = 8;
-  FIELD_NAME_SUB_COUNT = 9;
-  FIELD_NAME_PRISTINE = 10;
-  // Scores: need `params`; refused with query.field_unavailable until pass 1 exists.
-  FIELD_NAME_QUALITY_TOTAL = 11;
-  FIELD_NAME_QUALITY_DEPTH = 12;
-  FIELD_NAME_QUALITY_BREADTH = 13;
+// The soul fields that take nothing beside their name. A field is added when it can be evaluated.
+enum SimpleField {
+  SIMPLE_FIELD_UNSPECIFIED = 0;
+  SIMPLE_FIELD_SET = 1;
+  SIMPLE_FIELD_SLOT = 2;
+  SIMPLE_FIELD_STAR = 3;
+  SIMPLE_FIELD_LEVEL = 4;
+  SIMPLE_FIELD_MAIN_ATTRIBUTE = 5;
+  SIMPLE_FIELD_MAIN_VALUE = 6;
+  SIMPLE_FIELD_SUB_COUNT = 7;
+  SIMPLE_FIELD_PRISTINE = 8;
 }
 
+// The components of a quality score. Need `params`; refused with query.field_unavailable until
+// pass 1 exists.
+enum QualityComponent {
+  QUALITY_COMPONENT_UNSPECIFIED = 0;
+  QUALITY_COMPONENT_TOTAL = 1;
+  QUALITY_COMPONENT_DEPTH = 2;
+  QUALITY_COMPONENT_BREADTH = 3;
+}
+
+// A field of a soul row: exactly one is set, and a field that takes an attribute carries it.
 message Field {
-  FieldName name = 1;
-  // For SUB_VALUE and HAS_SUB; unspecified for every other field.
-  SoulAttribute attribute = 2;
+  reserved 1, 2;
+  reserved "name", "attribute";
+  oneof field {
+    SimpleField simple = 3;
+    SoulAttribute sub_value = 4;
+    SoulAttribute has_sub = 5;
+    QualityComponent quality = 6;
+  }
 }
 
-// The values of an `In`, in the one list that fits the field's type. At most 256.
+message Slots {
+  repeated SoulSlot values = 1;
+}
+
+message Attributes {
+  repeated SoulAttribute values = 1;
+}
+
+// The values of an `In`: one list, of the field's type. At most 256; never empty.
 message InTest {
-  repeated uint32 suit_codes = 1;
-  repeated SoulSlot slots = 2;
-  repeated SoulAttribute attributes = 3;
+  reserved 1, 2, 3;
+  reserved "suit_codes", "slots", "attributes";
+  oneof values {
+    SuitCodes set_values = 4;
+    Slots slot_values = 5;
+    Attributes attribute_values = 6;
+  }
 }
 
-// Both bounds inclusive; at least one present.
+message IntBetween {
+  int64 min = 1;
+  int64 max = 2;
+}
+
+// Inclusive bounds: exactly one is set; `between` with `min` above `max` is query.malformed.
 message IntRange {
-  optional int64 min = 1;
-  optional int64 max = 2;
+  reserved 1, 2;
+  reserved "min", "max";
+  oneof bound {
+    int64 at_least = 3;
+    int64 at_most = 4;
+    IntBetween between = 5;
+  }
 }
 
-// Both bounds inclusive and finite; at least one present.
+message NumberBetween {
+  double min = 1;
+  double max = 2;
+}
+
+// As `IntRange`, over finite numbers.
 message NumberRange {
-  optional double min = 1;
-  optional double max = 2;
+  reserved 1, 2;
+  reserved "min", "max";
+  oneof bound {
+    double at_least = 3;
+    double at_most = 4;
+    NumberBetween between = 5;
+  }
 }
 
 message Predicate {
@@ -238,8 +302,8 @@ message ParamSetRef {
 message PageRequest {
   // Absent: the daemon's default. 1 to 10 000.
   optional uint32 row_budget = 1;
-  // Absent or empty: the first page. Otherwise a cursor this query returned, unmodified.
-  bytes cursor = 2;
+  // Absent: the first page. Otherwise a cursor this query returned, unmodified.
+  optional bytes cursor = 2;
 }
 
 message Query {
@@ -264,21 +328,35 @@ enum OpenRule {
   OPEN_RULE_UNKNOWN_CONDITIONS = 2;
 }
 
+// The row is in the game's selection however the open rules are settled (ADR-0026).
+message ExactVerdict {}
+
+// The row is open, and rests on these rules: at least one, each once.
+message OpenVerdict {
+  repeated OpenRule rules = 1;
+}
+
 message QueryRow {
+  reserved 2;
+  reserved "open_rules";
   string soul_id = 1;
-  // Empty: the game's answer is exact. Otherwise the row is open and rests on these rules
-  // (ADR-0026).
-  repeated OpenRule open_rules = 2;
+  // Exactly one is set.
+  oneof verdict {
+    ExactVerdict exact = 4;
+    OpenVerdict open = 5;
+  }
   // The session only: the row's values, so the application shows what the daemon holds without a
   // second request. The headless endpoint leaves it absent; its caller supplied the souls.
   Soul soul = 3;
 }
 
 message QueryPage {
+  reserved 2, 3;
+  reserved "has_more", "cursor";
   repeated QueryRow rows = 1;
-  bool has_more = 2;
-  // Empty when `has_more` is false. Opaque: sent back unmodified, never parsed.
-  bytes cursor = 3;
+  // Present when more rows follow: the cursor of the next page. Opaque: sent back unmodified,
+  // never parsed.
+  optional bytes next_cursor = 6;
   // The revision the page is valid at; zero from the headless endpoint, which has no projection.
   uint64 revision = 4;
   // Every row the query keeps, exact or open, across all pages.
@@ -297,8 +375,15 @@ message EvaluateQuery {
   Query query = 4;
 }
 
+// A request frame that is not an `EvaluateQuery`, so no id can be answered.
+message Undecodable {}
+
 message EvaluateQueryResult {
-  uint64 id = 1;
+  // The request answered: its id, or that it did not decode.
+  oneof subject {
+    uint64 id = 1;
+    Undecodable undecodable = 4;
+  }
   oneof outcome {
     QueryPage page = 2;
     Error error = 3;

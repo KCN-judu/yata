@@ -31,7 +31,7 @@ class FakeDaemonClient implements DaemonClient {
   /// Answers; by default the recorded session's.
   Future<pb.ProfileList> Function() onListProfiles = () async => recordedProfiles();
   Future<pb.QueryPage> Function(pb.Query) onQuery = (q) async =>
-      q.page.cursor.isEmpty ? recordedFirstPage() : recordedSecondPage();
+      q.page.hasCursor() ? recordedSecondPage() : recordedFirstPage();
   Future<pb.SchemeCodeDecoded> Function(pb.DecodeSchemeCode) onDecode = (_) async =>
       recordedScheme();
 
