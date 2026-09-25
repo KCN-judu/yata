@@ -140,25 +140,6 @@ The same outcomes are asserted on the shared fixture files in
 `tests/frame_fixtures.rs` for the Rust codec and by
 `app/test/daemon/frame_codec_test.dart` for its Dart mirror.
 
-## Probe schema — `yata-protocol`
-
-| Claim                                                                                                                 | Test in `tests` (crate root)                                                                                                          |
-| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| a probe message survives encoding, framing, and decoding unchanged                                                    | `a_probe_message_survives_a_frame`                                                                                                    |
-| an unrecorded roll count is distinct from zero rolls on the wire                                                      | `an_absent_roll_count_differs_from_zero_rolls`                                                                                        |
-| every stated code parses, round-trips, and has a distinct dotted name; only session codes end a reader, never cleanly | `failure::tests::every_stated_code_parses_round_trips_and_has_a_distinct_name`, `only_session_codes_end_the_reader_and_never_cleanly` |
-| a failure round-trips through the wire; shapes the schema rules out are refused                                       | `failure::tests::a_failure_round_trips_through_the_wire`, `shapes_the_schema_rules_out_are_refused`                                   |
-
-| Claim of the retired probe protocol                                                        | Test                                                                                                                    |
-| ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| an export survives its JSON text; the text is the proto3 JSON mapping                      | `export::tests::an_export_survives_its_json_text`, `the_text_follows_the_proto3_json_mapping`                           |
-| an unset field stays unset through the file                                                | `export::tests::an_unset_field_stays_unset`                                                                             |
-| a future major version is unsupported, not malformed; a missing version is refused         | `export::tests::a_future_major_version_is_unsupported_not_malformed`, `a_missing_version_is_refused`                    |
-| a newer minor version is read without its new fields                                       | `export::tests::a_newer_minor_version_is_read_without_its_new_fields`                                                   |
-| a byte-order mark and Windows line ends are not content; oversized and non-JSON is refused | `export::tests::a_byte_order_mark_and_windows_line_ends_are_not_content`, `an_oversized_file_is_refused_before_parsing` |
-| a value of the wrong kind is malformed; text that is not a JSON object is not an export    | `export::tests::a_wrong_value_kind_is_malformed`, `non_json_and_non_objects_are_not_exports`                            |
-| zero is never a request id; ids only grow; exactly one answer; progress only before it     | `discipline::tests`                                                                                                     |
-
 ## Core protocol session — `yata-daemon`
 
 Integration tests in `crates/yata-daemon/tests/core_session.rs`, driving the

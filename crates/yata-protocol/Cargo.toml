@@ -1,6 +1,6 @@
 [package]
 name = "yata-protocol"
-description = "Yata's wire: the frame codec and the protocol message types, shared with yata-reader"
+description = "Yata's wire and file schemas: the frame codec, the core protocol, and the yata-snapshot format"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

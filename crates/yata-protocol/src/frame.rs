@@ -1,10 +1,9 @@
 //! The frame codec: a 4-byte big-endian length prefix, then exactly that many payload bytes.
 //!
 //! A prefix is checked before anything is allocated for it: zero and anything above
-//! [`MAX_FRAME_LEN`] are protocol errors, never allocation requests. A recording is a sequence
-//! of frames with nothing around it, so the same decoder reads a live pipe and a fixture, and a
-//! recording cut short is reported as truncated rather than as a clean end
-//! (`probe-protocol.md`, § Recording format).
+//! [`MAX_FRAME_LEN`] are protocol errors, never allocation requests. A stream of frames has
+//! nothing around them, so the same decoder reads the live channel and a fixture, and a stream
+//! cut short is reported as truncated rather than as a clean end (`core-protocol.md`, § Frame).
 
 /// The largest payload a frame may carry: 16 MiB.
 pub const MAX_FRAME_LEN: u32 = 1 << 24;

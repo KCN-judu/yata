@@ -42,8 +42,8 @@ VERSION = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
 
 STORE_SOURCE = "crates/yata-daemon/src/store/mod.rs"
 STORE_VERSION = re.compile(r"pub const STORE_FORMAT_VERSION: u32 = (\d+);")
-PROTOCOL_SOURCE = "crates/yata-protocol/src/lib.rs"
-PROTOCOL_VERSION = re.compile(r"ProtocolVersion \{ major: (\d+), minor: (\d+) \}")
+SNAPSHOT_SOURCE = "crates/yata-protocol/src/lib.rs"
+SNAPSHOT_VERSION = re.compile(r"SchemaVersion \{ major: (\d+), minor: (\d+) \}")
 
 
 class ReleaseError(Exception):
@@ -96,13 +96,13 @@ def _search(path: str, pattern: re.Pattern[str]) -> re.Match[str]:
 
 
 def metadata() -> dict[str, Any]:
-    """Version metadata from the sources: the workspace version, store format, probe protocol."""
+    """Version metadata from the sources: the workspace version, store format, snapshot schema."""
     workspace = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
-    protocol = _search(PROTOCOL_SOURCE, PROTOCOL_VERSION)
+    snapshot = _search(SNAPSHOT_SOURCE, SNAPSHOT_VERSION)
     return {
         "version": str(workspace["package"]["version"]),
         "store_format_version": int(_search(STORE_SOURCE, STORE_VERSION).group(1)),
-        "probe_protocol_version": f"{protocol.group(1)}.{protocol.group(2)}",
+        "snapshot_schema_version": f"{snapshot.group(1)}.{snapshot.group(2)}",
     }
 
 
@@ -219,7 +219,7 @@ def selftest() -> int:
     work.mkdir(parents=True)
     fixture = work / "fixture.bin"
     fixture.write_bytes(bytes(range(256)) * 4)
-    meta = {"version": "1.2.3", "store_format_version": 1, "probe_protocol_version": "1.0"}
+    meta = {"version": "1.2.3", "store_format_version": 1, "snapshot_schema_version": "1.0"}
     failures: list[str] = []
 
     def expect(ok: bool, what: str) -> None:

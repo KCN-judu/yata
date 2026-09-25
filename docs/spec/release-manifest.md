@@ -38,16 +38,16 @@ of ADR-0011 are not built yet.
 
 ## Manifest
 
-| Field                    | Value                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------ |
-| `manifest_format`        | `0`, the draft                                                                 |
-| `product`                | `"yata"`                                                                       |
-| `version`                | as in the package name                                                         |
-| `platform`               | as in the package name                                                         |
-| `commit`                 | the source commit, with `-dirty` when tracked files differed from it           |
-| `store_format_version`   | `STORE_FORMAT_VERSION` of `yata-daemon`, the store format this build writes    |
-| `probe_protocol_version` | `probe::VERSION` of `yata-protocol`, as `"major.minor"`                        |
-| `files`                  | every program file: `path`, `size` in bytes, `sha256` in lowercase hexadecimal |
+| Field                     | Value                                                                                                  |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `manifest_format`         | `0`, the draft                                                                                         |
+| `product`                 | `"yata"`                                                                                               |
+| `version`                 | as in the package name                                                                                 |
+| `platform`                | as in the package name                                                                                 |
+| `commit`                  | the source commit, with `-dirty` when tracked files differed from it                                   |
+| `store_format_version`    | `STORE_FORMAT_VERSION` of `yata-daemon`, the store format this build writes                            |
+| `snapshot_schema_version` | `snapshot::VERSION` of `yata-protocol`, as `"major.minor"`: the yata-snapshot schema this build writes |
+| `files`                   | every program file: `path`, `size` in bytes, `sha256` in lowercase hexadecimal                         |
 
 The canonical form, which is what is hashed and what will be signed, is the JSON
 object with keys sorted, no whitespace, and ASCII only. `files` is sorted by
