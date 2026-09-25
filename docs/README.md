@@ -38,9 +38,6 @@ Current truth about what the system means. Edited in place.
 - [spec/snapshot-ir.md](spec/snapshot-ir.md) — the snapshot IR: independent
   sections, completeness, provenance, admission, capabilities, and Yata's own
   snapshot file
-- [spec/probe-protocol.md](spec/probe-protocol.md) — the retired reader wire:
-  the reading records, export file, and recording format that data reception
-  still reads
 - [spec/protocol-versions.md](spec/protocol-versions.md) — append-only ledger of
   assigned wire versions and retired error codes
 - [spec/scheme-code.md](spec/scheme-code.md) — the SchemeCode / SoulSelection
@@ -153,6 +150,9 @@ rewrite.
 - [decisions/0031-snapshot-ir.md](decisions/0031-snapshot-ir.md) — imports end
   at a Yata-owned IR of independent sections; capabilities are derived; Yata's
   own snapshot format is accepted; the equipment relation is never imported
+- [decisions/0032-typed-facts-and-section-imports.md](decisions/0032-typed-facts-and-section-imports.md)
+  — facts are a typed `oneof` in store format 2, format 1 is refused; an import
+  is recorded by its sections and folded per section
 
 ## Proposals — `proposals/`
 
@@ -171,7 +171,7 @@ Design questions under active consideration. Close with `accepted` (→ ADR) or
   waiting on the suit codes of imported souls
 - [proposals/0006-typed-fact-payloads.md](proposals/0006-typed-fact-payloads.md)
   — a fact's payload typed by its envelope, and facts about the store without a
-  profile; **draft**
+  profile; **accepted** as ADR-0032
 - [proposals/0007-equipped-by.md](proposals/0007-equipped-by.md) — which
   Shikigami wears a soul, as a type; **withdrawn**: the equipment relation is
   never imported (ADR-0031)
@@ -236,6 +236,8 @@ Current state. Edited in place.
 What changed for someone. Append-only; one fragment per change.
 
 - `changes/unreleased/` — fragments not yet tied to a release
+- [changes/unreleased/2026-09-fact-sections.md](changes/unreleased/2026-09-fact-sections.md)
+  — facts are typed in store format 2; an import is recorded by its sections
 - [changes/unreleased/2026-09-scheme-transport-and-qr.md](changes/unreleased/2026-09-scheme-transport-and-qr.md)
   — scheme codes decoded, compared, listed, built for an account, and made into
   QR codes
