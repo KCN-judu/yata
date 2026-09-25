@@ -72,6 +72,9 @@ comment.
 - Wire schemas follow the same rules: `oneof` for alternatives, closed enums for
   codes with the unspecified value refused, explicit presence where absence has
   meaning.
+- Proposals and specs describe every data shape, state, error, and function they
+  introduce as a type or signature, from the proposal stage on. Prose explains
+  the types. A shape left undecided is listed as an open question.
 
 ## Code
 
