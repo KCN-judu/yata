@@ -143,9 +143,9 @@ pub fn matches(selection: &SoulSelection, soul: &Soul) -> Verdict {
 ///
 /// Observed with boss and ordinary souls chosen together in 类型: ordinary souls all pass, and a
 /// boss soul passes exactly when its innate attribute is chosen. The editor enables the group
-/// only once a boss soul is chosen, so a boss soul whose set is not itself chosen (`AnySet`, or no
-/// set) is not observed; it is open unless its innate attribute is chosen, when either reading
-/// picks it (ADR-0029, rule 3).
+/// only once a boss soul is chosen, so a boss soul whose set is not itself chosen (`AnySet`, which
+/// is also a 类型 with nothing chosen) is not observed; it is open unless its innate attribute is
+/// chosen, when either reading picks it (ADR-0029, rule 3).
 fn innate(s: &SoulSelection, soul: &Soul) -> GroupOutcome {
     if s.innate.is_empty() {
         return GroupOutcome::Picks;

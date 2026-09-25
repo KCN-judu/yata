@@ -51,10 +51,10 @@ boss soul has failed to read it.
 3. **The 固有属性 group matches on the kind.** With something chosen: an
    ordinary soul passes; a boss soul passes when its innate attribute is chosen;
    a boss soul whose own set is chosen and whose innate attribute is not fails;
-   a boss soul whose own set is not chosen (`AnySet`, which is also no set
-   chosen) and whose innate attribute is not chosen stays
-   `Undetermined(Innate)`, because the game's reading of that case is not
-   observed. `OpenRule::Innate` means that case and nothing else.
+   a boss soul whose own set is not chosen (`AnySet`, or no set chosen) and
+   whose innate attribute is not chosen stays `Undetermined(Innate)`, because
+   the game's reading of that case is not observed. `OpenRule::Innate` means
+   that case and nothing else.
 4. **The core wire carries the kind as a oneof of messages.**
    `Soul.kind = oneof { OrdinarySoul ordinary; BossSoul boss }`, with
    `OrdinarySoul {}` empty and `BossSoul { SoulAttribute innate }`. A soul with
