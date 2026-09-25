@@ -1,0 +1,111 @@
+{
+  "format": "mumu-snapshot-v1",
+  "completeness": "complete",
+  "capturedAt": "2026-09-25T00:00:00Z",
+  "scope": {
+    "souls": true,
+    "heroes": true,
+    "items": true,
+    "realmCards": true,
+    "guild": true,
+    "taskRecords": false
+  },
+  "hero_equips": [
+    {
+      "id": "000000000000000000000001",
+      "setId": "破势",
+      "slot": 1,
+      "quality": 6,
+      "level": 15,
+      "mainAttrType": "attack_flat",
+      "mainAttrValue": 486.0,
+      "subAttributes": [
+        { "type": "crit_rate", "value": 0.027, "enhancementCount": 2 },
+        { "type": "speed", "value": 8.5, "enhancementCount": 2 },
+        { "type": "attack_rate", "value": 0.03, "enhancementCount": 0 },
+        { "type": "crit_damage", "value": 0.04, "enhancementCount": 1 }
+      ],
+      "initialSubstatCount": null,
+      "equippedState": null
+    },
+    {
+      "id": "000000000000000000000002",
+      "setId": "荒骷髅",
+      "slot": 2,
+      "quality": 6,
+      "level": 15,
+      "mainAttrType": "speed",
+      "mainAttrValue": 57.0,
+      "subAttributes": [
+        { "type": "crit_rate", "value": 0.054, "enhancementCount": 3 },
+        { "type": "hp_rate", "value": 0.03, "enhancementCount": 0 },
+        { "type": "effect_hit", "value": 0.04, "enhancementCount": 1 },
+        { "type": "defense_flat", "value": 5.0, "enhancementCount": 1 },
+        {
+          "type": "effect_resist",
+          "value": 0.08,
+          "enhancementCount": null,
+          "fixedAttribute": true
+        }
+      ],
+      "initialSubstatCount": null,
+      "equippedState": null
+    },
+    {
+      "id": "000000000000000000000003",
+      "setId": "涂佛",
+      "slot": 3,
+      "quality": 6,
+      "level": 0,
+      "mainAttrType": "defense_flat",
+      "mainAttrValue": 20.8,
+      "subAttributes": [
+        { "type": "speed", "value": 2.7, "enhancementCount": 0 },
+        { "type": "attack_flat", "value": 25.0, "enhancementCount": 0 }
+      ],
+      "initialSubstatCount": null,
+      "equippedState": null
+    }
+  ],
+  "equipPresets": [
+    [
+      "测试",
+      [
+        "000000000000000000000001",
+        "000000000000000000000002",
+        "000000000000000000000003",
+        null,
+        null,
+        null
+      ]
+    ]
+  ],
+  "heroes": {
+    "0000000000000000000000a1": {
+      "heroId": "301",
+      "level": 40,
+      "star": 6,
+      "awake": 1,
+      "lock": true,
+      "skinfo": [],
+      "attrs": []
+    },
+    "0000000000000000000000a2": {
+      "heroId": "217",
+      "level": 1,
+      "star": 2,
+      "awake": 0,
+      "lock": false,
+      "skinfo": [],
+      "attrs": []
+    }
+  },
+  "currency": { "jade": 100, "coin": 5000, "action_point": 30 },
+  "realmCards": [["0000000000000000000000c1", 200001, 4, [800, 0]]],
+  "guild": {
+    "level": 5,
+    "activeMemberCount": 2,
+    "members": [["ignored"], ["ignored"]]
+  },
+  "somethingElse": { "not": "read" }
+}

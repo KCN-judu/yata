@@ -11,7 +11,9 @@
 //! [`read`] is pure over the bytes. [`read_path`] reads a file, and [`format_check`] writes the
 //! developer report of `yata-daemon import check`.
 
+pub mod codec;
 mod mumu_snapshot_v1;
+mod yata_snapshot;
 
 use std::collections::BTreeMap;
 
@@ -20,8 +22,11 @@ use sha2::{Digest as _, Sha256};
 use yata_core::fact::Digest;
 use yata_core::import::admit::{AdmittedSnapshot, admit};
 use yata_core::import::ir::{
-    Completeness, FormatTag, IrError, Section, SectionKind, YataSnapshot, check, limits,
+    Completeness, FormatTag, IrError, SchemaVersion, Section, SectionKind, YataSnapshot, check,
+    limits,
 };
+
+use codec::SnapshotDecodeError;
 
 /// The JSON kind a field must have.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,8 +64,14 @@ pub enum ImportError {
         stated: Option<String>,
     },
     AmbiguousFormat {
-        formats: Vec<FormatTag>,
+        formats: Vec<Format>,
     },
+    /// A yata-snapshot of a major version this build does not read.
+    UnsupportedVersion {
+        found: SchemaVersion,
+    },
+    /// A yata-snapshot whose schema value is not a snapshot.
+    Decode(SnapshotDecodeError),
     /// A file-level field of a recognised format is missing or of the wrong kind.
     Shape {
         field: &'static str,
@@ -106,16 +117,32 @@ pub struct Normalized {
     pub left_out: Vec<SourceDefect>,
 }
 
+/// The formats a file can be: Yata's own, or a community format (`spec/import-format.md`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    YataSnapshot,
+    Community(FormatTag),
+}
+
+impl Format {
+    fn all() -> Vec<Format> {
+        std::iter::once(Format::YataSnapshot)
+            .chain(FormatTag::ALL.into_iter().map(Format::Community))
+            .collect()
+    }
+}
+
 /// Whether a format recognises a header. Each rule reads the top-level object only.
-fn recognises(format: FormatTag, header: &Map<String, Value>) -> bool {
+fn recognises(format: Format, header: &Map<String, Value>) -> bool {
     match format {
-        FormatTag::MumuSnapshotV1 => mumu_snapshot_v1::recognises(header),
+        Format::YataSnapshot => yata_snapshot::recognises(header),
+        Format::Community(FormatTag::MumuSnapshotV1) => mumu_snapshot_v1::recognises(header),
     }
 }
 
 /// The one format that recognises the header, or why there is not exactly one.
-pub fn detect(header: &Map<String, Value>) -> Result<FormatTag, ImportError> {
-    let matching: Vec<FormatTag> = FormatTag::ALL
+pub fn detect(header: &Map<String, Value>) -> Result<Format, ImportError> {
+    let matching: Vec<Format> = Format::all()
         .into_iter()
         .filter(|&f| recognises(f, header))
         .collect();
@@ -151,8 +178,12 @@ pub fn read(bytes: &[u8]) -> Result<Normalized, ImportError> {
             reason: "the top level is not an object".to_owned(),
         });
     };
+    let original = digest_of(bytes);
     let normalized = match detect(&top)? {
-        FormatTag::MumuSnapshotV1 => mumu_snapshot_v1::normalize(&top, digest_of(bytes))?,
+        Format::YataSnapshot => yata_snapshot::normalize(top, original)?,
+        Format::Community(FormatTag::MumuSnapshotV1) => {
+            mumu_snapshot_v1::normalize(&top, original)?
+        }
     };
     check(&normalized.snapshot).map_err(ImportError::Ir)?;
     Ok(normalized)
@@ -167,6 +198,11 @@ pub(crate) fn partial_if<T>(section: Section<T>, lost: bool) -> Section<T> {
         },
         s => s,
     }
+}
+
+/// A normalized snapshot as a yata-snapshot file's text (ADR-0031, rule 4).
+pub fn export_json(n: &Normalized) -> Result<String, yata_protocol::snapshot_file::Unwritable> {
+    yata_protocol::snapshot_file::to_json(&codec::to_proto(&n.snapshot))
 }
 
 /// Why a file on disk could not be imported.

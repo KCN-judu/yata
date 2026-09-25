@@ -388,15 +388,31 @@ Test data is the recorded session, so no test builds a soul by hand.
 | a domain rule refuses at admission, not at parsing; a record left out makes its section partial                                    | `import::tests::the_domain_refuses_at_admission_not_at_parsing`, `a_record_left_out_makes_its_section_partial`                                                                                                   |
 | an unknown format, a non-object, non-JSON, an incomplete file, a missing scope, a broken reference, a duplicate id refuse the file | `import::tests::only_a_known_header_and_a_complete_file_are_read`, `a_preset_naming_a_missing_soul_refuses_the_file`, `two_souls_with_one_id_refuse_the_file`                                                    |
 
+| the yata-snapshot file: its JSON form, the version read first, a newer minor's
+unknown parts skipped | `yata-protocol` `snapshot_file::tests` | | a community
+fixture normalizes to the committed IR fixture, which imports to the same
+sections and admits to domain values | `tests/import_fixtures.rs`:
+`the_community_fixture_normalizes_to_the_committed_ir`,
+`the_committed_ir_imports_to_the_same_sections`,
+`the_committed_ir_admits_to_domain_values` | | the stored form round-trips byte
+for byte; bytes that are not a snapshot are refused; a newer major is refused |
+`tests/import_fixtures.rs`: `the_stored_form_round_trips_byte_for_byte`,
+`a_stored_form_that_is_not_a_snapshot_is_refused`,
+`a_yata_snapshot_of_a_newer_major_is_refused` | | an unknown enum value leaves
+its record out and its section partial; a left-out soul a preset names refuses
+the file | `tests/import_fixtures.rs`:
+`a_yata_record_this_build_cannot_read_is_left_out_and_its_section_partial`,
+`a_yata_soul_left_out_that_a_preset_names_refuses_the_file` |
+
 The tests use synthetic files. The maintainer's sample stays local; through the
 IR, `import check` finds every section complete, every record admitted, and no
-soul illegal (2026-09-25).
+soul illegal, and its export to a yata-snapshot file imports back to the same
+(2026-09-25).
 
 ## Not covered
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
 implemented.
 
-Storing a snapshot in the fact log, Yata's own snapshot file, and capabilities
-over a profile's folded sections are not implemented (ADR-0031), so nothing
-tests them.
+Storing a snapshot in the fact log, and capabilities over a profile's folded
+sections, are not implemented (ADR-0031), so nothing tests them.

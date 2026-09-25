@@ -67,7 +67,7 @@ naming its trigger and editing this table.
 | Crate           | Class     | Owns                                                                                                                                                                       | Trigger                                         |
 | --------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | `yata-core`     | pure      | domain vocabulary; decode rules from probe records to domain values; scheme-code model, payload codec, and `matches`; the projection fold; query evaluation; scoring       | root                                            |
-| `yata-protocol` | pure      | the frame codec; Rust types generated from the core and probe schemas                                                                                                      | 3 — its reader-side consumer is gone (ADR-0030) |
+| `yata-protocol` | pure      | the frame codec; Rust types generated from the core, probe, and snapshot schemas; the yata-snapshot file                                                                   | 3 — its reader-side consumer is gone (ADR-0030) |
 | `yata-store`    | pure      | the store's instruction set; the SQLite schema; translation of instructions into SQL and of result rows into typed values                                                  | 5 — language boundary (ADR-0019)                |
 | `yata-daemon`   | effectful | the binary; the protocol session; domain ↔ message conversion; the store (fact schema, fact codec and lifting, the SQLite executor); file import; QR reading and rendering | 1 — the effectful shell                         |
 
@@ -174,7 +174,7 @@ research** (ADR-0030).
 
 | #   | Path                                   | Format                                                 | Lives in                             | Verifiable                |
 | --- | -------------------------------------- | ------------------------------------------------------ | ------------------------------------ | ------------------------- |
-| 1   | imported file → core                   | a community snapshot format, recognized by its header  | `../spec/import-format.md`, PRP-0008 | `cargo test`              |
+| 1   | imported file → core                   | a community format or yata-snapshot, by its header     | `../spec/import-format.md`, ADR-0031 | `cargo test`              |
 | 2   | core → blob store (raw snapshot bytes) | content-addressed by SHA-256                           | `yata-daemon`, store module          | `cargo test`              |
 | 3   | core → fact log (durable state)        | versioned tagged records, append-only                  | `../spec/fact-format.md`             | `cargo test`              |
 | 4   | fact log → projection (in memory)      | pure fold, no wire format                              | `yata-core`                          | `cargo test`              |
@@ -183,9 +183,10 @@ research** (ADR-0030).
 | 7   | recording file → core                  | a reader session's frame stream, kept as a fixture     | `../spec/probe-protocol.md`          | `cargo test`              |
 | 8   | probe export file → core               | proto3 JSON of a `ProbeExport`                         | `../spec/probe-protocol.md`          | `cargo test`              |
 
-Path 1 is not implemented yet (PRP-0008). Paths 7 and 8 are what remains of the
-reader's wire. PRP-0008 decides whether they survive the community-format
-import.
+Path 1 ends at the snapshot IR (`../spec/snapshot-ir.md`): every format module
+normalizes into it, and the IR's canonical binary encoding is the blob a fact
+names. Paths 7 and 8 are what remains of the reader's wire; ADR-0031 deletes
+them.
 
 Two rules keep this list from growing, which is its own kind of design:
 

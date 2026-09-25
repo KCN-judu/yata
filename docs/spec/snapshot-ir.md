@@ -241,8 +241,12 @@ fields in tag order and no map fields, so one snapshot has one encoding.
 - **Versions.** The version is read before the body. A higher major is
   `UnsupportedVersion`. The same major with any minor is read: an unknown field
   or section is skipped, so an unknown section reads as absent, which is what
-  this build can use. An unknown enum name reads as the unspecified value, which
-  admission refuses; it is never reinterpreted.
+  this build can use. An unknown enum value is never reinterpreted: in a record,
+  the record is left out and its section becomes partial; in the header, the
+  provenance, or a completeness, the file is refused.
+- **Provenance on import.** Importing a yata-snapshot file records that file as
+  the provenance: its format and its digest. The provenance written inside it,
+  from an earlier import, is replaced. A stored snapshot keeps its own.
 - **Equivalence.** Two snapshots are equivalent when their Rust values are
   equal. `YataSnapshot → encode → decode` gives an equivalent snapshot, and the
   binary encoding of equivalent snapshots is byte-identical.

@@ -1,0 +1,193 @@
+{
+  "yataSnapshot": {
+    "major": 1
+  },
+  "provenance": {
+    "original": "6NfWV2NjbPt2gGGlhClLYB4VFic89a4y7YDjWWOjlM4=",
+    "community": "FORMAT_TAG_MUMU_SNAPSHOT_V1"
+  },
+  "capturedAt": "2026-09-25T00:00:00Z",
+  "souls": {
+    "completeness": "COMPLETENESS_COMPLETE",
+    "souls": [
+      {
+        "id": "000000000000000000000001",
+        "set": "破势",
+        "slot": "1",
+        "star": "6",
+        "level": "15",
+        "main": {
+          "attribute": "ATTRIBUTE_ATK_FLAT",
+          "value": 486.0
+        },
+        "rolled": [
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_CRIT",
+              "value": 2.7
+            },
+            "rolls": "2"
+          },
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_SPD",
+              "value": 8.5
+            },
+            "rolls": "2"
+          },
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_ATK_PERCENT",
+              "value": 3.0
+            },
+            "rolls": "0"
+          },
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_CRIT_DMG",
+              "value": 4.0
+            },
+            "rolls": "1"
+          }
+        ]
+      },
+      {
+        "id": "000000000000000000000002",
+        "set": "荒骷髅",
+        "slot": "2",
+        "star": "6",
+        "level": "15",
+        "main": {
+          "attribute": "ATTRIBUTE_SPD",
+          "value": 57.0
+        },
+        "rolled": [
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_CRIT",
+              "value": 5.4
+            },
+            "rolls": "3"
+          },
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_HP_PERCENT",
+              "value": 3.0
+            },
+            "rolls": "0"
+          },
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_EFFECT_HIT",
+              "value": 4.0
+            },
+            "rolls": "1"
+          },
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_DEF_FLAT",
+              "value": 5.0
+            },
+            "rolls": "1"
+          }
+        ],
+        "innate": "ATTRIBUTE_EFFECT_RES"
+      },
+      {
+        "id": "000000000000000000000003",
+        "set": "涂佛",
+        "slot": "3",
+        "star": "6",
+        "main": {
+          "attribute": "ATTRIBUTE_DEF_FLAT",
+          "value": 20.8
+        },
+        "rolled": [
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_SPD",
+              "value": 2.7
+            },
+            "rolls": "0"
+          },
+          {
+            "valued": {
+              "attribute": "ATTRIBUTE_ATK_FLAT",
+              "value": 25.0
+            },
+            "rolls": "0"
+          }
+        ]
+      }
+    ]
+  },
+  "shikigami": {
+    "completeness": "COMPLETENESS_COMPLETE",
+    "instances": [
+      {
+        "id": "0000000000000000000000a1",
+        "species": 301,
+        "level": "40",
+        "star": "6",
+        "evolved": true,
+        "locked": true
+      },
+      {
+        "id": "0000000000000000000000a2",
+        "species": 217,
+        "level": "1",
+        "star": "2"
+      }
+    ]
+  },
+  "presets": {
+    "completeness": "COMPLETENESS_COMPLETE",
+    "presets": [
+      {
+        "label": "测试",
+        "positions": [
+          {
+            "soul": "000000000000000000000001"
+          },
+          {
+            "soul": "000000000000000000000002"
+          },
+          {
+            "soul": "000000000000000000000003"
+          },
+          {},
+          {},
+          {}
+        ]
+      }
+    ]
+  },
+  "assets": {
+    "completeness": "COMPLETENESS_COMPLETE",
+    "currencies": [
+      {
+        "currency": "CURRENCY_ACTION_POINT",
+        "amount": "30"
+      },
+      {
+        "currency": "CURRENCY_COIN",
+        "amount": "5000"
+      },
+      {
+        "currency": "CURRENCY_JADE",
+        "amount": "100"
+      }
+    ],
+    "realmCards": [
+      {
+        "id": "0000000000000000000000c1",
+        "kind": 200001
+      }
+    ]
+  },
+  "guild": {
+    "completeness": "COMPLETENESS_COMPLETE",
+    "level": 5,
+    "memberCount": 2
+  }
+}

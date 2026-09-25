@@ -78,6 +78,20 @@ id, which is a separate field and moves independently. Both are recorded with
 every capture, so a fixture that fails to replay answers _did the wire change,
 or did the probe?_ from the pair rather than by bisecting commits.
 
+## Snapshot schema — `yata-snapshot`
+
+The IR's schema (ADR-0031). Schema: `docs/spec/snapshot-ir.md`. Schema file:
+`crates/yata-protocol/proto/snapshot.proto`. Its version moves only when the
+IR's meaning moves, never with scoring parameters.
+
+| Version | Status  | Date       | What it introduced                                                                                                               | Refused below |
+| ------- | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| 1.0     | current | 2026-09-25 | the header, provenance, and five sections — souls, Shikigami, game presets, assets, guild — each absent or with its completeness | —             |
+
+**Compatibility rule.** Same as the core channel: the same major is read, any
+minor; a higher major is refused. A newer minor's unknown field or section is
+skipped, and an unknown enum value is never reinterpreted (`snapshot-ir.md`).
+
 ## Version pairs in recordings
 
 A recording carries the protocol version of the frames it contains. It does

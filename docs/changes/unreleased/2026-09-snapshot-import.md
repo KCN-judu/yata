@@ -17,6 +17,9 @@
 - Admission turns the IR into domain values and names each record it refuses.
   Every sub-attribute's strengthening count is required, a file must say it is
   complete, and a boss soul keeps its innate attribute without its value.
+- Yata's own format, `yata-snapshot`, is read and written:
+  `yata-daemon import export <file> <out.json>` writes any imported file as one,
+  and its canonical binary encoding is what the fact log will store.
 - `SoulSet::from_name` resolves a set by the name the game shows, and owned
   Shikigami are a domain type (`yata-core::shikigami`).
 

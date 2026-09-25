@@ -30,7 +30,9 @@ commands:
   check <store.sqlite3>                   run SQLite's full integrity check on a store
   log <store.sqlite3>                     print every commit of a store's fact log, readably
   import check <snapshot.json>            import a snapshot file without storing it, and report its
-                                          souls, the records left out, and the souls' legality
+                                          sections, the records left out, and the souls' legality
+  import export <snapshot.json> <out.json>
+                                          the same file, normalized, as a new yata-snapshot file
   query                                   answer EvaluateQuery frames on stdin, one result frame
                                           each on stdout, until stdin ends
   scheme dump <code>                      print a scheme code's payload as hex
@@ -64,6 +66,7 @@ fn main() -> ExitCode {
         ["check", _] => check(path(1)),
         ["log", _] => dump_log(path(1)),
         ["query"] => serve_queries(),
+        ["import", "export", _, _] => export_snapshot(path(2), path(3)),
         ["import", "check", _] => match yata_daemon::import::read_path(path(2)) {
             Ok(imported) => {
                 print!("{}", yata_daemon::import::format_check(&imported));
@@ -111,6 +114,30 @@ fn main() -> ExitCode {
                 USAGE.replace("{PROBE}", yata_daemon::probe::cli::USAGE)
             );
             ExitCode::from(2)
+        }
+    }
+}
+
+/// A file of any import format, written as a new yata-snapshot file; an existing file is never
+/// overwritten.
+fn export_snapshot(from: &Path, to: &Path) -> ExitCode {
+    use std::io::Write as _;
+    let text = yata_daemon::import::read_path(from)
+        .map_err(|e| format!("{e:?}"))
+        .and_then(|n| yata_daemon::import::export_json(&n).map_err(|e| format!("{e:?}")));
+    let written = text.and_then(|text| {
+        std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(to)
+            .and_then(|mut f| f.write_all(text.as_bytes()))
+            .map_err(|e| format!("{}: {e}", to.display()))
+    });
+    match written {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("import.failed: {e}");
+            ExitCode::FAILURE
         }
     }
 }
