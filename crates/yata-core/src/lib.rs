@@ -8,7 +8,8 @@
 //! - [`soul`]: the vocabulary of `docs/spec/glossary.md` — attributes, slots, a soul as read.
 //! - [`fact`]: the facts of the durable log as typed values, the fold into the projection, and
 //!   the soul inventory derived from it (ADR-0002).
-//! - [`import`]: readings of the game as typed observations, and the evidence analyses over them.
+//! - [`import`]: the snapshot IR, its admission into domain values, and the capabilities it gives.
+//! - [`shikigami`]: owned Shikigami, as far as imports establish them.
 //! - [`mechanics`]: the inference rules of `docs/spec/soul-mechanics.md` — legality, roll-count
 //!   inference, the community predicates, and the roll distribution.
 //! - [`scheme`]: scheme codes, from their transport to `matches`, the game's filter.
@@ -22,4 +23,5 @@ pub mod mechanics;
 pub mod nonempty;
 pub mod query;
 pub mod scheme;
+pub mod shikigami;
 pub mod soul;

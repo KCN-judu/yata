@@ -97,6 +97,13 @@ macro_rules! game_id {
 game_id!(GameSoulId);
 game_id!(GameAccountId);
 
+impl GameSoulId {
+    /// The soul id an imported snapshot states. A source id is never empty, so this cannot fail.
+    pub fn from_source(id: &crate::import::ir::SourceId) -> GameSoulId {
+        GameSoulId(id.as_str().to_owned())
+    }
+}
+
 /// What a reading covers. Scopes are added as the probe gains them (`GameAssets` is designed and
 /// waits on the probe).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]

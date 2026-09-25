@@ -1,17 +1,19 @@
-//! Decode of the reader's readings into domain observations (`probe-protocol.md`,
-//! `architecture/overview.md`: decode belongs to this crate).
+//! Imported data, from the snapshot IR to domain values (ADR-0031), and the reader's readings
+//! that are still here until the fact log stops storing them.
 //!
-//! - [`observation`]: a reading as typed values with the evidence behind each field, and the
-//!   records the reader saw, verbatim.
-//! - [`evidence`]: the research analyses over readings — what the records hold, how they group,
-//!   and whether the inherited suit codes survive an attested reading (ADR-0014).
+//! - [`ir`]: the snapshot IR — what Yata received from one file, as independent sections
+//!   (`spec/snapshot-ir.md`).
+//! - [`admit`]: the IR's records as domain values, or why each is not one.
+//! - [`capability`]: what a profile can do, from the sections it holds.
+//! - [`observation`], [`evidence`]: the retired reader's readings and the research analyses over
+//!   them; removed with the probe schema (ADR-0031, rule 10).
 //!
-//! - [`snapshot`]: a snapshot file's souls, as every format's parser reads them, and how each
-//!   becomes a domain soul (`spec/import-format.md`).
-//!
-//! The daemon converts the wire's messages and the files' bytes into these types; this module
-//! never sees either.
+//! The daemon turns the files' bytes into the IR; this module never sees them.
 
+pub mod admit;
+pub mod capability;
 pub mod evidence;
+#[cfg(test)]
+mod fixture;
+pub mod ir;
 pub mod observation;
-pub mod snapshot;

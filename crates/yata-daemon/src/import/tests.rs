@@ -1,16 +1,19 @@
-//! Import over synthetic files in the shape of `mumu-snapshot-v1`. No real account data is used.
+//! `mumu-snapshot-v1` into the IR, over synthetic files. No real account data is used.
 
 use serde_json::{Value, json};
-use yata_core::import::snapshot::{FormatTag, SoulDefect};
-use yata_core::soul::{InnateAttribute, SoulAttribute, SoulKind, SoulSet, SoulSlot};
+use yata_core::import::admit::{SoulAdmissionError, admit};
+use yata_core::import::ir::{
+    Completeness, Currency, FormatTag, IrError, Section, SectionKind, SourceFormat, SourceId,
+};
+use yata_core::soul::{SoulAttribute, SoulKind};
 
 use super::*;
 
-fn soul(id: &str) -> Value {
+fn soul(id: &str, slot: i64) -> Value {
     json!({
         "id": id,
         "setId": "破势",
-        "slot": 6,
+        "slot": slot,
         "quality": 6,
         "level": 15,
         "mainAttrType": "crit_damage",
@@ -24,185 +27,205 @@ fn soul(id: &str) -> Value {
     })
 }
 
+fn scope(souls: bool, heroes: bool, assets: bool, guild: bool) -> Value {
+    json!({"souls": souls, "heroes": heroes, "items": assets, "realmCards": assets,
+           "guild": guild, "taskRecords": false})
+}
+
 fn file(souls: Vec<Value>) -> Value {
     json!({
         "format": "mumu-snapshot-v1",
+        "source": "unread",
         "completeness": "complete",
         "capturedAt": "2026-09-25T09:10:32Z",
+        "scope": scope(true, false, false, false),
         "hero_equips": souls,
-        "currency": {},
+        "equipPresets": [],
+        "somethingNew": {"ignored": true},
     })
 }
 
-fn read_value(v: &Value) -> Result<Imported, ImportError> {
+fn full() -> Value {
+    let mut f = file(vec![soul("a", 6), soul("b", 2)]);
+    f["scope"] = scope(true, true, true, true);
+    f["equipPresets"] = json!([["主力", [null, "b", null, null, null, "a"]]]);
+    f["heroes"] = json!({"h1": {"heroId": "301", "level": 40, "star": 6, "awake": 1,
+                                "lock": false, "skinfo": [], "attrs": []}});
+    f["currency"] = json!({"jade": 1200, "coin": 7});
+    f["realmCards"] = json!([["c1", 200001, 4, [800, 0]]]);
+    f["guild"] = json!({"level": 3, "activeMemberCount": 98, "members": [["x"]]});
+    f
+}
+
+fn normalize(v: &Value) -> Result<Normalized, ImportError> {
     read(&serde_json::to_vec(v).expect("serialised"))
 }
 
+fn completeness<T>(s: &Section<T>) -> Option<Completeness> {
+    s.present().map(|(c, _)| c)
+}
+
 #[test]
-fn a_file_becomes_domain_souls_in_display_units() {
-    let imported = read_value(&file(vec![soul("a")])).expect("imported");
-    assert_eq!(imported.format, FormatTag::MumuSnapshotV1);
-    assert_eq!(imported.captured_at, "2026-09-25T09:10:32Z");
-    assert!(imported.defects.is_empty());
-    let (id, s) = &imported.souls[0];
-    assert_eq!(id.as_str(), "a");
-    assert_eq!(s.set, SoulSet::from_suit_code(30));
-    assert_eq!(s.slot, SoulSlot::Slot6);
-    assert_eq!(s.main, SoulAttribute::CritDmg);
+fn a_file_normalizes_into_the_ir_in_display_units() {
+    let n = normalize(&file(vec![soul("a", 6)])).expect("normalized");
+    let s = &n.snapshot;
+    assert_eq!(
+        s.provenance.format,
+        SourceFormat::Community(FormatTag::MumuSnapshotV1)
+    );
+    assert_eq!(s.captured_at.as_deref(), Some("2026-09-25T09:10:32Z"));
+    let (c, souls) = s.souls.present().expect("present");
+    assert_eq!(c, Completeness::Complete);
+    let r = &souls.souls[0];
+    assert_eq!(r.id, SourceId::new("a").expect("id"));
+    assert_eq!(r.set.as_str(), "破势");
+    assert_eq!((r.slot, r.star, r.level), (6, 6, 15));
+    assert_eq!(r.main.attribute, SoulAttribute::CritDmg);
     assert!(
-        (s.main_value.get() - 89.0).abs() < 1e-9,
+        (r.main.value - 89.0).abs() < 1e-9,
         "a rate becomes percentage points"
     );
-    assert!((s.subs[0].value.get() - 3.0).abs() < 1e-9);
+    assert!((r.rolled[0].valued.value - 3.0).abs() < 1e-9);
     assert!(
-        (s.subs[1].value.get() - 11.35).abs() < 1e-9,
-        "speed is kept as shown"
+        (r.rolled[1].valued.value - 11.35).abs() < 1e-9,
+        "speed as shown"
     );
-    assert_eq!(s.kind, SoulKind::Ordinary);
+    assert_eq!(r.rolled[1].rolls, Some(3));
+    assert_eq!(r.innate, None);
+    assert!(n.left_out.is_empty());
 }
 
 #[test]
-fn the_innate_entry_becomes_the_boss_kind() {
-    let mut boss = soul("b");
+fn the_scope_decides_which_sections_are_present() {
+    let n = normalize(&file(vec![])).expect("normalized");
+    assert_eq!(n.snapshot.shikigami, Section::Absent);
+    assert_eq!(n.snapshot.assets, Section::Absent);
+    assert_eq!(n.snapshot.guild, Section::Absent);
+    assert_eq!(
+        completeness(&n.snapshot.souls),
+        Some(Completeness::Complete),
+        "present and empty, not absent"
+    );
+    let all = normalize(&full()).expect("normalized");
+    assert_eq!(
+        all.snapshot.sections().len(),
+        SectionKind::ALL.len(),
+        "every section"
+    );
+}
+
+#[test]
+fn every_section_maps_into_yata_names() {
+    let s = normalize(&full()).expect("normalized").snapshot;
+    let heroes = s.shikigami.present().expect("present").1;
+    assert_eq!(heroes.instances[0].species.0, 301);
+    assert!(heroes.instances[0].evolved);
+    let presets = s.presets.present().expect("present").1;
+    assert_eq!(
+        presets.presets[0].souls[5],
+        Some(SourceId::new("a").expect("id"))
+    );
+    let assets = s.assets.present().expect("present").1;
+    assert!(assets.currencies.contains(&(Currency::Jade, 1200)));
+    assert_eq!(assets.realm_cards[0].kind.0, 200001);
+    let guild = s.guild.present().expect("present").1;
+    assert_eq!((guild.level, guild.member_count), (3, 98));
+}
+
+#[test]
+fn the_innate_entry_becomes_the_innate_field() {
+    let mut boss = soul("b", 1);
     boss["setId"] = json!("荒骷髅");
-    boss["subAttributes"]
-        .as_array_mut()
-        .expect("array")
-        .push(json!({"type": "effect_resist", "value": 0.08, "enhancementCount": null, "fixedAttribute": true}));
-    let imported = read_value(&file(vec![boss])).expect("imported");
-    let (_, s) = &imported.souls[0];
+    boss["subAttributes"].as_array_mut().expect("array").push(
+        json!({"type": "effect_resist", "value": 0.08, "enhancementCount": null, "fixedAttribute": true}),
+    );
+    let s = normalize(&file(vec![boss])).expect("normalized").snapshot;
+    let r = &s.souls.present().expect("present").1.souls[0];
     assert_eq!(
-        s.subs.len(),
+        r.rolled.len(),
         2,
-        "the innate attribute is not a sub-attribute"
+        "the innate attribute is not a rolled one"
     );
-    assert_eq!(
-        s.kind,
-        SoulKind::Boss(InnateAttribute::new(SoulAttribute::EffectRes).expect("innate"))
-    );
+    assert_eq!(r.innate, Some(SoulAttribute::EffectRes));
+    let admitted = admit(&s).expect("admitted");
+    let (_, domain) = &admitted.souls.present().expect("present").1.values[0];
+    assert!(matches!(domain.kind, SoulKind::Boss(_)));
 }
 
 #[test]
-fn only_a_known_header_is_read() {
-    let mut other = file(vec![]);
-    other["format"] = json!("some-other-v2");
-    assert_eq!(
-        read_value(&other),
-        Err(ImportError::Unrecognised {
-            stated: Some("some-other-v2".into())
-        })
-    );
-    assert_eq!(
-        read_value(&json!({"hero_equips": []})),
-        Err(ImportError::Unrecognised { stated: None })
-    );
-    assert_eq!(read_value(&json!([])), Err(ImportError::NotAnObject));
-    assert!(matches!(read(b"{"), Err(ImportError::NotJson { .. })));
-}
-
-#[test]
-fn a_file_that_is_not_complete_is_refused() {
-    let mut partial = file(vec![soul("a")]);
-    partial["completeness"] = json!("partial");
-    assert_eq!(
-        read_value(&partial),
-        Err(ImportError::NotComplete {
-            stated: "partial".into()
-        })
-    );
-    let mut none = file(vec![]);
-    none.as_object_mut().expect("object").remove("completeness");
-    assert_eq!(
-        read_value(&none),
-        Err(ImportError::Shape {
-            field: "completeness",
-            problem: Problem::Missing
-        })
-    );
-}
-
-#[test]
-fn two_records_of_one_soul_refuse_the_file() {
-    assert_eq!(
-        read_value(&file(vec![soul("a"), soul("a")])),
-        Err(ImportError::DuplicateSoul { id: "a".into() })
-    );
-}
-
-#[test]
-fn a_bad_record_is_left_out_and_named() {
-    let mut no_rolls = soul("r");
+fn the_domain_refuses_at_admission_not_at_parsing() {
+    let mut unknown = soul("u", 1);
+    unknown["setId"] = json!("不存在");
+    let mut seven = soul("s", 7);
+    seven["setId"] = json!("破势");
+    let mut no_rolls = soul("r", 1);
     no_rolls["subAttributes"][1]["enhancementCount"] = Value::Null;
-    let mut unknown = soul("u");
+    let n = normalize(&file(vec![unknown, seven, no_rolls])).expect("normalized");
+    assert!(n.left_out.is_empty(), "each is valid source syntax");
+    let admitted = admit(&n.snapshot).expect("admitted");
+    let reasons: Vec<SoulAdmissionError> = admitted
+        .souls
+        .present()
+        .expect("present")
+        .1
+        .rejected
+        .iter()
+        .map(|r| r.reason.clone())
+        .collect();
+    assert_eq!(
+        reasons,
+        vec![
+            SoulAdmissionError::UnknownSet {
+                name: "不存在".into()
+            },
+            SoulAdmissionError::NotASlot { n: 7 },
+            SoulAdmissionError::MissingRolls { sub: 1 },
+        ]
+    );
+}
+
+#[test]
+fn a_record_left_out_makes_its_section_partial() {
+    let mut unknown = soul("u", 1);
     unknown["mainAttrType"] = json!("luck");
-    let mut stringly = soul("s");
-    stringly["slot"] = json!("6");
-    let mut marked = soul("m");
+    let mut stringly = soul("s", 1);
+    stringly["slot"] = json!("1");
+    let mut marked = soul("m", 1);
     marked["subAttributes"][0]["fixedAttribute"] = json!(false);
-    let mut unset = soul("n");
-    unset["subAttributes"][0]
-        .as_object_mut()
-        .expect("object")
-        .remove("enhancementCount");
-    let imported = read_value(&file(vec![
-        soul("ok"),
-        no_rolls,
+    let n = normalize(&file(vec![
+        soul("ok", 1),
         unknown,
         stringly,
         marked,
-        unset,
         json!(7),
     ]))
-    .expect("imported");
-    assert_eq!(imported.souls.len(), 1);
-    let reasons: Vec<(usize, Option<&str>, &RecordReason)> = imported
-        .defects
-        .iter()
-        .map(|d| (d.index, d.id.as_deref(), &d.reason))
-        .collect();
+    .expect("normalized");
+    assert_eq!(completeness(&n.snapshot.souls), Some(Completeness::Partial));
+    let reasons: Vec<(usize, &SourceReason)> =
+        n.left_out.iter().map(|d| (d.index, &d.reason)).collect();
     assert_eq!(
         reasons,
         vec![
             (
                 1,
-                Some("r"),
-                &RecordReason::Soul(SoulDefect::MissingRolls { sub: 1 })
-            ),
-            (
-                2,
-                Some("u"),
-                &RecordReason::UnknownAttribute {
+                &SourceReason::UnsupportedValue {
                     field: "mainAttrType".into(),
-                    name: "luck".into()
+                    value: "luck".into()
                 }
             ),
             (
-                3,
-                Some("s"),
-                &RecordReason::Shape {
+                2,
+                &SourceReason::Malformed {
                     field: "slot".into(),
                     problem: Problem::WrongKind {
                         expected: Kind::Integer
                     }
                 }
             ),
+            (3, &SourceReason::UnknownSubAttribute { index: 0 }),
             (
                 4,
-                Some("m"),
-                &RecordReason::UnknownSubAttribute { index: 0 }
-            ),
-            (
-                5,
-                Some("n"),
-                &RecordReason::Shape {
-                    field: "subAttributes[0].enhancementCount".into(),
-                    problem: Problem::Missing
-                }
-            ),
-            (
-                6,
-                None,
-                &RecordReason::Shape {
+                &SourceReason::Malformed {
                     field: String::new(),
                     problem: Problem::WrongKind {
                         expected: Kind::Object
@@ -214,7 +237,61 @@ fn a_bad_record_is_left_out_and_named() {
 }
 
 #[test]
-fn an_empty_inventory_is_an_inventory() {
-    let imported = read_value(&file(vec![])).expect("imported");
-    assert!(imported.souls.is_empty() && imported.defects.is_empty());
+fn only_a_known_header_and_a_complete_file_are_read() {
+    let mut other = file(vec![]);
+    other["format"] = json!("some-other-v2");
+    assert_eq!(
+        normalize(&other),
+        Err(ImportError::UnknownFormat {
+            stated: Some("some-other-v2".into())
+        })
+    );
+    assert_eq!(
+        normalize(&json!({"hero_equips": []})),
+        Err(ImportError::UnknownFormat { stated: None })
+    );
+    assert!(matches!(
+        normalize(&json!([])),
+        Err(ImportError::MalformedSource { .. })
+    ));
+    assert!(matches!(
+        read(b"{"),
+        Err(ImportError::MalformedSource { .. })
+    ));
+    let mut partial = file(vec![]);
+    partial["completeness"] = json!("partial");
+    assert_eq!(
+        normalize(&partial),
+        Err(ImportError::UnsupportedSourceValue {
+            field: "completeness",
+            value: "partial".into()
+        })
+    );
+    let mut no_scope = file(vec![]);
+    no_scope.as_object_mut().expect("object").remove("scope");
+    assert_eq!(
+        normalize(&no_scope),
+        Err(ImportError::Shape {
+            field: "scope",
+            problem: Problem::Missing
+        })
+    );
+}
+
+#[test]
+fn a_preset_naming_a_missing_soul_refuses_the_file() {
+    let mut f = file(vec![soul("a", 1)]);
+    f["equipPresets"] = json!([["主力", ["zz", null, null, null, null, null]]]);
+    assert!(matches!(
+        normalize(&f),
+        Err(ImportError::Ir(IrError::InconsistentReference { .. }))
+    ));
+}
+
+#[test]
+fn two_souls_with_one_id_refuse_the_file() {
+    assert!(matches!(
+        normalize(&file(vec![soul("a", 1), soul("a", 2)])),
+        Err(ImportError::Ir(IrError::DuplicateId { .. }))
+    ));
 }

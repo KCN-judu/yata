@@ -374,25 +374,29 @@ Test data is the recorded session, so no test builds a soul by hand.
 | icons resolve in ADR-0017's order                                                                                                     | `state/icons_test.dart`                    |
 | navigation; inventory data, empty, and failure states with cause and remedy; an unknown code shows its tag; the core banner; QR       | `ui/ui_test.dart`                          |
 
-## Import — `yata-core::import::snapshot`, `yata-daemon::import`
+## Import — `yata-core::import`, `yata-daemon::import`
 
-| Claim in [spec/import-format.md](../spec/import-format.md)                                                           | Tests                                                                                                   |
-| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| a parsed soul becomes a domain soul; the innate entry decides the kind; positions count from 1; each defect is named | `import::snapshot::tests`                                                                               |
-| set names and suit codes are one to one                                                                              | `soul::set::tests::names_and_codes_are_one_to_one`, `a_name_no_set_has_is_refused`                      |
-| a file becomes domain souls in display units; the innate entry is not a sub-attribute                                | `import::tests::a_file_becomes_domain_souls_in_display_units`, `the_innate_entry_becomes_the_boss_kind` |
-| the header decides the format; an unknown header, a non-object, and a non-JSON file are refused                      | `import::tests::only_a_known_header_is_read`                                                            |
-| a file that is not complete, or that lists one soul twice, is refused whole                                          | `import::tests::a_file_that_is_not_complete_is_refused`, `two_records_of_one_soul_refuse_the_file`      |
-| a bad record is left out and named, the rest kept; an empty inventory is an inventory                                | `import::tests::a_bad_record_is_left_out_and_named`, `an_empty_inventory_is_an_inventory`               |
+| Claim in [spec/snapshot-ir.md](../spec/snapshot-ir.md) and [spec/import-format.md](../spec/import-format.md)                       | Tests                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| absent and present-empty are different sections; texts are non-empty and bounded                                                   | `import::ir::tests::absent_and_empty_are_different_sections`, `a_text_is_non_empty_and_bounded`                                                                                                                  |
+| the IR's own rules: unique ids, each currency once, limits, preset references inside the snapshot                                  | `import::ir::tests::ids_are_unique_within_a_section`, `a_preset_names_souls_of_its_own_snapshot`, `each_currency_appears_once_and_limits_hold`                                                                   |
+| admission: a record becomes a domain soul; each defect named; a bad record left out; absent stays absent                           | `import::admit::tests`                                                                                                                                                                                           |
+| a Shikigami level is 1 to 40; a preset keeps each soul in its position                                                             | `shikigami::tests`, `import::admit::tests::a_shikigami_is_admitted_in_range`, `a_preset_keeps_each_soul_in_its_position`                                                                                         |
+| capabilities derive from held sections; a missing section is named; the weakest completeness decides                               | `import::capability::tests`                                                                                                                                                                                      |
+| set names and suit codes are one to one                                                                                            | `soul::set::tests`                                                                                                                                                                                               |
+| `mumu-snapshot-v1`: recognition, field names, units, the scope's sections, the innate entry, every section's mapping               | `yata-daemon` `import::tests::a_file_normalizes_into_the_ir_in_display_units`, `the_scope_decides_which_sections_are_present`, `every_section_maps_into_yata_names`, `the_innate_entry_becomes_the_innate_field` |
+| a domain rule refuses at admission, not at parsing; a record left out makes its section partial                                    | `import::tests::the_domain_refuses_at_admission_not_at_parsing`, `a_record_left_out_makes_its_section_partial`                                                                                                   |
+| an unknown format, a non-object, non-JSON, an incomplete file, a missing scope, a broken reference, a duplicate id refuse the file | `import::tests::only_a_known_header_and_a_complete_file_are_read`, `a_preset_naming_a_missing_soul_refuses_the_file`, `two_souls_with_one_id_refuse_the_file`                                                    |
 
-The tests use synthetic files. The maintainer's sample file stays local; on it,
-`import check` imports every soul and `mechanics::assess` finds none illegal
-(2026-09-25).
+The tests use synthetic files. The maintainer's sample stays local; through the
+IR, `import check` finds every section complete, every record admitted, and no
+soul illegal (2026-09-25).
 
 ## Not covered
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
 implemented.
 
-Storing an imported file in the fact log is not implemented (PRP-0008), so
-nothing tests it.
+Storing a snapshot in the fact log, Yata's own snapshot file, and capabilities
+over a profile's folded sections are not implemented (ADR-0031), so nothing
+tests them.
