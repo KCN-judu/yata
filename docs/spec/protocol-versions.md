@@ -56,8 +56,12 @@ into the wrong field. The schema file marks retired numbers in a comment.
 Schema: `docs/spec/probe-protocol.md`. Schema file:
 `crates/yata-protocol/proto/probe.proto`, drafted 2026-09-24 and revised
 2026-09-25: every typed soul field optional with its stated evidence, observed
-records beside them, the target process, and the export's capture time. Version
-1 stays reserved until a recording of the game establishes the soul record's
+records beside them, the target process, and the export's capture time; then,
+the same day, each shape given one encoding — the handshake's target and a
+failure's subject as `oneof`s, error codes as an enum, a result as a request id
+around a `Reading` that exports carry alone, one `Mapping` per field, the innate
+attribute as `none` or `present`, and full lengths only on cut values. Version 1
+stays reserved until a recording of the game establishes the soul record's
 fields; it turns current when both sides build against that file.
 
 | Version | Status   | Date       | What it introduced                                                                          | Refused below |

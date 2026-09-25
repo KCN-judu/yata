@@ -121,15 +121,23 @@ attached to (`TargetProcess`: pid, file name, parent pid, session, pointer
 width, creation time, and never a path, which can carry the user's name).
 Choosing is deterministic and never guesses:
 
-- `Handshake.target_pid` other than 0 names the process, whatever its file name;
-  a pid that does not exist is `probe.not_found`.
-- Otherwise the candidates are the processes whose file name is one of the
+- `Handshake.target` is a `oneof`: `pid` or `discover`. A handshake that sets
+  neither, or names pid 0, is `probe.protocol_error`.
+- `pid` names the process, whatever its file name; a pid that does not exist is
+  `probe.not_found`.
+- `discover` makes the candidates the processes whose file name is one of the
   reader's game names. None is `probe.not_found`; more than one is
-  `probe.ambiguous_target`, with every candidate in `ProbeError.candidates`,
-  ordered by pid, so the user can choose one and the daemon can start a session
-  with its pid. Only exactly one candidate is chosen.
+  `probe.ambiguous_target`, with every candidate in the error's `Discovery`
+  detail, ordered by pid, so the user can choose one and the daemon can start a
+  session with its pid. Only exactly one candidate is chosen.
+- A handshake without a protocol version is `probe.protocol_error`, never read
+  as version 0.0.
 - A 32-bit target is `probe.unsupported_environment`: the read strategies are
   for 64-bit processes.
+
+`TargetProcess` states what the system told the reader and nothing more: parent
+pid, session, creation time, and pointer width are each unset when the system
+did not say, never 0.
 
 The game names are the reader's, and are a hypothesis until a recording of the
 game establishes them.
@@ -157,31 +165,41 @@ instantaneous, and must not send a second one for the same id.
 
 ```text
 ProbeError {
-  code    : string   // stable, `probe.`-prefixed
-  message : string   // human-readable, English, never parsed
-  details : bytes    // optional typed payload
+  code     : ProbeErrorCode   // an enum; unspecified is never a code
+  message  : string           // human-readable, English, never parsed
+  os_error : optional uint32  // the operating system's error number, if any
+  detail   : oneof { Discovery { candidates } }
+}
+Failed {
+  subject : oneof { request_id, session }
+  error   : ProbeError
 }
 ```
 
-The namespace is disjoint from the core channel's on purpose:
-`probe.not_attached` and `command.stale_revision` cannot be confused by a reader
-or a log filter, even though both are `Error`-shaped. Codes are renamed only
-through the alias table in [protocol-versions.md](protocol-versions.md).
-`ProbeError` also carries the candidates of a discovery and the operating
-system's error number, where there is one.
+The code is a closed enum, so a peer cannot send a code the other does not know
+without the other seeing it as unspecified, which is refused. Each code has a
+stable dotted name (`ProbeErrorCode::name`), `probe.`-prefixed, which is what
+logs, this page, and the daemon's error details write. The namespace is disjoint
+from the core channel's on purpose: `probe.not_attached` and
+`command.stale_revision` cannot be confused by a reader or a log filter, even
+though both are `Error`-shaped. Names are changed only through the alias table
+in [protocol-versions.md](protocol-versions.md).
+
+A `Failed` states its subject: one request, by id, or the session. There is no
+request id that means "the session".
 
 ### Error codes
 
 The failures of attaching are kept apart, because each needs a different answer
-from the user. The codes are constants in `yata-protocol` (`probe::code`), and
-the exit codes are `probe::exit`.
+from the user. The exit a code ends the reader with is `ProbeErrorCode::exit` in
+`yata-protocol`, and the exit codes are `probe::Exit`.
 
 | Code                            | Meaning                                                                          | Exit |
 | ------------------------------- | -------------------------------------------------------------------------------- | ---- |
 | `probe.not_found`               | no process matched the discovery rules, or the chosen pid                        | 1    |
 | `probe.ambiguous_target`        | more than one process matched; the candidates are in the error                   | 1    |
-| `probe.elevation_required`      | the game refused an unelevated reader                                            | 5    |
-| `probe.access_denied`           | the game refused an elevated reader                                              | 1    |
+| `probe.elevation_required`      | the game refused a reader known to be unelevated                                 | 5    |
+| `probe.access_denied`           | the game refused an elevated reader, or a reader whose elevation is unknown      | 1    |
 | `probe.process_exited`          | the process was gone by the time it was opened                                   | 1    |
 | `probe.unsupported_environment` | a host or a target no read strategy covers: not Windows, or a 32-bit target      | 2    |
 | `probe.layout_mismatch`         | the target's memory is not a layout the reader reads: a changed or unknown build | 2    |
@@ -192,8 +210,12 @@ the exit codes are `probe::exit`.
 | `probe.scope_unsupported`       | a request for a scope the reader does not read                                   | —    |
 | `probe.not_attached`            | a request with no game attached                                                  | —    |
 
-A code with an exit code ends the reader after its session-level `Failed`
-(request id 0); the others answer one request.
+A code with an exit code ends the reader after a `Failed` whose subject is the
+session; the others answer one request. The reader keeps the two apart by type,
+so a request's failure cannot end the reader and a session's cannot exit 0. A
+reader that cannot tell whether it is elevated reports `probe.access_denied`,
+never `probe.elevation_required`: elevating is offered only when it is known to
+be the remedy.
 
 The daemon's response to a probe failure is a core-channel error, not a
 `ProbeError` passed through. A probe that cannot attach becomes
@@ -202,37 +224,48 @@ that error's `details`, so an expert view can see the original.
 
 ## Read results are typed records
 
-A `ReadResult` carries a message per scope, not opaque bytes (ADR-0008). A soul
-record holds the game's raw values as read: game soul id, suit code, star, slot,
-level, main attribute, sub-attributes with their roll counts, innate attribute
-where present, lock and discard flags. Nothing in it is interpreted. The mapping
-from suit code to `SoulSet` and from attribute code to `SoulAttribute` is
-decode, and decode is `yata-core`'s. The field list is fixed in the schema file;
-the project's documented hypotheses about the game's soul records are the
+A `ReadResult` is a request id and a `Reading`; the reading is what a request
+produced, and the same message travels in an export. A reading states its
+coverage (complete or partial, never unstated), the account it observed when the
+reader can tell, its scan statistics, and its records, one message per scope,
+not opaque bytes (ADR-0008). A reading without records is refused: its scope
+would be unknown, and no empty inventory is assumed.
+
+A soul record holds the game's raw values as read: game soul id, suit code,
+star, slot, level, main attribute, sub-attributes with their roll counts, the
+innate attribute, lock and discard flags. Nothing in it is interpreted. The
+mapping from suit code to `SoulSet` and from attribute code to `SoulAttribute`
+is decode, and decode is `yata-core`'s. The field list is fixed in the schema
+file; the project's documented hypotheses about the game's soul records are the
 starting evidence for it.
 
 ### Evidence
 
-A typed field is only as good as the layout behind it, so a result says how the
-reader knows each one. Every typed field of `SoulRecord` is optional: unset
-means the reader did not map it, never zero or false. For each field it fills,
-`ReadResult.field_evidence` holds one entry:
+A typed field is only as good as the layout behind it, so a reading says how the
+reader knows each one. `SoulRecords.mappings` has one optional `Mapping` per
+typed field of `SoulRecord`, and `SoulRecords.recognition` one for the rule that
+recognised the objects as souls:
 
-| `Evidence`             | Meaning                                                                                  |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| `EVIDENCE_INHERITED`   | a hypothesis taken from the prior tool (ADR-0014), not yet re-established                |
-| `EVIDENCE_ESTABLISHED` | re-established by this project's own recording or single-variable test, named in `basis` |
+| `Mapping.evidence` | Meaning                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| `inherited`        | a hypothesis taken from the prior tool (ADR-0014), not yet re-established                  |
+| `established`      | re-established by this project's own recording or single-variable test, named in its basis |
 
-An entry named for the message alone, `SoulRecord`, states the rule that
-recognised the objects as souls. The rules for the daemon:
+A field's value on a record means something only with the field's mapping. The
+rules for the daemon:
 
-- A typed value with no evidence entry is not mapped, and the daemon ignores it.
+- A field without a mapping is not mapped, and its values are ignored.
+- A mapping that sets neither case is refused; it is never read as inherited.
+- A mapped field that is unset on a record means the record lacks it.
+- The innate attribute is a `oneof`: `none` for an ordinary soul, `present` with
+  the attribute and value for a boss soul (ADR-0029). An innate reading that
+  sets neither case is refused. A record whose `innate` is not mapped, or is
+  mapped and lacking, cannot be a row, because nothing then says whether it is a
+  boss soul. Sub-attributes are one message holding the list, so a record that
+  lacks them is told apart from one that has none.
 - Evidence is carried as the reader states it, into the observation and the
   export, and never raised by the daemon. Only the reader, after a recorded
   experiment, moves a field from inherited to established.
-- A field that is mapped and absent from a record means the record lacks it: for
-  `innate`, an ordinary soul. A record whose `innate` is not mapped cannot be a
-  row, because nothing then says whether it is a boss soul (ADR-0029).
 
 ### Observed records
 
@@ -240,10 +273,12 @@ Beside its typed fields, each record carries what the reader saw, verbatim, in
 `observed`: the runtime's name for the record's type, the key the record is
 stored under in its container when there is one, and every entry of the record
 as `RawEntry` pairs of `RawValue`s — null, boolean, 64-bit integer, float, text,
-sequences, mappings, and `unread` with the runtime's type name and the reason
-for anything else (an unknown kind, the depth limit, unreadable memory, a failed
-layout check, an integer beyond 64 bits). Sequences and mappings keep their true
-length when the reader's item limit cuts them.
+sequences, mappings, and `unread` with the reason and, when the reader could
+read it, the runtime's type name, for anything else (an unknown kind, the depth
+limit, unreadable memory, a failed layout check, an integer beyond 64 bits). A
+sequence or mapping the reader's item limit cut states its full length, which is
+then above the items it holds; one it did not cut states none. A value, sequence
+kind, or unread reason left unset is refused.
 
 Unknown entries stay here unmapped, so a recording made before a field is
 understood can be re-read after it is. The daemon's research commands
@@ -285,11 +320,14 @@ needs no daemon (ADR-0008). The file is the proto3 JSON mapping of a
 ProbeExport {
   protocol_version, probe_build_id, engine,
   channel     : DesktopMemory | MumuAdb,
-  results     : [ReadResult],
-  captured_at : RFC 3339, UTC
+  readings    : [Reading],
+  captured_at : optional, RFC 3339, UTC
   target      : TargetProcess
 }
 ```
+
+A file carries readings, not results: a request id belongs to a session, and an
+export has none.
 
 A file is read the same on every platform: UTF-8, a leading byte-order mark
 ignored, line ends immaterial, at most 64 MiB. The protocol version is checked
@@ -305,10 +343,9 @@ of [protocol-versions.md](protocol-versions.md) apply to it unchanged, and every
 field in the probe schema is therefore public: renaming one breaks outside
 readers of the JSON as well as the daemon.
 
-The daemon imports a file as a job. Each `ReadResult` is re-serialized as
-protobuf and stored as the blob, so a reading has the same digest whether it
-arrived by pipe or by file. The blob leaves out the request id, which belongs to
-the session, not to the reading.
+The daemon imports a file as a job. Each `Reading` is serialized as protobuf and
+stored as the blob, so a reading has the same digest whether it arrived by pipe
+or by file: the request id is on the `ReadResult` around it, never in it.
 
 An export file is not a recording. A recording is the frame stream and is what
 replay tests consume; an export is one reading, stripped of the session around

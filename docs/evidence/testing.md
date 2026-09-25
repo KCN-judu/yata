@@ -80,7 +80,7 @@ Claims of [fact-format.md](../spec/fact-format.md) that hold without a store.
 | a newer complete reading replaces the inventory; a partial one overlays                                                      | `fact::inventory::tests::a_newer_complete_reading_replaces_the_inventory`, `a_partial_reading_overlays_and_removes_nothing`                                                                                                                                          |
 | a decision outlives its soul; decisions belong to one profile                                                                | `inventory::tests::a_decision_outlives_its_soul_and_applies_when_it_returns`, `decisions_belong_to_one_profile`                                                                                                                                                      |
 | a missing or disagreeing reading is an error                                                                                 | `inventory::tests::a_missing_or_disagreeing_reading_is_an_error`                                                                                                                                                                                                     |
-| a reading without an established soul id, with one soul twice, or without ids or coverage is refused                         | `fact::admission::tests::a_reading_without_an_established_soul_id_is_refused`, `a_reading_with_one_soul_twice_is_refused`, `a_record_without_an_id_or_a_reading_without_coverage_is_refused`, `an_admitted_reading_names_its_souls_and_account`                      |
+| a reading without an established soul id, with one soul twice, or with a record without an id is refused                     | `fact::admission::tests::a_reading_without_an_established_soul_id_is_refused`, `a_reading_with_one_soul_twice_is_refused`, `a_record_without_an_id_is_refused`, `an_admitted_reading_names_its_souls_and_account`                                                    |
 | a row needs its fields established and present; the code-free premises of W-Soul; a failing record is reported, not repaired | `admission::tests::a_row_needs_every_row_field_established_and_present`, `each_premise_of_w_soul_that_needs_no_code_table_is_checked`, `recorded_rolls_cannot_exceed_the_nodes_reached`, `inventory::tests::a_record_that_cannot_be_a_soul_is_reported_not_repaired` |
 
 ## Fact codec and blobs — `yata-daemon`
@@ -111,7 +111,7 @@ Integration tests in `crates/yata-daemon/tests/facts.rs`, and unit tests in
 | a record that cannot be a soul is kept, reported, and left out                   | `a_record_that_cannot_be_a_soul_is_kept_reported_and_left_out`                                                   |
 | a reading without an established soul id is refused and writes nothing           | `a_reading_without_an_established_soul_id_is_refused_and_writes_nothing`                                         |
 | a record whose row fields are not established is reported, not a row             | `a_record_whose_row_fields_are_not_established_is_reported_not_a_row`                                            |
-| a reading by pipe and by file is one blob                                        | `a_reading_by_pipe_and_by_file_is_one_blob`                                                                      |
+| a reading by pipe and by file is one blob: a `Reading` holds no request id       | `probe::convert::tests::a_blob_is_the_reading_alone`                                                             |
 | a failed transaction keeps neither the blob nor the projection change            | `store::log::tests::a_failed_transaction_keeps_neither_the_blob_nor_the_projection`                              |
 | a refused commit writes nothing                                                  | `store::log::tests::a_refused_commit_writes_nothing`                                                             |
 | a malformed log, or one the fold refuses, refuses the store                      | `store::log::tests::a_malformed_commit_in_the_log_refuses_the_store`, `a_log_the_fold_refuses_refuses_the_store` |
@@ -135,19 +135,21 @@ The same outcomes are asserted on the shared fixture files in
 
 ## Probe schema — `yata-protocol`
 
-| Claim                                                              | Test in `tests` (crate root)                   |
-| ------------------------------------------------------------------ | ---------------------------------------------- |
-| a probe message survives encoding, framing, and decoding unchanged | `a_probe_message_survives_a_frame`             |
-| an unrecorded roll count is distinct from zero rolls on the wire   | `an_absent_roll_count_differs_from_zero_rolls` |
+| Claim                                                                         | Test in `tests` (crate root)                                  |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| a probe message survives encoding, framing, and decoding unchanged            | `a_probe_message_survives_a_frame`                            |
+| an unrecorded roll count is distinct from zero rolls on the wire              | `an_absent_roll_count_differs_from_zero_rolls`                |
+| every error code has a dotted name, and only the session's codes end a reader | `every_code_has_a_name_and_only_session_codes_end_the_reader` |
 
 | Claim in [probe-protocol.md](../spec/probe-protocol.md)                                    | Test                                                                                                                    |
 | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | an export survives its JSON text; the text is the proto3 JSON mapping                      | `export::tests::an_export_survives_its_json_text`, `the_text_follows_the_proto3_json_mapping`                           |
-| an unset typed field stays unset through the file                                          | `export::tests::an_unset_typed_field_stays_unset`                                                                       |
+| an unset field stays unset through the file                                                | `export::tests::an_unset_field_stays_unset`                                                                             |
 | a future major version is unsupported, not malformed; a missing version is refused         | `export::tests::a_future_major_version_is_unsupported_not_malformed`, `a_missing_version_is_refused`                    |
 | a newer minor version is read without its new fields                                       | `export::tests::a_newer_minor_version_is_read_without_its_new_fields`                                                   |
 | a byte-order mark and Windows line ends are not content; oversized and non-JSON is refused | `export::tests::a_byte_order_mark_and_windows_line_ends_are_not_content`, `an_oversized_file_is_refused_before_parsing` |
-| ids start at 1 and only grow; exactly one answer; progress only before it; cancel effects  | `discipline::tests`                                                                                                     |
+| a value of the wrong kind is malformed; text that is not a JSON object is not an export    | `export::tests::a_wrong_value_kind_is_malformed`, `non_json_and_non_objects_are_not_exports`                            |
+| zero is never a request id; ids only grow; exactly one answer; progress only before it     | `discipline::tests`                                                                                                     |
 
 ## Probe sessions, recordings, and exports — `yata-daemon`
 
@@ -155,43 +157,49 @@ Integration tests in `crates/yata-daemon/tests/probe_session.rs` run the live
 session against a scripted reader over in-memory pipes, then replay what it
 recorded.
 
-| Claim in [probe-protocol.md](../spec/probe-protocol.md)                          | Test                                                                                 |
-| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| a framed request gets its progress and one result; the recording replays to them | `a_framed_request_gets_its_progress_and_one_result`                                  |
-| a cancel is sent once and the request still gets one answer                      | `a_cancel_is_sent_once_and_the_request_still_gets_one_answer`                        |
-| a session-level failure ends the handshake and is a whole capture                | `a_session_level_failure_ends_the_handshake`                                         |
-| a malformed frame, and a frame that is not a message, end the session            | `a_malformed_frame_ends_the_session`, `a_frame_that_is_not_a_message_is_undecodable` |
-| a second answer to one request breaks the discipline                             | `a_reader_that_answers_twice_breaks_the_discipline`                                  |
-| a reader of another major version is refused                                     | `a_reader_of_another_major_version_is_refused`                                       |
-| a reader that dies inside a frame leaves a truncated capture                     | `a_reader_that_dies_mid_frame_leaves_a_truncated_capture`                            |
-| a capture ending with a request open is broken                                   | `a_capture_that_ends_with_a_request_open_is_broken`                                  |
-| a reading has the same results and blob by recording and by export               | `a_reading_arrives_the_same_by_recording_and_by_export`                              |
+| Claim in [probe-protocol.md](../spec/probe-protocol.md)                          | Test                                                                                    |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| a framed request gets its progress and one result; the recording replays to them | `a_framed_request_gets_its_progress_and_one_result`                                     |
+| a cancel is sent once and the request still gets one answer                      | `a_cancel_is_sent_once_and_the_request_still_gets_one_answer`                           |
+| a session-level failure ends the handshake and is a whole capture                | `a_session_level_failure_ends_the_handshake`                                            |
+| a failure without its error, or with no code, is undecodable                     | `a_failure_without_its_error_or_code_is_undecodable`                                    |
+| a malformed frame, and a frame that is not a message, end the session            | `a_malformed_frame_ends_the_session`, `a_frame_that_is_not_a_message_is_undecodable`    |
+| a second answer to one request breaks the discipline                             | `a_reader_that_answers_twice_breaks_the_discipline`                                     |
+| a reader of another major version is refused                                     | `a_reader_of_another_major_version_is_refused`                                          |
+| a reader that dies inside a frame leaves a truncated capture                     | `a_reader_that_dies_mid_frame_leaves_a_truncated_capture`                               |
+| a capture ending with a request open is broken; a request id of 0 is a breach    | `a_capture_that_ends_with_a_request_open_is_broken`, `a_request_id_of_zero_is_a_breach` |
+| a reading has the same readings and blob by recording and by export              | `a_reading_arrives_the_same_by_recording_and_by_export`                                 |
+| a recording with no acknowledgement has no provenance, so no export              | `a_recording_with_no_acknowledgement_has_no_provenance_to_export`                       |
 
 `crates/yata-daemon/tests/probe_fixtures.rs` replays
 `tests/fixtures/synthetic-souls.frames`, a recording the reader's own session
 code made over synthetic memory (a pinned copy of the reader repository's
 fixture): its provenance, four souls with every typed field unset and the
-recognition rule inherited, their container keys, a deterministic survey, a
-presence/absence cross-tabulation, and a suit-code ledger that stays unretired.
+recognition rule inherited and no field mapped, their container keys, a
+deterministic survey, a presence/absence cross-tabulation, and a suit-code
+ledger that stays unretired.
 
-| Claim                                                                                                     | Test in `probe::convert::tests` or `probe::launch::tests` (Windows)                                       |
-| --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| a typed value without an evidence entry is not taken as mapped; evidence is carried and never raised      | `a_typed_value_without_evidence_is_not_taken_as_mapped`, `evidence_is_carried_as_stated_and_never_raised` |
-| unstated or repeated evidence is refused; the recognition rule has its own evidence                       | `unstated_or_repeated_evidence_is_refused`, `the_recognition_rule_has_its_own_evidence`                   |
-| the request id is not part of a reading's blob                                                            | `the_request_id_is_not_part_of_the_blob`                                                                  |
-| the pipe's descriptor grants its owner only; the owner connects and its process id is checked (R10, part) | `the_pipe_refuses_everyone_but_its_owner`, `the_owner_connects_and_its_process_id_is_checked`             |
-| a client that is not the reader is refused; a second server cannot take the first instance                | `a_client_that_is_not_the_reader_is_refused`, `the_first_instance_cannot_be_taken_by_a_second_server`     |
-| a file's hash is its SHA-256 (R7)                                                                         | `a_file_hash_is_its_sha256`, `hashes_are_read_and_written_as_hex`                                         |
+| Claim                                                                                                     | Test in `probe::convert::tests` or `probe::launch::tests` (Windows)                                   |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| a value for an unmapped field is not taken; an established mapping keeps its basis                        | `a_value_for_an_unmapped_field_is_not_taken`, `an_established_mapping_keeps_its_basis`                |
+| unstated coverage, evidence, innate readings, and values are refused, not defaulted                       | `unstated_shapes_are_refused_not_defaulted`                                                           |
+| a cut sequence or mapping states a full length above what it holds                                        | `a_cut_length_must_be_above_what_is_held`                                                             |
+| a blob is the reading alone, whatever request carried it                                                  | `a_blob_is_the_reading_alone`                                                                         |
+| the pipe's descriptor grants its owner only; the owner connects and its process id is checked (R10, part) | `the_pipe_refuses_everyone_but_its_owner`, `the_owner_connects_and_its_process_id_is_checked`         |
+| a client that is not the reader is refused; a second server cannot take the first instance                | `a_client_that_is_not_the_reader_is_refused`, `the_first_instance_cannot_be_taken_by_a_second_server` |
+| a pipe name is random and local                                                                           | `a_pipe_name_is_random_and_local`                                                                     |
+| a file's hash is its SHA-256, written as hex and parsed from nothing else (R7)                            | `a_file_hash_is_its_sha256`, `hashes_are_read_and_written_as_hex_and_nothing_else`                    |
 
 ## Soul observations and evidence analyses — `yata-core::import`
 
-| Claim                                                                                           | Tests                                                                                                                  |
-| ----------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| field names round-trip; inherited is weaker than established; renderings keep kinds apart       | `observation::tests`                                                                                                   |
-| a survey counts kinds, integer ranges, and distinct values                                      | `evidence::tests::a_survey_counts_kinds_ranges_and_distinct_values`                                                    |
-| groups order absent first, then integers numerically; a crosstab separates absent, null, values | `evidence::tests::groups_order_absent_then_integers_numerically`, `a_crosstab_separates_absent_null_and_values`        |
-| matching codes re-establish a bit; a code attested for two bits contradicts both                | `evidence::tests::matching_codes_reestablish_their_bits`, `a_code_attested_for_two_bits_contradicts_both`              |
-| unjoinable attestations are reported; only every bit re-established retires the inheritance     | `evidence::tests::unjoinable_attestations_are_reported_not_dropped`, `every_bit_reestablished_retires_the_inheritance` |
+| Claim                                                                                           | Tests                                                                                                                                |
+| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| field names round-trip; inherited is weaker than established; renderings keep kinds apart       | `observation::tests`                                                                                                                 |
+| an unmapped field holds no value whatever the record says; a mapped one a record lacks is empty | `observation::tests::an_unmapped_field_holds_no_value_whatever_the_record_says`, `a_mapped_field_a_record_lacks_is_mapped_and_empty` |
+| a survey counts kinds, integer ranges, and distinct values                                      | `evidence::tests::a_survey_counts_kinds_ranges_and_distinct_values`                                                                  |
+| groups order absent first, then integers numerically; a crosstab separates absent, null, values | `evidence::tests::groups_order_absent_then_integers_numerically`, `a_crosstab_separates_absent_null_and_values`                      |
+| matching codes re-establish a bit; a code attested for two bits contradicts both                | `evidence::tests::matching_codes_reestablish_their_bits`, `a_code_attested_for_two_bits_contradicts_both`                            |
+| unjoinable attestations are reported; only every bit re-established retires the inheritance     | `evidence::tests::unjoinable_attestations_are_reported_not_dropped`, `every_bit_reestablished_retires_the_inheritance`               |
 
 The reader's own tests — discovery, attach classification, the layout decoder on
 synthetic memory and on a live process of the runtime it reads, its session
