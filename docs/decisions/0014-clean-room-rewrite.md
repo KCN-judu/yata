@@ -51,10 +51,9 @@ are what the rewrite needs and they are not the prior tool's expression:
 **Facts enter through documents, not through the prior tool's source.**
 
 - A fact is recorded, with its evidence and confidence, in a spec page (such as
-  [spec/scheme-code.md](../spec/scheme-code.md),
-  [spec/probe-protocol.md](../spec/probe-protocol.md), or
-  `spec/reader-security.md`, deleted by ADR-0030) or in the project's local
-  research records (ADR-0016).
+  [spec/scheme-code.md](../spec/scheme-code.md), `spec/probe-protocol.md`,
+  deleted by ADR-0031, or `spec/reader-security.md`, deleted by ADR-0030) or in
+  the project's local research records (ADR-0016).
 - Implementation is written from those pages. Someone implementing a feature
   reads the spec, not the prior tool.
 - A fact taken from the prior tool is a hypothesis until this project's own

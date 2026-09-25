@@ -1,6 +1,6 @@
 ---
 id: PRP-0006
-status: draft
+status: accepted
 date: 2026-09-25
 area: persistence
 related-issues: []
@@ -140,4 +140,8 @@ format-1 store opens and folds to the same projection; an unknown body is
 
 ## Outcome
 
-Open.
+Accepted as option A by ADR-0032, 2026-09-25, in store format 2. Open question 1
+is answered there: a new kind or version moves the store format, so an unset
+body in a store of a known format is malformed. Questions 2 and 3 are decided
+with compaction. The lift from format 1 described above is not written: ADR-0032
+refuses a format-1 store instead.
