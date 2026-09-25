@@ -32,15 +32,17 @@ Current truth about what the system means. Edited in place.
   cut, what is deferred, and why
 - [spec/core-protocol.md](spec/core-protocol.md) — the daemon ↔ Flutter wire:
   frames, call categories, pages, revisions, the error envelope
-- [spec/probe-protocol.md](spec/probe-protocol.md) — the daemon ↔ probe wire:
-  handshake, read requests, cancellation, and the recording format
+- [spec/import-format.md](spec/import-format.md) — the community snapshot
+  formats a user imports, each by its shape and header, and a CSV template to
+  fill in by hand
+- [spec/probe-protocol.md](spec/probe-protocol.md) — the retired reader wire:
+  the reading records, export file, and recording format that data reception
+  still reads
 - [spec/protocol-versions.md](spec/protocol-versions.md) — append-only ledger of
   assigned wire versions and retired error codes
 - [spec/scheme-code.md](spec/scheme-code.md) — the SchemeCode / SoulSelection
   model, evaluation semantics, the QR-to-payload codec and its rules, encoder
   stages
-- [spec/reader-security.md](spec/reader-security.md) — what the reader may and
-  may not do to the user's system, R1–R11, each with its check
 - [spec/fact-format.md](spec/fact-format.md) — commits, the fact envelope and
   kinds, blob content addressing, lifting old facts, the projection cache,
   compaction
@@ -75,12 +77,13 @@ rewrite.
   — crates exist by split trigger, not by list; three crates to start
 - [decisions/0006-reader-channel.md](decisions/0006-reader-channel.md) — the
   reader speaks the core's wire over a user-restricted named pipe; detect, then
-  elevate through UAC; recordings
+  elevate through UAC; recordings; **superseded** by ADR-0030
 - [decisions/0007-open-source-read-only-reader.md](decisions/0007-open-source-read-only-reader.md)
   — the reader is open source (MIT OR Apache-2.0), reads without writing to the
-  game, meets the security baseline
+  game, meets the security baseline; **superseded** by ADR-0030
 - [decisions/0008-platforms-and-export-file-import.md](decisions/0008-platforms-and-export-file-import.md)
-  — Windows and macOS; macOS reads inventory from a reader JSON export file
+  — Windows and macOS; macOS reads inventory from a reader JSON export file;
+  **superseded** by ADR-0030
 - [decisions/0009-scheme-code-model-and-format.md](decisions/0009-scheme-code-model-and-format.md)
   — SoulSelection mirrors the game's panel; the game's official format only;
   open bits preserved
@@ -88,8 +91,8 @@ rewrite.
   — per-user local data directory; self-contained checked backup files;
   automatic backup before format upgrade and compaction
 - [decisions/0011-packaging-and-self-update.md](decisions/0011-packaging-and-self-update.md)
-  — per-user installer, standalone reader zip, automatic updates checked against
-  a signed release manifest
+  — per-user installer, standalone reader zip (no longer built, ADR-0030),
+  automatic updates checked against a signed release manifest
 - [decisions/0012-flutter-app-architecture.md](decisions/0012-flutter-app-architecture.md)
   — Flutter engineering: one package, three layers, Riverpod, revision-driven
   invalidation, gen-l10n, errors by code
@@ -141,6 +144,9 @@ rewrite.
 - [decisions/0029-ordinary-or-boss-soul.md](decisions/0029-ordinary-or-boss-soul.md)
   — a soul is ordinary or a boss soul with its innate attribute; a reading that
   cannot tell is bad data
+- [decisions/0030-no-game-reader.md](decisions/0030-no-game-reader.md) — the
+  project does not read the game and maintains no reader; the user supplies a
+  file in a community snapshot format; no tool is named or recommended
 
 ## Proposals — `proposals/`
 
@@ -163,6 +169,9 @@ Design questions under active consideration. Close with `accepted` (→ ADR) or
 - [proposals/0007-equipped-by.md](proposals/0007-equipped-by.md) — which
   Shikigami wears a soul, as a type; **draft**, deferred past the first version
 - PRP-0001 and PRP-0002 are kept in local research (ADR-0016).
+- [proposals/0008-community-snapshot-import.md](proposals/0008-community-snapshot-import.md)
+  — importing a community snapshot file, and the provenance of an imported file;
+  **draft**
 
 ## Issues — `issues/`
 
@@ -172,7 +181,8 @@ Design questions with unknown answers. Close with `resolved` or `deferred`.
   — the game's scheme-code encoding; **resolved** by ADR-0009: QR → Base64 →
   zlib → game-defined binary layout
 - [issues/0002-probe-elevation.md](issues/0002-probe-elevation.md) — the reader
-  needs elevation when the game has it; **resolved** by ADR-0006
+  needs elevation when the game has it; **resolved** by ADR-0006, whose reader
+  ADR-0030 removed
 - [issues/0003-packaging-and-code-signing.md](issues/0003-packaging-and-code-signing.md)
   — packaging and updates decided by ADR-0011; OS signing and notarization
   **deferred**
@@ -245,8 +255,9 @@ What changed for someone. Append-only; one fragment per change.
 - [changes/unreleased/2026-09-ci-platforms-and-release.md](changes/unreleased/2026-09-ci-platforms-and-release.md)
   — CI fails on a missing tool, runs per shipping platform, and packages the
   daemon unsigned
-- [changes/unreleased/2026-09-reader-acquisition.md](changes/unreleased/2026-09-reader-acquisition.md)
-  — the probe channel reads, records, and replays; readings carry their evidence
+- [changes/unreleased/2026-09-no-game-reader.md](changes/unreleased/2026-09-no-game-reader.md)
+  — Yata no longer reads the game; the inventory comes from a file the user
+  supplies
 - [changes/unreleased/2026-09-fact-log.md](changes/unreleased/2026-09-fact-log.md)
   — the store records facts; the soul inventory is derived from them
 - [changes/unreleased/2026-09-persistence-types.md](changes/unreleased/2026-09-persistence-types.md)

@@ -14,11 +14,11 @@ this repository's license.
 
 ## How it is built
 
-| Part                                | Technology                         | Where                                                           |
-| ----------------------------------- | ---------------------------------- | --------------------------------------------------------------- |
-| the core: domain, decoding, scoring | Rust, pure functions               | `crates/`                                                       |
-| the application                     | Flutter desktop, presentation only | `app/`                                                          |
-| reading the game                    | a separate, open-source reader     | [KCN-judu/yata-reader](https://github.com/KCN-judu/yata-reader) |
+| Part                                | Technology                         | Where                                                    |
+| ----------------------------------- | ---------------------------------- | -------------------------------------------------------- |
+| the core: domain, decoding, scoring | Rust, pure functions               | `crates/`                                                |
+| the application                     | Flutter desktop, presentation only | `app/`                                                   |
+| the inventory                       | a file the user supplies           | [docs/spec/import-format.md](docs/spec/import-format.md) |
 
 The core runs as a child process, `yata-daemon`, and the application talks to it
 over a typed protocol.
