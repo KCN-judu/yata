@@ -264,21 +264,24 @@ pub fn soul(id: &str, s: &Soul) -> pb::Soul {
     }
 }
 
-pub fn selection(s: &SoulSelection) -> pb::SoulSelection {
+/// A selection on the wire, or `None` while it chooses a soul bit beyond the mapped sets.
+///
+/// INTERIM, until the wire carries unmapped soul bits (the query session's follow-up to
+/// `SuitCodes`): such a bit has no suit code, so listing the mapped sets alone would show a
+/// narrower choice than the scheme's, and none at all would read as nothing chosen. The entry is
+/// sent without a selection, and its `has_unknown_conditions` is true.
+pub fn selection(s: &SoulSelection) -> Option<pb::SoulSelection> {
     use pb::soul_selection::Sets;
     let sets = match &s.sets {
         SetChoice::AnySet => Sets::All(pb::AnySet {}),
-        // A soul bit beyond the mapped sets has no suit code to name it, so only mapped sets are
-        // listed; the entry reports its unknown conditions. With unmapped bits alone the list is
-        // empty, which a query decoder refuses: the selection is shown, not sent back.
         SetChoice::Sets(bits) => Sets::Chosen(pb::SuitCodes {
             codes: bits
                 .iter()
-                .filter_map(|b| match b {
+                .map(|b| match b {
                     SetBit::Mapped(set) => Some(u32::from(set.set().suit_code())),
                     SetBit::Unmapped(_) => None,
                 })
-                .collect(),
+                .collect::<Option<Vec<_>>>()?,
         }),
     };
     let marked = |mode, wire_mode: pb::SubAttributeMode| {
@@ -289,7 +292,7 @@ pub fn selection(s: &SoulSelection) -> pb::SoulSelection {
                 mode: wire_mode.into(),
             })
     };
-    pb::SoulSelection {
+    Some(pb::SoulSelection {
         sets: Some(sets),
         slots: s.slots.iter().map(|&k| wire_slot(k).into()).collect(),
         stars: s.stars.iter().map(|&n| u32::from(n.get())).collect(),
@@ -303,13 +306,13 @@ pub fn selection(s: &SoulSelection) -> pb::SoulSelection {
             ))
             .collect(),
         sub_counts: s.sub_counts.iter().map(|&c| sub_count(c).into()).collect(),
-    }
+    })
 }
 
 fn plan(p: &StrengtheningPlan) -> pb::SchemeEntry {
     pb::SchemeEntry {
         name: p.name.to_string(),
-        selection: Some(selection(&p.selection)),
+        selection: selection(&p.selection),
         has_unknown_conditions: p.has_unknown_conditions(),
     }
 }
@@ -317,7 +320,7 @@ fn plan(p: &StrengtheningPlan) -> pb::SchemeEntry {
 fn discard(d: &DiscardScheme) -> pb::SchemeEntry {
     pb::SchemeEntry {
         name: d.name.to_string(),
-        selection: Some(selection(d.selection())),
+        selection: selection(d.selection()),
         has_unknown_conditions: d.has_unknown_conditions(),
     }
 }
@@ -453,5 +456,29 @@ mod tests {
         let first = revision_of(1);
         assert_eq!(revision(first), 1);
         assert_ne!(first, Revision::EMPTY);
+    }
+
+    #[test]
+    fn a_selection_of_unmapped_soul_bits_is_sent_without_one_for_now() {
+        // INTERIM: remove with the None arm of `selection` once unmapped bits are on the wire.
+        use yata_core::scheme::layout::{AccountSegment, Record, SchemeLayout};
+        let unmapped_only =
+            Record::new("x", vec![0, 0, 0, 0, 0, 0, 0, 0, 0x40], vec![1]).expect("short");
+        let layout = SchemeLayout::Strengthening {
+            account: AccountSegment::from_bytes([7; 14]),
+            plans: vec![unmapped_only],
+        };
+        let code = yata_core::scheme::code::decode_code(&layout).expect("decodes");
+        let SchemeCode::Strengthening(set) = &code else {
+            panic!("a strengthening set");
+        };
+        let entry = plan(&set.plans[0]);
+        assert_eq!(entry.selection, None);
+        assert!(entry.has_unknown_conditions);
+        let mapped = SoulSelection::new(SetChoice::AnySet);
+        assert!(
+            selection(&mapped)
+                .is_some_and(|s| matches!(s.sets, Some(pb::soul_selection::Sets::All(_))))
+        );
     }
 }
