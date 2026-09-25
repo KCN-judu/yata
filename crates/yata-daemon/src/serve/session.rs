@@ -318,6 +318,7 @@ fn qr_failure(e: QrError) -> Failure {
             })
         }
         QrError::ImageTooLarge { .. }
+        | QrError::EmptyImage { .. }
         | QrError::FileTooLarge { .. }
         | QrError::NotAnImage { .. } => Code::DecodeImageInvalid(pb::DecodeImageInvalid {
             problem: problem.clone(),
@@ -328,6 +329,10 @@ fn qr_failure(e: QrError) -> Failure {
         } => Code::InternalQrTooLong(pb::InternalQrTooLong {
             bits: bits as u64,
             capacity_bits: capacity_bits as u64,
+        }),
+        QrError::SegmentTooLong { bytes } => Code::InternalQrTooLong(pb::InternalQrTooLong {
+            bits: bytes as u64 * 8,
+            capacity_bits: crate::qr::MAX_DATA_BITS as u64,
         }),
     };
     Failure::new(kind, problem)

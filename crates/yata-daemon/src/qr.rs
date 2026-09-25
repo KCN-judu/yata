@@ -26,6 +26,10 @@ pub const MAX_IMAGE_PIXELS: u64 = 32 * 1024 * 1024;
 pub const MAX_IMAGE_BYTES: usize = 32 * 1024 * 1024;
 
 /// The quiet zone around a rendered code, in modules, as the QR standard requires.
+/// The data capacity of the largest code this encoder writes, version 40 at level M: 2 331
+/// codewords of 8 bits (ISO/IEC 18004, the table of error correction characteristics).
+pub const MAX_DATA_BITS: usize = 2331 * 8;
+
 pub const QUIET_ZONE: u32 = 4;
 
 /// The most pixels per module a rendering uses. At this scale the largest code, version 40, is
@@ -56,8 +60,12 @@ impl QrMatrix {
 pub enum QrError {
     /// The text does not fit in a version 40 code at level M.
     TooLong { bits: usize, capacity_bits: usize },
+    /// The text is longer than one byte segment's length field can state, at any version.
+    SegmentTooLong { bytes: usize },
     /// The image is larger than the limits allow.
     ImageTooLarge { width: u32, height: u32 },
+    /// The image has no pixel: a width or a height of zero.
+    EmptyImage { width: u32, height: u32 },
     /// The file is larger than [`MAX_IMAGE_BYTES`].
     FileTooLarge { bytes: usize },
     /// The file is not a PNG image this reader can decode.
@@ -88,10 +96,7 @@ pub fn encode(text: &str) -> Result<QrMatrix, QrError> {
             bits,
             capacity_bits,
         },
-        DataTooLong::SegmentTooLong => QrError::TooLong {
-            bits: text.len() * 8,
-            capacity_bits: 0,
-        },
+        DataTooLong::SegmentTooLong => QrError::SegmentTooLong { bytes: text.len() },
     })?;
     // A QR code is at most 177 modules per side, so these conversions are exact.
     let size = code.size() as u32;
@@ -209,7 +214,10 @@ fn check_dimensions(width: u32, height: u32) -> Result<(), QrError> {
     let too_large = width > MAX_IMAGE_SIDE
         || height > MAX_IMAGE_SIDE
         || u64::from(width) * u64::from(height) > MAX_IMAGE_PIXELS;
-    if too_large || width == 0 || height == 0 {
+    if width == 0 || height == 0 {
+        return Err(QrError::EmptyImage { width, height });
+    }
+    if too_large {
         return Err(QrError::ImageTooLarge { width, height });
     }
     Ok(())
@@ -284,6 +292,22 @@ mod tests {
             decode_luma(8000, 8000, &[]),
             Err(QrError::ImageTooLarge { .. })
         ));
+        assert_eq!(
+            decode_luma(0, 5, &[]).err(),
+            Some(QrError::EmptyImage {
+                width: 0,
+                height: 5
+            })
+        );
+    }
+
+    #[test]
+    fn a_text_past_any_segment_length_is_its_own_refusal() {
+        let text = "x".repeat(70_000);
+        assert_eq!(
+            encode(&text).err(),
+            Some(QrError::SegmentTooLong { bytes: 70_000 })
+        );
     }
 
     #[test]
