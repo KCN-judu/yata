@@ -12,9 +12,9 @@ use std::cmp::Ordering;
 use std::num::NonZeroUsize;
 
 use super::compile::CompiledQuery;
-use super::eval::{BoolField, IntField, NumberField, OpenRules, Outcome};
+use super::eval::{BoolField, IntField, NumberField, Outcome};
 use super::{Direction, QueryError};
-use crate::scheme::evaluate::Verdict;
+use crate::scheme::evaluate::{OpenRules, Verdict};
 use crate::soul::{Soul, SoulAttribute, SoulSet, SoulSlot};
 
 /// A sortable field: every field but `has_sub` and the scores (`query.md`, "Sort").

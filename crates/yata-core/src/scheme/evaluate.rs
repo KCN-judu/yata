@@ -22,9 +22,12 @@
 //! Open, each an [`OpenRule`]: a chosen 固有属性 that a boss soul's innate attribute is not in,
 //! where the boss soul's set is not itself chosen; and a condition the model cannot see.
 
+use std::num::NonZeroU8;
+
 use crate::soul::{Soul, SoulKind};
 
 use super::code::{DiscardScheme, StrengtheningPlan};
+use super::selection::Preserved;
 use super::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount};
 
 /// What the game's filter does with a soul.
@@ -34,8 +37,8 @@ pub enum Verdict {
     Matches,
     /// The game does not pick it: a decided group rules it out.
     DoesNotMatch,
-    /// No decided group rules it out, and the outcome rests on rules still open.
-    Undetermined(Vec<OpenRule>),
+    /// No decided group rules it out, and the outcome rests on rules still open: at least one.
+    Undetermined(OpenRules),
 }
 
 /// A rule of the game's filter that the evidence does not settle yet.
@@ -46,6 +49,54 @@ pub enum OpenRule {
     Innate,
     /// The scheme selects on bits the model does not map.
     UnknownConditions,
+}
+
+impl OpenRule {
+    pub const ALL: [OpenRule; 2] = [OpenRule::Innate, OpenRule::UnknownConditions];
+
+    fn bit(self) -> u8 {
+        match self {
+            OpenRule::Innate => 1,
+            OpenRule::UnknownConditions => 2,
+        }
+    }
+}
+
+/// A set of at least one [`OpenRule`]. A bitset, so combining sets allocates nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OpenRules(NonZeroU8);
+
+impl OpenRules {
+    pub fn one(rule: OpenRule) -> OpenRules {
+        OpenRules(NonZeroU8::MIN.saturating_add(rule.bit() - 1))
+    }
+
+    /// The rules `rules` yields, or `None` if it yields none.
+    pub fn collect(rules: impl IntoIterator<Item = OpenRule>) -> Option<OpenRules> {
+        NonZeroU8::new(rules.into_iter().fold(0, |m, r| m | r.bit())).map(OpenRules)
+    }
+
+    pub fn union(self, other: OpenRules) -> OpenRules {
+        OpenRules(self.0 | other.0)
+    }
+
+    pub fn contains(self, rule: OpenRule) -> bool {
+        self.0.get() & rule.bit() != 0
+    }
+
+    /// The rules, in [`OpenRule`] order.
+    pub fn iter(self) -> impl Iterator<Item = OpenRule> {
+        OpenRule::ALL.into_iter().filter(move |&r| self.contains(r))
+    }
+}
+
+/// What one group does with a soul.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GroupOutcome {
+    Picks,
+    RulesOut,
+    /// The evidence does not decide it; the rule it rests on.
+    Open(OpenRule),
 }
 
 /// Whether the game's filter of `selection` picks `soul`, as far as the evidence decides.
@@ -81,63 +132,60 @@ pub fn matches(selection: &SoulSelection, soul: &Soul) -> Verdict {
     if !picked {
         return Verdict::DoesNotMatch;
     }
-    match innate_picks(s, soul) {
-        Some(true) => Verdict::Matches,
-        Some(false) => Verdict::DoesNotMatch,
-        None => Verdict::Undetermined(vec![OpenRule::Innate]),
+    match innate(s, soul) {
+        GroupOutcome::Picks => Verdict::Matches,
+        GroupOutcome::RulesOut => Verdict::DoesNotMatch,
+        GroupOutcome::Open(rule) => Verdict::Undetermined(OpenRules::one(rule)),
     }
 }
 
-/// Whether the 固有属性 group picks `soul`; `None` where the evidence does not decide it.
+/// What the 固有属性 group does with `soul`.
 ///
 /// Observed with boss and ordinary souls chosen together in 类型: ordinary souls all pass, and a
 /// boss soul passes exactly when its innate attribute is chosen. The editor enables the group
 /// only once a boss soul is chosen, so a boss soul whose set is not itself chosen (`AnySet`, or no
 /// set) is not observed; it is open unless its innate attribute is chosen, when either reading
 /// picks it (ADR-0029, rule 3).
-fn innate_picks(s: &SoulSelection, soul: &Soul) -> Option<bool> {
+fn innate(s: &SoulSelection, soul: &Soul) -> GroupOutcome {
     if s.innate.is_empty() {
-        return Some(true);
+        return GroupOutcome::Picks;
     }
     let set_chosen = matches!(&s.sets, SetChoice::Sets(sets) if sets.contains(&soul.set));
     match soul.kind {
-        SoulKind::Ordinary => Some(true),
-        SoulKind::Boss(a) if s.innate.contains(&a) => Some(true),
-        SoulKind::Boss(_) if set_chosen => Some(false),
-        SoulKind::Boss(_) => None,
+        SoulKind::Ordinary => GroupOutcome::Picks,
+        SoulKind::Boss(a) if s.innate.contains(&a) => GroupOutcome::Picks,
+        SoulKind::Boss(_) if set_chosen => GroupOutcome::RulesOut,
+        SoulKind::Boss(_) => GroupOutcome::Open(OpenRule::Innate),
     }
 }
 
-/// [`matches`], and never exact while the entry has unknown conditions.
-fn with_unknown(verdict: Verdict, unknown: bool) -> Verdict {
+/// [`matches`] for an entry decoded with `preserved`: never exact while it selects on bits the
+/// model does not map. A decided `DoesNotMatch` stands, since an unknown condition can only narrow
+/// the selection further.
+fn entry_matches(selection: &SoulSelection, preserved: &Preserved, soul: &Soul) -> Verdict {
+    let verdict = matches(selection, soul);
+    if !preserved.has_unknown_conditions() {
+        return verdict;
+    }
+    let unknown = OpenRules::one(OpenRule::UnknownConditions);
     match verdict {
-        Verdict::Matches if unknown => Verdict::Undetermined(vec![OpenRule::UnknownConditions]),
-        Verdict::Undetermined(mut open) if unknown => {
-            open.push(OpenRule::UnknownConditions);
-            open.sort_unstable();
-            Verdict::Undetermined(open)
-        }
-        v => v,
+        Verdict::Matches => Verdict::Undetermined(unknown),
+        Verdict::Undetermined(open) => Verdict::Undetermined(open.union(unknown)),
+        Verdict::DoesNotMatch => Verdict::DoesNotMatch,
     }
 }
 
 impl StrengtheningPlan {
     /// Whether this plan picks `soul`; see [`matches`].
     pub fn matches(&self, soul: &Soul) -> Verdict {
-        with_unknown(
-            matches(&self.selection, soul),
-            self.has_unknown_conditions(),
-        )
+        entry_matches(&self.selection, self.preserved(), soul)
     }
 }
 
 impl DiscardScheme {
     /// Whether this scheme picks `soul`; see [`matches`].
     pub fn matches(&self, soul: &Soul) -> Verdict {
-        with_unknown(
-            matches(self.selection(), soul),
-            self.has_unknown_conditions(),
-        )
+        entry_matches(self.selection(), self.preserved(), soul)
     }
 }
 
@@ -176,6 +224,20 @@ mod tests {
                 .collect(),
             kind: SoulKind::Ordinary,
         }
+    }
+
+    fn open(rules: &[OpenRule]) -> Verdict {
+        Verdict::Undetermined(OpenRules::collect(rules.iter().copied()).expect("some"))
+    }
+
+    #[test]
+    fn open_rules_are_a_set_of_at_least_one() {
+        assert_eq!(OpenRules::collect([]), None);
+        let both =
+            OpenRules::one(OpenRule::UnknownConditions).union(OpenRules::one(OpenRule::Innate));
+        assert_eq!(both.iter().collect::<Vec<_>>(), OpenRule::ALL);
+        assert_eq!(both.union(both), both);
+        assert!(!OpenRules::one(OpenRule::Innate).contains(OpenRule::UnknownConditions));
     }
 
     fn sets(codes: &[u8]) -> SetChoice {
@@ -428,10 +490,7 @@ mod tests {
             let mut sel = with_innate(&[Crit]);
             sel.sets = SetChoice::AnySet;
             assert_eq!(matches(&sel, &boss(Crit)), Verdict::Matches);
-            assert_eq!(
-                matches(&sel, &boss(AtkPercent)),
-                Verdict::Undetermined(vec![OpenRule::Innate])
-            );
+            assert_eq!(matches(&sel, &boss(AtkPercent)), open(&[OpenRule::Innate]));
             assert_eq!(matches(&sel, &soul()), Verdict::Matches);
         }
     }
@@ -536,7 +595,7 @@ mod tests {
         assert_eq!(matches(&selection, &soul()), Verdict::Matches);
         assert_eq!(
             scheme.matches(&soul()),
-            Verdict::Undetermined(vec![OpenRule::UnknownConditions])
+            open(&[OpenRule::UnknownConditions])
         );
         let mut other = soul();
         other.star = Star::Five;
@@ -548,7 +607,7 @@ mod tests {
         // As above, with 土蜘蛛 (bit 33) beside 破势 and 固有属性 暴击 (bit 60).
         let scheme = discard(record(vec![0, 0, 0x20, 0, 0x02], &[1, 11, 18, 54, 60, 61]));
         assert!(scheme.has_unknown_conditions());
-        let unknown = Verdict::Undetermined(vec![OpenRule::UnknownConditions]);
+        let unknown = open(&[OpenRule::UnknownConditions]);
         assert_eq!(scheme.matches(&boss(Crit)), unknown);
         assert_eq!(scheme.matches(&soul()), unknown);
         assert_eq!(scheme.matches(&boss(AtkPercent)), Verdict::DoesNotMatch);
@@ -556,8 +615,8 @@ mod tests {
         let mut any = with_innate(&[Crit]);
         any.sets = SetChoice::AnySet;
         assert_eq!(
-            with_unknown(matches(&any, &boss(AtkPercent)), true),
-            Verdict::Undetermined(vec![OpenRule::Innate, OpenRule::UnknownConditions])
+            entry_matches(&any, scheme.preserved(), &boss(AtkPercent)),
+            open(&[OpenRule::Innate, OpenRule::UnknownConditions])
         );
     }
 }

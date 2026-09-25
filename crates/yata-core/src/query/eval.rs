@@ -5,12 +5,11 @@
 //! node when it can, and an open result carries the union of the open rules beneath it.
 
 use std::collections::BTreeSet;
-use std::num::NonZeroU8;
 
 use super::vocabulary::Bound;
 use crate::mechanics::VALUE_TOLERANCE;
 use crate::scheme::code::{DiscardScheme, StrengtheningPlan};
-use crate::scheme::evaluate::{OpenRule, Verdict, matches};
+use crate::scheme::evaluate::{OpenRules, Verdict, matches};
 use crate::scheme::selection::SoulSelection;
 use crate::soul::{Soul, SoulAttribute, SoulSet, SoulSlot};
 
@@ -65,66 +64,12 @@ pub(super) enum Outcome {
     Open(OpenRules),
 }
 
-/// A non-empty set of [`OpenRule`]s: the rules an open verdict rests on. Empty cannot be built,
-/// so an open row always names at least one rule.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct OpenRules(NonZeroU8);
-
-impl OpenRules {
-    const ALL: [OpenRule; 2] = [OpenRule::Innate, OpenRule::UnknownConditions];
-
-    /// Each rule's bit, built at compile time: a zero bit would not compile.
-    fn bit(rule: OpenRule) -> NonZeroU8 {
-        const fn nonzero(n: u8) -> NonZeroU8 {
-            match NonZeroU8::new(n) {
-                Some(n) => n,
-                None => panic!("a rule's bit is never zero"),
-            }
-        }
-        match rule {
-            OpenRule::Innate => const { nonzero(1) },
-            OpenRule::UnknownConditions => const { nonzero(2) },
-        }
-    }
-
-    /// The set of one rule.
-    pub fn one(rule: OpenRule) -> OpenRules {
-        OpenRules(OpenRules::bit(rule))
-    }
-
-    /// The set of these rules, if there is at least one.
-    pub fn collect(rules: impl IntoIterator<Item = OpenRule>) -> Option<OpenRules> {
-        rules
-            .into_iter()
-            .map(OpenRules::one)
-            .reduce(OpenRules::union)
-    }
-
-    pub fn union(self, other: OpenRules) -> OpenRules {
-        OpenRules(self.0 | other.0)
-    }
-
-    pub fn contains(self, rule: OpenRule) -> bool {
-        self.0.get() & OpenRules::bit(rule).get() != 0
-    }
-
-    /// The rules, in [`OpenRule`] order.
-    pub fn iter(self) -> impl Iterator<Item = OpenRule> {
-        OpenRules::ALL
-            .into_iter()
-            .filter(move |&r| self.contains(r))
-    }
-}
-
 impl Outcome {
     pub(super) fn of(verdict: &Verdict) -> Outcome {
         match verdict {
             Verdict::Matches => Outcome::Yes,
             Verdict::DoesNotMatch => Outcome::No,
-            // With no open rule named, nothing is left open: the scheme evaluator decided it.
-            Verdict::Undetermined(rules) => {
-                OpenRules::collect(rules.iter().copied()).map_or(Outcome::Yes, Outcome::Open)
-            }
+            Verdict::Undetermined(rules) => Outcome::Open(*rules),
         }
     }
 
@@ -136,7 +81,7 @@ impl Outcome {
         match self {
             Outcome::Yes => Verdict::Matches,
             Outcome::No => Verdict::DoesNotMatch,
-            Outcome::Open(rules) => Verdict::Undetermined(rules.iter().collect()),
+            Outcome::Open(rules) => Verdict::Undetermined(rules),
         }
     }
 

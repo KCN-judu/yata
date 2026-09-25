@@ -3,10 +3,10 @@ use std::num::NonZeroUsize;
 
 use proptest::prelude::*;
 
-use super::eval::{OpenRules, Outcome};
+use super::eval::Outcome;
 use super::*;
 use crate::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningSchemeSet, encode_code};
-use crate::scheme::evaluate::{OpenRule, Verdict};
+use crate::scheme::evaluate::{OpenRule, OpenRules, Verdict};
 use crate::scheme::layout::{AccountSegment, Record, SchemeLayout, serialize};
 use crate::scheme::name::SchemeName;
 use crate::scheme::selection::{InnateAttribute, SetChoice, SoulSelection};
@@ -113,7 +113,7 @@ fn innate_open() -> Expr {
 }
 
 fn open(rules: &[OpenRule]) -> Verdict {
-    Verdict::Undetermined(rules.to_vec())
+    Verdict::Undetermined(OpenRules::collect(rules.iter().copied()).expect("some"))
 }
 
 // ---- predicates ----
@@ -280,14 +280,16 @@ fn outcome() -> impl Strategy<Value = Outcome> {
     prop_oneof![
         Just(Outcome::Yes),
         Just(Outcome::No),
-        (1u8..4).prop_map(|m| {
-            let rules = [OpenRule::Innate, OpenRule::UnknownConditions]
-                .into_iter()
-                .enumerate()
-                .filter(|(i, _)| m & (1 << i) != 0)
-                .map(|(_, r)| r);
-            Outcome::Open(OpenRules::collect(rules).expect("m is not zero"))
-        }),
+        (1u8..4).prop_map(|m| Outcome::Open(
+            OpenRules::collect(
+                OpenRule::ALL
+                    .into_iter()
+                    .enumerate()
+                    .filter(|(i, _)| m & (1 << i) != 0)
+                    .map(|(_, r)| r)
+            )
+            .expect("m is not zero")
+        )),
     ]
 }
 

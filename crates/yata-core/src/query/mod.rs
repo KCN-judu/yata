@@ -22,8 +22,8 @@ pub mod vocabulary;
 #[cfg(test)]
 mod tests;
 
+pub use crate::scheme::evaluate::OpenRules;
 pub use compile::{CompiledQuery, compile};
-pub use eval::OpenRules;
 pub use page::RowVerdict;
 pub use page::{Cursor, Page, PageRequest, Row, SortValue};
 pub use vocabulary::{
