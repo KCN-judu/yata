@@ -1,5 +1,5 @@
-//! The `yata-daemon probe …` commands: a live read, and the research commands over recordings and
-//! export files. Output is for developers and is English.
+//! The `yata-daemon probe …` commands: the research commands over recordings and export files.
+//! Output is for developers and is English.
 
 use std::ffi::OsString;
 use std::path::Path;
@@ -17,10 +17,7 @@ use super::report;
 use super::session::{self, Inbound};
 
 pub const USAGE: &str =
-    "  probe read <reader> [--pid <n>] [--record <out.frames>] [--export <out.json>]
-             [--reader-sha256 <hex>]
-                                          read the souls through a reader (Windows)
-  probe show <input>                      provenance, coverage, and field mappings
+    "  probe show <input>                      provenance, coverage, and field mappings
   probe decode <recording>                every message of a recording, checked
   probe survey <input>                    what each observed key holds
   probe group <input> <source> [<n>]      souls grouped by a value, n samples each
@@ -57,7 +54,6 @@ fn dispatch(args: &[OsString]) -> Result<String, String> {
         .collect::<Result<Vec<&str>, String>>()?;
     let path = |i: usize| Path::new(words[i]);
     match words.as_slice() {
-        ["read", _, rest @ ..] => read(path(1), rest),
         ["show", _] => with_readings(path(1), |loaded, readings| {
             Ok(report::summary(loaded, readings))
         }),
@@ -250,118 +246,6 @@ fn to_export(input: &Path, out: &Path) -> Result<String, String> {
         loaded.readings.len(),
         text.len()
     ))
-}
-
-#[cfg(windows)]
-fn read(reader: &Path, rest: &[&str]) -> Result<String, String> {
-    use std::num::NonZeroU32;
-
-    use super::launch::{self, Elevation, LaunchError, ReadOptions, Sha256};
-    use yata_protocol::failure::SessionReason;
-
-    use super::session::{SessionError, Step, Target};
-
-    let mut options = ReadOptions {
-        reader,
-        target: Target::Discover,
-        record: None,
-        expected_sha256: None,
-    };
-    let mut export_to = None;
-    for pair in rest.chunks(2) {
-        let [flag, value] = pair else {
-            return Err(format!("probe.usage: {} needs a value", pair[0]));
-        };
-        match *flag {
-            "--pid" => {
-                options.target = Target::Pid(
-                    value
-                        .parse::<NonZeroU32>()
-                        .map_err(|_| format!("probe.usage: not a process id: {value}"))?,
-                );
-            }
-            "--record" => options.record = Some(Path::new(value)),
-            "--export" => export_to = Some(Path::new(value)),
-            "--reader-sha256" => {
-                options.expected_sha256 = Some(
-                    Sha256::parse(value)
-                        .ok_or_else(|| format!("probe.usage: not a SHA-256: {value}"))?,
-                );
-            }
-            other => return Err(format!("probe.usage: unknown flag {other}")),
-        }
-    }
-    let outcome = launch::read_souls(&options, &mut |done, total| {
-        match total {
-            Some(t) => eprintln!("progress {done}/{t}"),
-            None => eprintln!("progress {done}"),
-        }
-        Step::Continue
-    })
-    .map_err(|e| match e {
-        LaunchError::ElevationDeclined => "import.elevation_declined: run the reader's export \
-                                           mode as administrator and import the file"
-            .to_owned(),
-        LaunchError::NoExpectedHash => "import.elevation_unverified: the game needs an \
-                                        elevated reader; give --reader-sha256 to check it first"
-            .to_owned(),
-        LaunchError::Session(SessionError::SessionFailed(f)) => {
-            let mut text = format!("import.probe_failed: {} {}", f.name(), f.message);
-            if let SessionReason::Ambiguous { candidates } = &f.reason {
-                for c in candidates {
-                    text.push_str(&format!("\n  candidate pid {} {}", c.pid, c.image_name));
-                }
-            }
-            text
-        }
-        LaunchError::Session(SessionError::RequestFailed { failure, .. }) => {
-            format!(
-                "import.probe_failed: {} {}",
-                failure.name(),
-                failure.message
-            )
-        }
-        other => format!("import.probe_failed: {other:?}"),
-    })?;
-    let mut text = format!(
-        "engine {} build {}{}\n",
-        outcome.ack.engine,
-        outcome.ack.probe_build_id,
-        match outcome.elevation {
-            Elevation::Elevated => " (elevated)",
-            Elevation::Unelevated => "",
-        }
-    );
-    for l in &outcome.logs {
-        text.push_str(&format!("log {:?} {}\n", l.level, l.message));
-    }
-    let loaded = Loaded {
-        carrier: input::Carrier::Live {
-            failures: Vec::new(),
-        },
-        provenance: Some(
-            input::provenance_of(&outcome.ack).map_err(|e| format!("probe.input: {e:?}"))?,
-        ),
-        readings: vec![outcome.reading],
-    };
-    let readings = readings(&loaded)?;
-    text.push_str(&report::summary(&loaded, &readings));
-    if let Some(out) = export_to {
-        let e = input::to_export(&loaded).map_err(|e| format!("probe.to_export: {e:?}"))?;
-        let json = export::to_json(&e).map_err(|e| format!("probe.output: {e:?}"))?;
-        std::fs::write(out, json).map_err(|e| format!("probe.output: {}: {e}", out.display()))?;
-        text.push_str(&format!("export written to {}\n", out.display()));
-    }
-    Ok(text)
-}
-
-#[cfg(not(windows))]
-fn read(_reader: &Path, _rest: &[&str]) -> Result<String, String> {
-    // ADR-0008: no read channel exists here; the export file is the way in.
-    Err(
-        "import.channel_unavailable: reading the game needs Windows; import an export file"
-            .to_owned(),
-    )
 }
 
 #[cfg(test)]
