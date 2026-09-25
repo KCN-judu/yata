@@ -14,11 +14,10 @@ use std::collections::BTreeSet;
 use std::path::PathBuf;
 
 use prost::Message;
-use yata_core::nonempty::NonEmptySet;
 use yata_core::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningSchemeSet, encode_code};
 use yata_core::scheme::layout::{AccountSegment, serialize};
 use yata_core::scheme::name::SchemeName;
-use yata_core::scheme::selection::{SetChoice, SoulSelection, SubAttributeMode};
+use yata_core::scheme::selection::{SchemeSet, SetChoice, SoulSelection, SubAttributeMode};
 use yata_core::scheme::transport::encode_text;
 use yata_core::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
 use yata_daemon::qr;
@@ -334,9 +333,9 @@ fn subscribing_behind_the_projection_emits_its_revision_once() {
 
 /// A strengthening set of two plans, built through the codec, and its scheme text.
 fn sample_scheme_text() -> String {
-    let mut spd = SoulSelection::new(SetChoice::Sets(NonEmptySet::one(SoulSet::from_suit_code(
-        30,
-    ))));
+    let mut spd = SoulSelection::new(SetChoice::of([
+        SchemeSet::new(SoulSet::from_suit_code(30)).expect("a mapped set")
+    ]));
     spd.slots.insert(SoulSlot::Slot2);
     spd.main_attributes.insert(SoulAttribute::Spd);
     spd.sub_attributes

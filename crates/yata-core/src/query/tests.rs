@@ -272,7 +272,7 @@ fn an_open_result_names_every_open_rule_beneath_it() {
     let both = Expr::And(vec![innate_open(), scheme]);
     assert_eq!(
         verdict(both, &s),
-        open(&[OpenRule::Innate, OpenRule::UnknownConditions])
+        open(&[OpenRule::Innate, OpenRule::UnknownFilter])
     );
 }
 
@@ -383,7 +383,7 @@ fn a_scheme_filter_takes_the_scheme_evaluators_verdict() {
     let unknown = unknown_condition_code();
     assert_eq!(
         verdict(scheme(&unknown, None), &s),
-        open(&[OpenRule::UnknownConditions])
+        open(&[OpenRule::UnknownFilter])
     );
     let five_star = Soul {
         star: Star::Five,
@@ -431,15 +431,15 @@ fn a_scheme_reference_names_exactly_one_entry() {
 fn open_rules_are_never_empty() {
     assert_eq!(OpenRules::collect([]), None);
     let innate = OpenRules::one(OpenRule::Innate);
-    let unknown = OpenRules::one(OpenRule::UnknownConditions);
+    let unknown = OpenRules::one(OpenRule::UnknownFilter);
     let both = innate.union(unknown);
     assert_eq!(
         both.iter().collect::<Vec<_>>(),
-        [OpenRule::Innate, OpenRule::UnknownConditions]
+        [OpenRule::Innate, OpenRule::UnknownFilter]
     );
-    assert!(innate.contains(OpenRule::Innate) && !innate.contains(OpenRule::UnknownConditions));
+    assert!(innate.contains(OpenRule::Innate) && !innate.contains(OpenRule::UnknownFilter));
     assert_eq!(
-        OpenRules::collect([OpenRule::UnknownConditions, OpenRule::Innate]),
+        OpenRules::collect([OpenRule::UnknownFilter, OpenRule::Innate]),
         Some(both)
     );
 }

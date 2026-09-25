@@ -17,7 +17,6 @@ use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 use prost::Message;
-use yata_core::nonempty::NonEmptySet;
 use yata_core::query::{
     Bound, CompiledQuery, Direction, EnumValue, Expr, Field, PageRequest, SchemeCodeText,
     SchemeRef, SortKey, SoulQuery, Test, compile,
@@ -25,7 +24,9 @@ use yata_core::query::{
 use yata_core::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningSchemeSet, encode_code};
 use yata_core::scheme::layout::{AccountSegment, serialize};
 use yata_core::scheme::name::SchemeName;
-use yata_core::scheme::selection::{LevelBand, SetChoice, SoulSelection, SubAttributeMode};
+use yata_core::scheme::selection::{
+    LevelBand, SchemeSet, SetChoice, SoulSelection, SubAttributeMode,
+};
 use yata_core::scheme::transport::encode_text;
 use yata_core::soul::{
     Level, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
@@ -102,14 +103,10 @@ fn inventory(n: usize, seed: u64) -> BTreeMap<String, Soul> {
 }
 
 fn scheme_code() -> String {
-    let sets = NonEmptySet::collect(
-        SUIT_CODES[..20]
-            .iter()
-            .copied()
-            .map(SoulSet::from_suit_code),
-    )
-    .expect("twenty sets");
-    let mut s = SoulSelection::new(SetChoice::Sets(sets));
+    let sets = SUIT_CODES[..20]
+        .iter()
+        .map(|&c| SchemeSet::new(SoulSet::from_suit_code(c)).expect("a mapped set"));
+    let mut s = SoulSelection::new(SetChoice::of(sets));
     s.slots = [SoulSlot::Slot2, SoulSlot::Slot4, SoulSlot::Slot6].into();
     s.stars = [Star::Six].into();
     s.levels = [LevelBand::L0to2, LevelBand::L15].into();

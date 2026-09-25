@@ -284,6 +284,14 @@ fn an_inline_selection_is_converted_and_evaluated() {
         "query.malformed"
     );
     assert_eq!(malformed(WireSelection::default()), "query.malformed");
+    // A suit code with no scheme bit: no scheme can choose it.
+    assert_eq!(
+        malformed(WireSelection {
+            sets: Some(Sets::Chosen(SuitCodes { codes: vec![1] })),
+            ..WireSelection::default()
+        }),
+        "query.malformed"
+    );
 }
 
 fn nest(depth: usize) -> Expr {

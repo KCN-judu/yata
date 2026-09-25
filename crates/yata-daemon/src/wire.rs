@@ -9,7 +9,7 @@
 use yata_core::fact::{AdmissionError, FoldError, ProfileId, Revision, Seq};
 use yata_core::scheme::code::{DiscardScheme, SchemeCode, StrengtheningPlan};
 use yata_core::scheme::selection::{
-    LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
+    LevelBand, SetBit, SetChoice, SoulSelection, SubAttributeMode, SubCount,
 };
 use yata_core::soul::{Soul, SoulKind};
 use yata_protocol::core as pb;
@@ -268,12 +268,18 @@ pub fn selection(s: &SoulSelection) -> pb::SoulSelection {
     use pb::soul_selection::Sets;
     let sets = match &s.sets {
         SetChoice::AnySet => Sets::All(pb::AnySet {}),
-        SetChoice::Sets(sets) => Sets::Chosen(pb::SuitCodes {
-            codes: sets.iter().map(|x| u32::from(x.suit_code())).collect(),
+        // A soul bit beyond the mapped sets has no suit code to name it, so only mapped sets are
+        // listed; the entry reports its unknown conditions. With unmapped bits alone the list is
+        // empty, which a query decoder refuses: the selection is shown, not sent back.
+        SetChoice::Sets(bits) => Sets::Chosen(pb::SuitCodes {
+            codes: bits
+                .iter()
+                .filter_map(|b| match b {
+                    SetBit::Mapped(set) => Some(u32::from(set.set().suit_code())),
+                    SetBit::Unmapped(_) => None,
+                })
+                .collect(),
         }),
-        // Souls the model does not map: no suit code can name them. The entry reports its unknown
-        // conditions, and the selection is shown, not sent back; a query decoder refuses it.
-        SetChoice::OnlyUnmapped => Sets::Chosen(pb::SuitCodes { codes: Vec::new() }),
     };
     let marked = |mode, wire_mode: pb::SubAttributeMode| {
         s.sub_attributes

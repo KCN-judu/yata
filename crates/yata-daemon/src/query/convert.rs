@@ -14,7 +14,8 @@ use yata_core::query::{
     SchemeRef, SortKey, SoulQuery, Test,
 };
 use yata_core::scheme::selection::{
-    InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
+    InnateAttribute, LevelBand, SchemeSet, SetBit, SetChoice, SoulSelection, SubAttributeMode,
+    SubCount,
 };
 use yata_core::soul::{
     Level, RollCount, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue,
@@ -190,6 +191,14 @@ fn bounded<W: Copy, T>(
 
 fn star(n: u32) -> Result<Star, WireProblem> {
     Star::try_from(n).map_err(|_| WireProblem::OutOfRange)
+}
+
+/// A suit code a scheme can choose.
+fn scheme_set(code: u32) -> Result<SetBit, WireProblem> {
+    let set = suit(code)?;
+    SchemeSet::new(set)
+        .map(SetBit::Mapped)
+        .ok_or(WireProblem::UnmappedSet)
 }
 
 fn suit(code: u32) -> Result<SoulSet, WireProblem> {
@@ -406,7 +415,7 @@ pub fn selection(s: &wire::SoulSelection) -> Result<SoulSelection, RequestError>
         Sets::All(wire::AnySet {}) => SetChoice::AnySet,
         // "Every set" has one encoding, `all`: an empty list is not a second one.
         Sets::Chosen(c) => SetChoice::Sets(
-            NonEmptySet::collect(bounded(&c.codes, suit)?)
+            NonEmptySet::collect(bounded(&c.codes, scheme_set)?)
                 .ok_or_else(|| malformed(WireProblem::NoSets))?,
         ),
     };

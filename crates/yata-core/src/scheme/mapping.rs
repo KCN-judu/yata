@@ -16,7 +16,7 @@ use crate::soul::{SoulAttribute, SoulSet, SoulSlot, Star};
 use super::selection::{InnateAttribute, LevelBand, SubCount};
 
 /// A soul-mask bit this codec may write: one per mapped soul set.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SoulBit(u16);
 
 impl SoulBit {

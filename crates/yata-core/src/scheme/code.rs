@@ -46,6 +46,10 @@ pub struct DiscardScheme {
 }
 
 impl StrengtheningPlan {
+    pub fn selection(&self) -> &SoulSelection {
+        &self.selection
+    }
+
     /// A new plan, with nothing preserved.
     pub fn new(name: SchemeName, selection: SoulSelection) -> StrengtheningPlan {
         StrengtheningPlan {
@@ -72,7 +76,7 @@ impl DiscardScheme {
     ) -> Result<DiscardScheme, DiscardCannotSelectAll> {
         match selection.sets {
             SetChoice::AnySet => Err(DiscardCannotSelectAll),
-            SetChoice::Sets(_) | SetChoice::OnlyUnmapped => Ok(DiscardScheme {
+            SetChoice::Sets(_) => Ok(DiscardScheme {
                 name,
                 selection,
                 preserved,
@@ -93,10 +97,11 @@ macro_rules! scheme_entry {
                 &self.preserved
             }
 
-            /// Whether the entry selects on a condition the model cannot see; its evaluation is
-            /// then never exact (`scheme-code.md`, "Evaluation").
+            /// Whether the entry selects on something the model cannot see: a soul bit beyond
+            /// the mapped sets, or a filter bit outside every solved group (`scheme-code.md`,
+            /// "Evaluation").
             pub fn has_unknown_conditions(&self) -> bool {
-                self.preserved.has_unknown_conditions()
+                self.selection().has_unmapped_sets() || self.preserved.has_unknown_filter()
             }
         }
     };
@@ -170,8 +175,7 @@ fn record_of(
     selection: &SoulSelection,
     preserved: &Preserved,
 ) -> Result<Record, CodeError> {
-    let (soul_mask, filter) = encode_selection(selection, preserved)
-        .map_err(|error| CodeError::Selection { record: i, error })?;
+    let (soul_mask, filter) = encode_selection(selection, preserved);
     Record::new(name.as_str(), soul_mask, filter)
         .map_err(|error| CodeError::Layout { record: i, error })
 }
@@ -206,7 +210,7 @@ mod tests {
 
     use super::super::edit::{FilterBit, SoulBit, SoulChoice};
     use super::super::layout::{SchemeKind, parse, serialize};
-    use super::super::selection::{InnateAttribute, LevelBand, SubAttributeMode};
+    use super::super::selection::{InnateAttribute, LevelBand, SchemeSet, SubAttributeMode};
     use super::*;
     use crate::nonempty::NonEmptySet;
     use crate::soul::{SoulAttribute, SoulSet, SoulSlot};
@@ -220,7 +224,7 @@ mod tests {
     }
 
     fn one_set(code: u8) -> SetChoice {
-        SetChoice::Sets(NonEmptySet::one(SoulSet::from_suit_code(code)))
+        SetChoice::of([SchemeSet::new(SoulSet::from_suit_code(code)).expect("a mapped set")])
     }
 
     fn raw(n: &str, souls: &[u16], filter: &[u16]) -> Record {
@@ -310,8 +314,8 @@ mod tests {
                 .iter()
                 .all(StrengtheningPlan::has_unknown_conditions)
         );
-        // 乙 chooses soul bit 70 only, which no set maps.
-        assert_eq!(set.plans[1].selection.sets, SetChoice::OnlyUnmapped);
+        // 乙 chooses soul bit 70 only, which no set maps: souls the model cannot name.
+        assert!(set.plans[1].selection.has_unmapped_sets());
         let again = serialize(&encode_code(&code, account()).expect("encodable"));
         assert_eq!(again, Ok(payload));
     }

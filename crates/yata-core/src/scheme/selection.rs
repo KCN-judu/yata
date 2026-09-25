@@ -11,10 +11,10 @@ use std::collections::{BTreeMap, BTreeSet};
 pub use crate::soul::InnateAttribute;
 use crate::soul::{Level, SoulAttribute, SoulSet, SoulSlot, Star};
 
-use super::layout::Record;
+use super::layout::{MAX_FIELD_LEN, Record};
 use super::mapping::{
     COUNT_BITS, FilterBit, INNATE_BITS, LEVEL_BITS, MAIN_BITS, SLOT_BITS, SOUL_BIT_COUNT,
-    STAR_BITS, SUB_BITS, solved_filter_bits, soul_bit, soul_set,
+    STAR_BITS, SUB_BITS, SoulBit, solved_filter_bits, soul_bit,
 };
 use crate::nonempty::NonEmptySet;
 
@@ -67,12 +67,73 @@ pub enum SetChoice {
     /// 全部: no soul chosen, so no restriction. Written as a soul mask with no bit set; the one
     /// encoding of "all souls".
     AnySet,
-    /// The mapped souls chosen: at least one.
-    Sets(NonEmptySet<SoulSet>),
-    /// Souls are chosen, none of which the model maps: every set bit of the mask is beyond the
-    /// mapped sets, and is kept in the entry's [`Preserved`]. The game picks no mapped soul.
-    OnlyUnmapped,
+    /// The souls chosen: at least one, each a set the bit table maps or a bit beyond it.
+    Sets(NonEmptySet<SetBit>),
 }
+
+impl SoulSelection {
+    /// Whether 类型 chooses a soul bit beyond the mapped sets.
+    pub fn has_unmapped_sets(&self) -> bool {
+        match &self.sets {
+            SetChoice::AnySet => false,
+            SetChoice::Sets(bits) => bits.iter().any(|b| matches!(b, SetBit::Unmapped(_))),
+        }
+    }
+}
+
+impl SetChoice {
+    /// The choice of these mapped sets: `AnySet` if there are none, since no soul chosen is all
+    /// souls.
+    pub fn of(sets: impl IntoIterator<Item = SchemeSet>) -> SetChoice {
+        NonEmptySet::collect(sets.into_iter().map(SetBit::Mapped))
+            .map_or(SetChoice::AnySet, SetChoice::Sets)
+    }
+}
+
+/// One chosen soul of 类型, as the soul mask holds it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum SetBit {
+    /// A set the bit table maps.
+    Mapped(SchemeSet),
+    /// A set bit beyond the mapped sets: a soul the model cannot name, written back as read.
+    Unmapped(UnmappedSoulBit),
+}
+
+/// A set the scheme's bit table maps: one a scheme can choose. Held as its bit, so writing it
+/// needs no lookup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SchemeSet(SoulBit);
+
+impl SchemeSet {
+    /// `set`, or `None` for a suit code the bit table does not hold.
+    pub fn new(set: SoulSet) -> Option<SchemeSet> {
+        soul_bit(set).map(SchemeSet)
+    }
+
+    pub fn set(self) -> SoulSet {
+        self.0.set()
+    }
+}
+
+/// A soul-mask bit beyond the mapped sets, within a mask's longest length.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct UnmappedSoulBit(u16);
+
+impl UnmappedSoulBit {
+    /// `bit`, or `None` for a mapped bit or one past the longest mask.
+    pub fn new(bit: u16) -> Option<UnmappedSoulBit> {
+        (SOUL_BIT_COUNT..MAX_MASK_BITS)
+            .contains(&bit)
+            .then_some(UnmappedSoulBit(bit))
+    }
+
+    pub fn index(self) -> u16 {
+        self.0
+    }
+}
+
+/// Bits in the longest soul mask a record can hold.
+const MAX_MASK_BITS: u16 = (MAX_FIELD_LEN * 8) as u16;
 
 /// One sub-attribute's state in the 副属性 group.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -179,11 +240,12 @@ impl SubCount {
     }
 }
 
-/// What a record holds beyond its selection: its soul mask and filter as read. The semantic codec
-/// writes a selection over these bytes, so every bit it does not model, and each field's length,
-/// survives. Opaque: the only fact it exposes is whether it selects on something unmodelled.
+/// What a record holds beyond its selection: its soul mask's length, and its filter as read. The
+/// semantic codec writes a selection over these bytes, so every filter bit it does not model, and
+/// each field's length, survives. Every soul bit, mapped or not, is the selection's. Opaque: the
+/// only fact it exposes is whether the filter selects on something unmodelled.
 ///
-/// Two values are equal when they hold the same unmapped bits: the mapped bits belong to the
+/// Two values are equal when they hold the same unmapped filter bits: the rest belongs to the
 /// selection, and a field's length is layout, which the layout level compares byte for byte.
 #[derive(Debug, Clone, Default)]
 pub struct Preserved {
@@ -200,15 +262,10 @@ impl PartialEq for Preserved {
 impl Eq for Preserved {}
 
 impl Preserved {
-    /// The unmapped soul bits and filter bits that are set.
-    fn unmapped(&self) -> (BTreeSet<u16>, BTreeSet<u16>) {
+    /// The filter bits outside every solved group that are set.
+    fn unmapped(&self) -> BTreeSet<u16> {
         let solved: BTreeSet<u16> = solved_filter_bits().collect();
-        (
-            ones(&self.soul_mask)
-                .filter(|&b| b >= SOUL_BIT_COUNT)
-                .collect(),
-            ones(&self.filter).filter(|b| !solved.contains(b)).collect(),
-        )
+        ones(&self.filter).filter(|b| !solved.contains(b)).collect()
     }
 
     /// Nothing preserved: the base of a selection built from scratch.
@@ -216,11 +273,10 @@ impl Preserved {
         Preserved::default()
     }
 
-    /// Whether a bit the model does not map is set: a soul bit beyond the mapped sets, or a filter
-    /// bit outside every solved group. Such a record selects on something the model cannot see.
-    pub fn has_unknown_conditions(&self) -> bool {
-        let (souls, filter) = self.unmapped();
-        !souls.is_empty() || !filter.is_empty()
+    /// Whether a filter bit outside every solved group is set: the record then selects on a
+    /// condition the model cannot see.
+    pub fn has_unknown_filter(&self) -> bool {
+        !self.unmapped().is_empty()
     }
 }
 
@@ -229,13 +285,6 @@ impl Preserved {
 pub enum SelectionError {
     /// Both ○ and ✕ are set for one attribute, which the editor cannot show.
     IncludeAndExclude(SoulAttribute),
-    /// `AnySet` over a soul mask holding bits beyond the mapped sets: writing it would drop them.
-    AnySetOverUnknownSouls,
-    /// `OnlyUnmapped` over a soul mask with no bit beyond the mapped sets: it would be written as
-    /// no soul chosen, and read back as `AnySet`.
-    NoUnmappedSouls,
-    /// A set whose suit code has no scheme bit.
-    UnknownSet(SoulSet),
 }
 
 fn get(bytes: &[u8], bit: u16) -> bool {
@@ -243,9 +292,9 @@ fn get(bytes: &[u8], bit: u16) -> bool {
     bytes.get(bit / 8).is_some_and(|b| b >> (bit % 8) & 1 == 1)
 }
 
-/// Set or clear one mapped bit; a field grows for a set bit beyond its end and never shrinks.
-/// Every mapped bit is below 72, so a field stays within nine bytes of growth, far inside a
-/// one-byte length.
+/// Set or clear one bit; a field grows for a set bit beyond its end and never shrinks. Every bit
+/// written is a filter bit below 72 or a soul bit below `MAX_MASK_BITS`, so a field stays within
+/// its one-byte length.
 fn put(bytes: &mut Vec<u8>, bit: u16, on: bool) {
     let bit = usize::from(bit);
     if bytes.len() <= bit / 8 {
@@ -284,19 +333,21 @@ fn write_group<T: Ord>(filter: &mut Vec<u8>, table: &[(T, FilterBit)], chosen: &
     }
 }
 
-/// The selection a record encodes, and what it preserves. A mask with no bit set is `AnySet`;
-/// one whose bits are all beyond the mapped sets is `OnlyUnmapped`.
+/// The soul-mask bit a set position is: mapped to a set, or beyond the mapped sets. A mask holds
+/// at most `MAX_FIELD_LEN` bytes, so every position read from one has an answer.
+fn set_bit(bit: u16) -> Option<SetBit> {
+    match SoulBit::new(bit) {
+        Some(mapped) => Some(SetBit::Mapped(SchemeSet(mapped))),
+        None => UnmappedSoulBit::new(bit).map(SetBit::Unmapped),
+    }
+}
+
+/// The selection a record encodes, and what it preserves. A mask with no bit set is `AnySet`.
 pub fn decode_selection(record: &Record) -> Result<(SoulSelection, Preserved), SelectionError> {
     let mask = record.soul_mask();
     let filter = record.filter();
-    let sets = match (
-        ones(mask).next().is_some(),
-        NonEmptySet::collect(ones(mask).filter_map(soul_set)),
-    ) {
-        (false, _) => SetChoice::AnySet,
-        (true, Some(sets)) => SetChoice::Sets(sets),
-        (true, None) => SetChoice::OnlyUnmapped,
-    };
+    let sets = NonEmptySet::collect(ones(mask).filter_map(set_bit))
+        .map_or(SetChoice::AnySet, SetChoice::Sets);
     let mut sub_attributes = SubAttributeModes::default();
     for &(attribute, bits) in &SUB_BITS {
         let mode = match (
@@ -327,33 +378,21 @@ pub fn decode_selection(record: &Record) -> Result<(SoulSelection, Preserved), S
     Ok((selection, preserved))
 }
 
-/// The soul mask and filter of `selection`, written over `preserved`: every mapped bit takes the
-/// selection's value, every other bit and each field's length are kept, and a field grows only
-/// for a set bit beyond its end. With [`Preserved::none`] the fields are trimmed to their highest
-/// set bit, as the game writes them.
-pub fn encode_selection(
-    selection: &SoulSelection,
-    preserved: &Preserved,
-) -> Result<(Vec<u8>, Vec<u8>), SelectionError> {
-    let mut chosen = BTreeSet::new();
+/// The soul mask and filter of `selection`, written over `preserved`: every soul bit and every
+/// mapped filter bit takes the selection's value, every other filter bit and each field's length
+/// are kept, and a field grows only for a set bit beyond its end. With [`Preserved::none`] the
+/// fields are trimmed to their highest set bit, as the game writes them. Every selection can be
+/// written.
+pub fn encode_selection(selection: &SoulSelection, preserved: &Preserved) -> (Vec<u8>, Vec<u8>) {
+    let mut soul_mask = vec![0; preserved.soul_mask.len()];
     if let SetChoice::Sets(sets) = &selection.sets {
-        for &set in sets {
-            chosen.insert(
-                soul_bit(set)
-                    .ok_or(SelectionError::UnknownSet(set))?
-                    .index(),
-            );
+        for bit in sets {
+            let index = match *bit {
+                SetBit::Mapped(set) => set.0.index(),
+                SetBit::Unmapped(b) => b.index(),
+            };
+            put(&mut soul_mask, index, true);
         }
-    }
-    let mut soul_mask = preserved.soul_mask.clone();
-    for bit in 0..SOUL_BIT_COUNT {
-        put(&mut soul_mask, bit, chosen.contains(&bit));
-    }
-    let any_set = ones(&soul_mask).next().is_some();
-    match (&selection.sets, any_set) {
-        (SetChoice::AnySet, true) => return Err(SelectionError::AnySetOverUnknownSouls),
-        (SetChoice::OnlyUnmapped, false) => return Err(SelectionError::NoUnmappedSouls),
-        _ => {}
     }
     let mut filter = preserved.filter.clone();
     let f = &mut filter;
@@ -368,7 +407,7 @@ pub fn encode_selection(
     write_group(f, &COUNT_BITS, &selection.sub_counts);
     write_group(f, &LEVEL_BITS, &selection.levels);
     write_group(f, &INNATE_BITS, &selection.innate);
-    Ok((soul_mask, filter))
+    (soul_mask, filter)
 }
 
 #[cfg(test)]
@@ -400,7 +439,7 @@ mod tests {
 
     /// The filter of a selection written from scratch, as bit positions.
     fn filter_of(selection: &SoulSelection) -> BTreeSet<u16> {
-        let (_, filter) = encode_selection(selection, &Preserved::none()).expect("encodable");
+        let (_, filter) = encode_selection(selection, &Preserved::none());
         bits(&filter)
     }
 
@@ -544,16 +583,26 @@ mod tests {
     // Sets.
 
     fn sets(codes: &[u8]) -> SetChoice {
-        SetChoice::Sets(
-            NonEmptySet::collect(codes.iter().map(|&c| SoulSet::from_suit_code(c))).expect("some"),
+        SetChoice::of(
+            codes
+                .iter()
+                .map(|&c| SchemeSet::new(SoulSet::from_suit_code(c)).expect("a mapped set")),
         )
+    }
+
+    fn mapped(bit: u16) -> SetBit {
+        SetBit::Mapped(SchemeSet(SoulBit::new(bit).expect("a mapped bit")))
+    }
+
+    fn unmapped(bit: u16) -> SetBit {
+        SetBit::Unmapped(UnmappedSoulBit::new(bit).expect("an unmapped bit"))
     }
 
     #[test]
     fn chosen_sets_are_written_through_their_suit_codes() {
         // 招财猫 (code 10) is bit 7, 针女 (36) bit 27, 薙魂 (21) bit 29: not in code order.
         let s = SoulSelection::new(sets(&[10, 36, 21]));
-        let (mask, _) = encode_selection(&s, &Preserved::none()).expect("ok");
+        let (mask, _) = encode_selection(&s, &Preserved::none());
         assert_eq!(bits(&mask), BTreeSet::from([7, 27, 29]));
         let (back, _) = decode_selection(&record(&mask, &[])).expect("ok");
         assert_eq!(back, s);
@@ -561,11 +610,11 @@ mod tests {
 
     #[test]
     fn any_set_is_not_every_set() {
-        let (mask, _) = encode_selection(&any_set(), &Preserved::none()).expect("ok");
+        let (mask, _) = encode_selection(&any_set(), &Preserved::none());
         assert!(mask.is_empty());
-        let every = NonEmptySet::collect((0..SOUL_BIT_COUNT).filter_map(soul_set)).expect("70");
+        let every = NonEmptySet::collect((0..SOUL_BIT_COUNT).map(mapped)).expect("70");
         let all = SoulSelection::new(SetChoice::Sets(every));
-        let (mask, _) = encode_selection(&all, &Preserved::none()).expect("ok");
+        let (mask, _) = encode_selection(&all, &Preserved::none());
         // The game's discard "all souls": FF × 8, then 3F.
         assert_eq!(mask, [0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x3f]);
         let (back, _) = decode_selection(&record(&mask, &[])).expect("ok");
@@ -579,39 +628,38 @@ mod tests {
         for mask in [&[][..], &[0], &[0, 0, 0]] {
             let (s, preserved) = decode_selection(&record(mask, &[])).expect("ok");
             assert_eq!(s.sets, SetChoice::AnySet, "{mask:?}");
-            let (back, _) = encode_selection(&s, &preserved).expect("ok");
+            let (back, _) = encode_selection(&s, &preserved);
             assert_eq!(back, mask);
         }
     }
 
     #[test]
-    fn a_mask_of_unmapped_souls_only_is_its_own_choice() {
+    fn unmapped_soul_bits_are_chosen_souls_not_no_choice() {
+        // A mask of unmapped bits only chooses souls the model cannot name. It is never read as
+        // no soul chosen (all souls), and the bits are written back as read.
         let (s, preserved) = decode_selection(&record(&with_bits(&[70, 75]), &[])).expect("ok");
-        assert_eq!(s.sets, SetChoice::OnlyUnmapped);
-        assert!(preserved.has_unknown_conditions());
-        let (mask, _) = encode_selection(&s, &preserved).expect("ok");
+        let chosen = NonEmptySet::collect([unmapped(70), unmapped(75)]).expect("two");
+        assert_eq!(s.sets, SetChoice::Sets(chosen));
+        assert!(s.has_unmapped_sets());
+        assert!(!preserved.has_unknown_filter());
+        let (mask, _) = encode_selection(&s, &preserved);
         assert_eq!(bits(&mask), BTreeSet::from([70, 75]));
+        // Beside a mapped set.
+        let (s, _) = decode_selection(&record(&with_bits(&[3, 70]), &[])).expect("ok");
+        let chosen = NonEmptySet::collect([mapped(3), unmapped(70)]).expect("two");
+        assert_eq!(s.sets, SetChoice::Sets(chosen));
     }
 
     #[test]
-    fn choices_the_game_cannot_hold_are_refused() {
-        let none = Preserved::none();
-        let unknown = SoulSet::from_suit_code(1);
-        let s = SoulSelection::new(SetChoice::Sets(NonEmptySet::one(unknown)));
-        assert_eq!(
-            encode_selection(&s, &none),
-            Err(SelectionError::UnknownSet(unknown))
-        );
-        let (_, over_unknown) = decode_selection(&record(&with_bits(&[70]), &[])).expect("ok");
-        assert_eq!(
-            encode_selection(&any_set(), &over_unknown),
-            Err(SelectionError::AnySetOverUnknownSouls)
-        );
-        let only_unmapped = SoulSelection::new(SetChoice::OnlyUnmapped);
-        assert_eq!(
-            encode_selection(&only_unmapped, &none),
-            Err(SelectionError::NoUnmappedSouls)
-        );
+    fn choices_the_game_cannot_hold_cannot_be_built() {
+        // A suit code with no scheme bit is no `SchemeSet`, and an unmapped bit is none of the 70.
+        assert_eq!(SchemeSet::new(SoulSet::from_suit_code(1)), None);
+        assert!(SchemeSet::new(SoulSet::from_suit_code(30)).is_some());
+        assert_eq!(UnmappedSoulBit::new(69), None);
+        assert!(UnmappedSoulBit::new(70).is_some());
+        assert_eq!(UnmappedSoulBit::new(255 * 8), None);
+        // No mapped set chosen is all souls.
+        assert_eq!(SetChoice::of([]), SetChoice::AnySet);
     }
 
     #[test]
@@ -625,18 +673,22 @@ mod tests {
     // Preserved bits.
 
     #[test]
-    fn unmapped_bits_are_unknown_conditions_and_survive_an_edit() {
-        // Filter bit 61 and soul bit 70: never seen set; kept, never modelled.
+    fn unmapped_bits_are_kept_by_an_edit_of_another_group() {
+        // Filter bit 61 and soul bit 70: never seen set. The filter bit is preserved, the soul bit
+        // is part of 类型; both survive an edit of 位置.
         let record = record(&with_bits(&[3, 70]), &with_bits(&[0, 61]));
         let (mut s, preserved) = decode_selection(&record).expect("ok");
-        assert!(preserved.has_unknown_conditions());
-        assert!(!Preserved::none().has_unknown_conditions());
+        assert!(preserved.has_unknown_filter());
+        assert!(!Preserved::none().has_unknown_filter());
         assert_eq!(s.slots, BTreeSet::from([SoulSlot::Slot1]));
         s.slots = BTreeSet::from([SoulSlot::Slot6]);
-        s.sets = sets(&[30]);
-        let (mask, filter) = encode_selection(&s, &preserved).expect("ok");
+        let (mask, filter) = encode_selection(&s, &preserved);
         assert_eq!(bits(&filter), BTreeSet::from([5, 61]));
-        assert_eq!(bits(&mask), BTreeSet::from([21, 70]));
+        assert_eq!(bits(&mask), BTreeSet::from([3, 70]));
+        // An edit of 类型 is the new choice, unmapped bits included.
+        s.sets = sets(&[30]);
+        let (mask, _) = encode_selection(&s, &preserved);
+        assert_eq!(bits(&mask), BTreeSet::from([21]));
     }
 
     #[test]
@@ -644,10 +696,10 @@ mod tests {
         let game_like = record(&with_bits(&[39]), &[1, 0, 0, 0, 0, 0, 0]);
         let (mut s, preserved) = decode_selection(&game_like).expect("ok");
         s.slots.clear();
-        let (_, filter) = encode_selection(&s, &preserved).expect("ok");
+        let (_, filter) = encode_selection(&s, &preserved);
         assert_eq!(filter, [0; 7]);
         s.innate.insert(InnateAttribute::ALL[5]);
-        let (_, filter) = encode_selection(&s, &preserved).expect("ok");
+        let (_, filter) = encode_selection(&s, &preserved);
         assert_eq!(filter.len(), 8);
     }
 
@@ -657,7 +709,7 @@ mod tests {
         let sets = prop_oneof![
             Just(SetChoice::AnySet),
             proptest::collection::btree_set(0..SOUL_BIT_COUNT, 1..6).prop_map(|b| SetChoice::Sets(
-                NonEmptySet::collect(b.into_iter().filter_map(soul_set)).expect("mapped"),
+                NonEmptySet::collect(b.into_iter().map(mapped)).expect("some"),
             )),
         ];
         let mode = prop_oneof![
@@ -695,7 +747,8 @@ mod tests {
             )
     }
 
-    /// Unmapped bits only, to lie under a selection: filter bits 61–71, soul bits 70–79.
+    /// Unmapped bits only, to lie under a selection: filter bits 61–71, and soul bits 70–79 that
+    /// only lengthen the mask, since every soul bit is the selection's.
     fn arb_unknown() -> impl Strategy<Value = Preserved> {
         (
             proptest::collection::vec(61u16..72, 0..3),
@@ -783,10 +836,10 @@ mod tests {
     proptest! {
         #[test]
         fn decoding_what_was_encoded_gives_the_selection_back(s in arb_selection()) {
-            let (mask, filter) = encode_selection(&s, &Preserved::none()).expect("encodable");
+            let (mask, filter) = encode_selection(&s, &Preserved::none());
             let (back, preserved) = decode_selection(&record(&mask, &filter)).expect("ok");
             prop_assert_eq!(back, s);
-            prop_assert!(!preserved.has_unknown_conditions());
+            prop_assert!(!preserved.has_unknown_filter());
         }
 
         #[test]
@@ -795,7 +848,7 @@ mod tests {
             filter in proptest::collection::vec(any::<u8>(), 0..10),
         ) {
             if let Ok((s, preserved)) = decode_selection(&record(&mask, &filter)) {
-                let (m, f) = encode_selection(&s, &preserved).expect("re-encodable");
+                let (m, f) = encode_selection(&s, &preserved);
                 prop_assert_eq!(m, mask);
                 prop_assert_eq!(f, filter);
             }
@@ -808,18 +861,10 @@ mod tests {
             unknown in arb_unknown(),
             attribute in 0usize..11,
         ) {
-            // `AnySet` over unmapped soul bits is refused (tested above); edits start elsewhere.
-            let refused = Err(SelectionError::AnySetOverUnknownSouls);
             let encode = |s: &SoulSelection| encode_selection(s, &unknown);
-            let base_encoded = encode(&base);
-            prop_assume!(base_encoded != refused);
-            let (base_mask, base_filter) = base_encoded.expect("encodable");
+            let (base_mask, base_filter) = encode(&base);
             for (edited, allowed) in single_group_edits(&base, &other, attribute) {
-                let encoded = encode(&edited);
-                if encoded == refused {
-                    continue;
-                }
-                let (mask, filter) = encoded.expect("encodable");
+                let (mask, filter) = encode(&edited);
                 let f = changed(&base_filter, &filter);
                 prop_assert!(f.is_subset(&allowed), "filter bits {:?} outside {:?}", f, allowed);
                 if edited.sets == base.sets {
@@ -829,7 +874,7 @@ mod tests {
                 }
                 let (back, preserved) = decode_selection(&record(&mask, &filter)).expect("ok");
                 prop_assert_eq!(back, edited);
-                prop_assert_eq!(preserved.has_unknown_conditions(), unknown.has_unknown_conditions());
+                prop_assert_eq!(preserved.has_unknown_filter(), unknown.has_unknown_filter());
             }
         }
     }

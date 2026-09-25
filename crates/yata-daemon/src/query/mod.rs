@@ -76,6 +76,8 @@ pub enum WireProblem {
     NoSets,
     /// One attribute given two ○ or ✕ choices in 副属性.
     SubAttributeTwice,
+    /// A suit code the scheme's bit table does not hold: no scheme can choose it.
+    UnmappedSet,
     /// An innate choice, or a boss soul's innate attribute, outside the six innate attributes.
     NotInnate,
     /// A soul id that is empty or longer than [`MAX_SOUL_ID_BYTES`].
@@ -326,7 +328,8 @@ pub fn render_session(
 fn open_rule(r: OpenRule) -> i32 {
     match r {
         OpenRule::Innate => wire::OpenRule::Innate as i32,
-        OpenRule::UnknownConditions => wire::OpenRule::UnknownConditions as i32,
+        // The wire keeps one rule for both: the scheme selects on bits the model cannot see.
+        OpenRule::UnknownSet | OpenRule::UnknownFilter => wire::OpenRule::UnknownConditions as i32,
     }
 }
 
