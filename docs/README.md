@@ -251,6 +251,9 @@ What changed for someone. Append-only; one fragment per change.
   — the store and the fact log answer in their own types; notes at version 2
 - [changes/unreleased/2026-09-app-shell.md](changes/unreleased/2026-09-app-shell.md)
   — the core protocol session, `yata-daemon serve`, and the application shell
+- [changes/unreleased/2026-09-typed-failures.md](changes/unreleased/2026-09-typed-failures.md)
+  — failures typed by their code with a debug record each; the session query is
+  its own call
 
 ## Outside `docs/`
 

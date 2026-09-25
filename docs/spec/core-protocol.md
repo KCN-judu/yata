@@ -35,16 +35,25 @@ built is in [status.md](../project/status.md).
   two implementations that agree today.
 
 **A broken frame ends the session.** A prefix the codec refuses, or a payload
-that is not a `ClientMessage`, is answered with a `session_failed` event
-carrying `session.malformed_frame` or `session.malformed_message`, and the
-daemon exits. No request id is known for such a frame, so no response can carry
-the error.
+that is not a `ClientMessage`, is answered with a `session_failure` event
+carrying a `SessionFailed` of kind `session.malformed_frame` or
+`session.malformed_message`, and the daemon exits. No request id is known for
+such a frame, so no response can carry the failure ("Errors" below).
 
-**Payloads are canonical proto3.** A scalar at its default value is not written.
-prost never writes one; the Dart runtime writes any field that was set, so the
-Dart client sets only the fields that differ from their default. The two
-encoders then produce the same bytes, which the shared session recording checks
-in both languages.
+**Payloads are canonical proto3.** Whether a field is written depends on its
+kind, and both encoders follow the same rule:
+
+| Field kind                                   | Written when                               |
+| -------------------------------------------- | ------------------------------------------ |
+| scalar or enum with implicit presence        | its value differs from the default         |
+| `optional` scalar, message field, oneof case | it is present, whatever its value (even 0) |
+| `repeated`                                   | it has at least one element                |
+
+prost follows the rule by construction. The Dart runtime writes any field that
+was set, so the Dart client never sets an implicit-presence field to its
+default, and sets an explicit-presence field exactly when the value is present.
+The two encoders then produce the same bytes, which the shared session recording
+checks in both languages.
 
 **stdout carries frames and nothing else.** Every log line, warning, and panic
 message goes to stderr. A stray `println!` in the daemon corrupts the stream,
@@ -53,14 +62,16 @@ rule rather than a convention.
 
 ## Version
 
-`ClientMessage.protocol_version` carries the protocol version the client was
-built against. The daemon compares it against its own at session start:
+`OpenSession.client_version` carries the protocol version the client was built
+against, once per session. The daemon compares it against its own at session
+start:
 
 | Client                | Daemon   | Outcome                                                              |
 | --------------------- | -------- | -------------------------------------------------------------------- |
 | same major, any minor | accepted | session opens                                                        |
 | lower major           | accepted | session opens with a warning event naming the oldest supported major |
 | higher major          | refused  | `session.protocol_unsupported`, session does not open                |
+| absent                | refused  | `session.protocol_unsupported`, session does not open                |
 
 The version is compared at `OpenSession`, the first request of every session.
 Any other request before it is refused with `session.not_open`, and a refused
@@ -91,11 +102,11 @@ it is fatal instead.
 The category fixes the contract, and the message kind is part of exactly one
 category.
 
-| Category | Message kinds                                                   | Writes | Produces a revision | Carries `base_revision` |
-| -------- | --------------------------------------------------------------- | ------ | ------------------- | ----------------------- |
-| Query    | `ListProfiles`, `Query`, `GetSoul`, `DecodeSchemeCode`, `Match` | no     | no                  | no                      |
-| Command  | `Command`                                                       | yes    | yes, on success     | yes, required           |
-| Job      | `RunJob`                                                        | later  | later               | no                      |
+| Category | Message kinds                                                          | Writes | Produces a revision | Carries `base_revision` |
+| -------- | ---------------------------------------------------------------------- | ------ | ------------------- | ----------------------- |
+| Query    | `ListProfiles`, `SessionQuery`, `GetSoul`, `DecodeSchemeCode`, `Match` | no     | no                  | no                      |
+| Command  | `Command`                                                              | yes    | yes, on success     | yes, required           |
+| Job      | `RunJob`                                                               | later  | later               | no                      |
 
 **Session messages** belong to no category. `OpenSession` opens the session,
 `Subscribe` asks for projection changes, and `Shutdown` ends it: the daemon
@@ -129,34 +140,60 @@ one is an additive schema change, which is a minor version bump.
 
 ## Queries and pages
 
-A query returns a page. `QueryPage` always carries the `revision` the page is
-valid at; a page is never returned without the revision it describes.
+A query (`query.md`) says what is asked. The call that carries it says where in
+a scan the page is, and, in the session, which profile it reads. Each call
+carries exactly the position it can use:
 
-**The cursor is opaque.** `QueryPage.next_cursor` is a serialized sort-key
-continuation produced by the daemon. It is not an offset, not a row number, and
-not a SQL `LIMIT`. A client stores it and sends it back unmodified; a client
+```text
+Cursor           = { b : bytes | b ≠ [] }           -- opaque: written by the daemon, sent back unmodified
+Revision         = { n : u64 }                      -- the seq of the last commit; 0 is the empty log
+RowBudget        = { n : u32 | 1 ≤ n ≤ 10 000 }     -- absent: the daemon's default
+ProfileId        = 32 lowercase hexadecimal digits  -- one spelling per id
+
+-- the session
+record SessionQuery     { profile : ProfileId, query : Query, row_budget : RowBudget?,
+                          position : First | Next { cursor : Cursor, scan : Revision } }
+record SessionQueryPage { rows : [SessionRow], next : Cursor?, total : u64, revision : Revision }
+record SessionRow       { soul : Soul, verdict : Verdict }
+
+-- the headless endpoint: souls supplied, no projection, so no revision
+record EvaluateQuery    { id, protocol_version, inventory : [Soul], query : Query,
+                          page : { row_budget : RowBudget?, cursor : Cursor? } }
+record QueryPage        { rows : [QueryRow], next : Cursor?, total : u64 }
+record QueryRow         { soul_id : SoulId, verdict : Verdict }
+
+Verdict          = Exact | Open(NonEmpty<Set<OpenRule>>)
+```
+
+**A cursor never travels without its scan.** In the session, `Next` carries the
+cursor and the revision the scan's first page was valid at, together; a request
+cannot name one without the other, and a `SessionQuery` with no position is
+`query.malformed`. If the projection has advanced since, the page is refused
+with `query.stale_revision` rather than returned against different data, and the
+client restarts from `First`. A cursor carries no revision of its own.
+
+**The cursor is opaque.** It is a serialized sort-key continuation produced by
+the daemon, not an offset, not a row number, and not a SQL `LIMIT`. A client
 that parses it is depending on something the protocol does not promise. An
 invalid or foreign cursor is `query.malformed_cursor`, refused rather than
-approximated. `PageRequest.cursor` is absent on a scan's first page; a present
-cursor is one the daemon wrote, and a present empty one is malformed.
+approximated; a present empty cursor is one.
 
-**The row budget bounds the response.** `PageRequest.row_budget` states the
-maximum rows the daemon may return for that query, chosen by the client. When a
-result set exceeds it, the daemon returns a full page and a `next_cursor`; when
-the client omits the budget, the daemon applies its default. A page with no
-`next_cursor` is the last: there is no second field saying so.
+**The row budget bounds the response.** When a result set exceeds it, the daemon
+returns a full page and a `next`; a page with no `next` is the last, and there
+is no second field saying so. `total` counts every row the query keeps, exact or
+open, across all pages, so every page of a scan reports the same total.
 
-**A page is valid at one revision.** If the projection advances between two
-pages of the same scan, the second page is refused with `query.stale_revision`
-rather than returned against different data. The client restarts the scan from
-the first page. A cursor carries no revision of its own: the revision is the
-query's, and a paged scan keeps issuing its original base, as
-`Query.scan_revision`, which the first page leaves absent.
+**A session row is its soul.** `SessionRow` carries the soul's values and the
+verdict, and the soul's id once, inside the soul; the headless row carries the
+id alone, because its caller supplied the souls.
 
-In the session, every row of a page carries its soul's values (`QueryRow.soul`)
-and the page its `total`, the count of every row the query keeps. The session
-and the headless endpoint run a query through the same check and evaluation
-(ADR-0026); the row budget's default and ceiling are theirs.
+**A revision is always a real one.** A session page carries the revision it is
+valid at, and 0 is the empty log's. The headless endpoint has no projection, and
+its page has no revision field at all, rather than a 0 that would read as the
+empty log.
+
+Both calls run a query through the same check and evaluation (ADR-0026); the row
+budget's default and ceiling are theirs.
 
 **Aggregates are not paginated.** `Aggregate` returns counts and sums over the
 whole selection in one response, because an aggregate that had to be paged would
@@ -184,9 +221,10 @@ response, or a subscription event.
 | higher → lower | not emitted; the daemon does not move backwards |
 
 **A `ProjectionChanged` carries a revision, not a value.** It says _that_ the
-projection moved and to what revision. The client then issues a `Query` for what
-it displays. Sending the changed value down the event would put a second copy of
-the truth in Dart, where it can go stale silently; a revision cannot.
+projection moved and to what revision. The client then issues a `SessionQuery`
+for what it displays. Sending the changed value down the event would put a
+second copy of the truth in Dart, where it can go stale silently; a revision
+cannot.
 
 Two events ride the same stream and are _not_ semantic changes: `JobProgress` (a
 job is running) and `Warning` (something the client should surface but that did
@@ -194,66 +232,96 @@ not change state). Neither advances the revision.
 
 ## Errors
 
-Every failure crosses as `Error`:
+A failure is one of three messages, chosen by what its receiver does with it:
+
+| Message         | Crosses the wire | Ends                          | Carried by                                         |
+| --------------- | ---------------- | ----------------------------- | -------------------------------------------------- |
+| `Error`         | yes              | one request                   | `Response.error`, `EvaluateQueryResult.error`      |
+| `SessionFailed` | yes              | the session; the daemon exits | the `session_failure` event                        |
+| `ClientFailure` | never            | what the application decides  | raised by the application for what only it can see |
 
 ```text
-Error {
-  code    : string   // stable, namespaced, machine-readable
-  message : string   // human-readable, English, not parsed
-  details : bytes    // optional typed payload, serialized protobuf
-}
+Error         { message : string, kind : ErrorKind }          -- one case per code
+SessionFailed { message : string, kind : SessionFailedKind }
+ClientFailure { kind : ClientFailureKind }
+Warning       { message : string, kind : WarningKind }        -- not a failure; no code
 ```
 
-- **`code` is the contract.** It is namespaced per area: `session.*`, `query.*`,
-  `command.*`, `job.*`, `decode.*`, `import.*`, `store.*`, `internal.*`. Codes
-  are renamed only through the alias table in
-  [protocol-versions.md](protocol-versions.md), so a client built against an
-  older schema keeps decoding.
-- **`message` is for humans and is never parsed.** Wording may change in a patch
-  release.
-- **`details` is optional and typed.** A consumer that understands it renders an
-  expert view; a consumer that does not ignores it. The `details` type is named
-  by the `code`.
-- `internal.*` is a bug in the daemon, not a user-error path. It always carries
-  a message naming where the daemon failed.
+- **The case is the code.** Each message has one oneof, `kind`. Its field name
+  with the first `_` read as `.` is the dotted code that logs and bug reports
+  quote: the case `query_stale_revision` is `query.stale_revision`. There is no
+  second field naming the code, so a code and its details cannot disagree. The
+  namespaces are `session`, `query`, `command`, `job`, `decode`, `import`,
+  `store`, `internal`, and `client` for `ClientFailure` alone; no code is a case
+  of two messages.
+- **Every case carries its own debug record**, a message of the same name
+  (`QueryStaleRevision { scan, current }`,
+  `SessionProtocolUnsupported { client, daemon }`,
+  `ClientTimeout { request_id, limit_ms }`). A record is for developers: it goes
+  to logs and the application's detail view, never into the user's text. A code
+  with nothing more to say has an empty record.
+- **`message` is for developers and is never parsed.** English; its wording may
+  change in a patch release.
+- **The user reads an explanation, not a code.** For every code the application
+  holds a Chinese cause (what happened) and remedy (what to do), chosen by an
+  exhaustive match over the generated cases with no default arm, so a code added
+  to the schema does not compile in the application until it has both. Codes the
+  user acts on alike share one explanation. The explanation and the debug record
+  are separate types; neither is derived from the other.
+- **An unknown case is kept, not guessed.** A code from a newer peer arrives as
+  an unset `kind` with the field's tag in the unknown fields. The application
+  shows the generic explanation and the tag.
+- `internal.*` is a bug in the daemon, not a user-error path. Its record and
+  message name where the daemon failed.
 
-The Dart side receives an exception carrying the same three fields. Nothing is
-re-derived.
+A code is renamed only through the alias table in
+[protocol-versions.md](protocol-versions.md). A rename keeps the tag, so a
+client built against an older schema keeps decoding it under the old name. The
+`error-codes` preflight check reads the cases from the schema and fails on a
+code spelled out as a string anywhere else in the daemon or the application.
 
-The codes the session raises today:
+The codes of `Error` today:
 
-| Code                           | When                                                                         |
-| ------------------------------ | ---------------------------------------------------------------------------- |
-| `session.protocol_unsupported` | `OpenSession` from a higher major, or with no version                        |
-| `session.not_open`             | a request before `OpenSession`                                               |
-| `session.already_open`         | a second `OpenSession`                                                       |
-| `session.invalid_request_id`   | a request id of zero                                                         |
-| `session.unknown_request`      | a request of no kind this daemon knows                                       |
-| `session.malformed_frame`      | in `session_failed`: the framing broke                                       |
-| `session.malformed_message`    | in `session_failed`: a payload is not a `ClientMessage`                      |
-| `query.unknown_profile`        | a profile id the projection does not hold                                    |
-| `query.stale_revision`         | a later page of a scan whose revision has moved                              |
-| the other `query.*` codes      | the query's check and evaluation refused it ([query.md](query.md), "Errors") |
-| `decode.no_input`              | `DecodeSchemeCode` with neither text nor image                               |
-| `decode.malformed_text`        | the text is not a scheme code's transport (`scheme-code.md`, § Transport)    |
-| `decode.unknown_format`        | the payload is not a scheme code                                             |
-| `decode.malformed_layout`      | the payload's header or records do not parse                                 |
-| `decode.malformed_scheme`      | a record does not read as a selection                                        |
-| `decode.image_invalid`         | the image is not a PNG this reader accepts                                   |
-| `decode.no_qr_code`            | the image holds no QR code                                                   |
-| `decode.several_qr_codes`      | the image holds more than one                                                |
-| `decode.qr_unreadable`         | the QR code does not decode to text                                          |
+| Code                           | When                                                                               |
+| ------------------------------ | ---------------------------------------------------------------------------------- |
+| `session.protocol_unsupported` | `OpenSession` from a higher major, or with no version                              |
+| `session.not_open`             | a request before `OpenSession`                                                     |
+| `session.already_open`         | a second `OpenSession`                                                             |
+| `session.invalid_request_id`   | a request id of zero                                                               |
+| `session.unknown_request`      | a request of no kind this daemon knows                                             |
+| `query.unknown_profile`        | a profile id the projection does not hold, or not spelled as one                   |
+| `query.stale_revision`         | a later page of a scan whose revision has moved                                    |
+| `query.malformed`              | a `SessionQuery` with no query or no position                                      |
+| the other `query.*` codes      | the query's check and evaluation refused it ([query.md](query.md), "Errors")       |
+| `decode.no_input`              | `DecodeSchemeCode` with neither text nor image                                     |
+| `decode.malformed_text`        | the text is not a scheme code's transport (`scheme-code.md`, § Transport)          |
+| `decode.unknown_format`        | the payload is not a scheme code                                                   |
+| `decode.malformed_layout`      | the payload's header or records do not parse                                       |
+| `decode.malformed_scheme`      | a record does not read as a selection                                              |
+| `decode.image_invalid`         | the image is not a PNG this reader accepts                                         |
+| `decode.no_qr_code`            | the image holds no QR code                                                         |
+| `decode.several_qr_codes`      | the image holds more than one                                                      |
+| `decode.qr_unreadable`         | the QR code does not decode to text                                                |
+| `import.*`, `command.*`        | the fact log refused a reading or a command ([fact-format.md](fact-format.md))     |
+| `store.*`                      | the store could not be opened, read, or written ([fact-format.md](fact-format.md)) |
+| `internal.panic`               | a query's evaluation panicked                                                      |
+| `internal.qr_too_long`         | a scheme code too long for the largest QR code the daemon draws                    |
+| `internal.response_too_large`  | a page that would exceed the frame limit                                           |
+| `internal.page_without_soul`   | a session page naming a soul the projection does not hold                          |
 
-The warning `session.client_outdated` accompanies an `OpenSession` from a lower
-major.
+The codes of `SessionFailed`: `session.malformed_frame` (the framing broke),
+`session.malformed_message` (a payload is not a `ClientMessage`), and
+`internal.io` (the daemon could not read or write its pipes).
 
-**Client-side codes** are raised by the application for failures only it can
-see, and never cross the wire: `client.daemon_not_found`,
-`client.daemon_start_failed`, `client.daemon_exited`, `client.timeout`,
-`client.protocol_error` (a malformed frame from the daemon, or a response to no
-request), and `client.not_connected`. Every code the application can meet has
-its own Chinese text; the `error-codes` preflight check reports one that does
-not.
+The codes of `ClientFailure`, which never cross the wire:
+`client.daemon_not_found`, `client.daemon_start_failed`, `client.daemon_exited`,
+`client.timeout`, `client.protocol_error` (a malformed frame from the daemon, or
+a response to no request), `client.not_connected`, and `client.unexpected` (a
+failure in the application itself).
+
+The one warning, `client_outdated` with the two versions, accompanies an
+`OpenSession` from a lower major. A warning's kind is not a code: it ends
+nothing.
 
 ## What this page does not define
 

@@ -30,21 +30,26 @@ minor version bump.
 ## Query shape
 
 ```text
-Query {
-  profile    : ProfileId
-  collection : Collection          // what the rows are
-  filter     : Expr                // absent = every row
-  sort       : [SortKey]           // absent = the collection's default order
-  params     : ParamSetRef?        // required if any score field is used
-  page       : { row_budget, cursor }   // core-protocol.md
+record Query {
+  collection : Collection            -- what the rows are
+  filter     : Expr?                 -- absent = every row (TBD: required, round-2 C13)
+  sort       : [SortKey]             -- at most 8; row identity is appended
+  params     : ParamSetRef?          -- required if any score field is used
 }
 
-Aggregate {
-  profile, collection, filter, params   // as above
-  group_by   : GroupKey?           // absent = one group, the whole selection
-  measures   : [Measure]
+record Aggregate {
+  collection, filter, params         -- as above
+  group_by   : GroupKey?             -- absent = one group, the whole selection
+  measures   : [Measure]             -- at most 16
 }
 ```
+
+A query holds what is asked and nothing about paging. The page it is read in,
+and the profile it reads, belong to the call that carries it
+(`core-protocol.md`, "Queries and pages"): the session's `SessionQuery` names a
+profile and a position in a scan, and the headless `EvaluateQuery` supplies its
+souls and a position of its own. So no field of a query is read by one call and
+ignored by the other.
 
 A query reads one profile. Comparing profiles is two queries; the core never
 mixes rows from two profiles in one page.

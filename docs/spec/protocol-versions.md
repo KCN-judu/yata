@@ -34,9 +34,11 @@ first schema file to land turns its row **current**.
 Schema: `docs/spec/core-protocol.md`. Schema file:
 `crates/yata-protocol/proto/core.proto`, drafted 2026-09-25: the query messages,
 the headless query endpoint, and the session the application builds against
-(envelopes, subscriptions, profiles, soul pages, scheme-code decoding). Version
-1 stays reserved until commands and jobs are in the file; until then a tag may
-still change.
+(envelopes, subscriptions, profiles, soul pages, scheme-code decoding); then,
+the same day, each failure typed by its code — the code a `oneof` case of
+`Error`, `SessionFailed`, or `ClientFailure` with a debug record per code — and
+the session's query given its own call, `SessionQuery`. Version 1 stays reserved
+until commands and jobs are in the file; until then a tag may still change.
 
 | Version | Status   | Date       | What it introduced                                                                                                        | Refused below |
 | ------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |
@@ -85,8 +87,9 @@ repository knows what the bytes in an old fixture mean.
 
 ## Error-code aliases
 
-A code is renamed only when its name was actively misleading. Both the old and
-the new name decode; only the new one is emitted.
+A code is renamed only when its name was actively misleading. A code is a
+`oneof` case, so a rename changes the field's name and keeps its tag: both the
+old and the new name decode, and only the new one is emitted.
 
 | Channel | Old code | New code | Date | Why renamed |
 | ------- | -------- | -------- | ---- | ----------- |
