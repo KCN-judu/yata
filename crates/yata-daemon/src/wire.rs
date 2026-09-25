@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use yata_core::fact::{ProfileId, Revision, Seq};
+use yata_core::fact::{FoldError, ProfileId, Revision, Seq};
 use yata_core::import::capability::{Availability, Capability, availability};
 use yata_core::import::ir::{Completeness, IrError, SectionKind};
 use yata_core::nonempty::NonEmpty;
@@ -131,6 +131,13 @@ pub fn load_failure(e: &LoadError) -> pb::error::Kind {
 pub fn commit_failure(e: &CommitError) -> pb::error::Kind {
     use pb::error::Kind;
     match e {
+        // An imported file of another account than the profile's (ADR-0033). The accounts are
+        // account-derived data: they reach the problem text only, never a field.
+        CommitError::Refused(f @ FoldError::ProfileMismatch { .. }) => {
+            Kind::ImportAccountMismatch(pb::ImportAccountMismatch {
+                problem: problem(f),
+            })
+        }
         CommitError::Refused(f) => Kind::CommandRefused(pb::CommandRefused {
             problem: problem(f),
         }),
@@ -657,6 +664,28 @@ mod tests {
         );
         let account = pb::error::Kind::ImportAccountMismatch(pb::ImportAccountMismatch::default());
         assert_eq!(account.code(), "import.account_mismatch");
+    }
+
+    #[test]
+    fn an_import_of_another_account_is_an_account_mismatch() {
+        use yata_core::fact::{GameAccountId, ProfileId};
+        let account = |a: &str| GameAccountId::new(a).expect("an account");
+        let refused = CommitError::Refused(FoldError::ProfileMismatch {
+            seq: Seq::FIRST,
+            profile: ProfileId([1; 16]),
+            known: account("x"),
+            observed: account("y"),
+        });
+        assert_eq!(commit_failure(&refused).code(), "import.account_mismatch");
+        assert_eq!(
+            import_failure(&ImportError::Commit(refused)).code(),
+            "import.account_mismatch"
+        );
+        let other = CommitError::Refused(FoldError::ProfileExists {
+            seq: Seq::FIRST,
+            profile: ProfileId([1; 16]),
+        });
+        assert_eq!(commit_failure(&other).code(), "command.refused");
     }
 
     #[test]
