@@ -16,55 +16,45 @@ This page states the design. What of it is implemented and tested is in
 
 ## The shape
 
-Four boundaries, three of them process or language transitions. Only two of the
-four can fail in ways the other two cannot, and keeping them apart is the point
-of the diagram.
+Three boundaries, two of them process or language transitions. The project does
+not read the game (ADR-0030): the inventory arrives as a file the user supplies,
+so nothing in the diagram touches another process.
 
 ```text
-  the game                       separate repository                    this repository
-  ────────                       ───────────────────                    ───────────────
+  the user                                   this repository
+  ────────                                   ───────────────
 
-  ┌────────────┐  ①  memory read   ┌───────────────┐
-  │ game       │ ───────────────►  │ yata-reader   │        ┌──────────────────────────┐
-  │ process    │  (read-only)      │ (worker exe)  │        │  Flutter app             │
-  └────────────┘                   └───────┬───────┘        │  presentation only       │
-                                           │                └───────────▲──────────────┘
-                                           │ ② named pipe:              │
-                                           │ frames (ADR-0006),         │ ④ stdio frames
-                                           │ its own schema (ADR-0006)  │ typed protocol,
-                                           │                            │ generated (ADR-0004)
-                        ┌──────────────────▼────────────────────────────┴──────────────┐
-                        │  yata-daemon — the core, as a separate process                │
-                        │                                                               │
-                        │     the protocol session, every effect, the store             │
-                        │     (─────► ③ SQLite fact log, durable), QR, probe spawning   │
-                        │                                                               │
-                        │   yata-core       pure: domain, decode, scheme, fold,         │
-                        │                   query, scoring                              │
-                        │   yata-protocol   pure: frame codec, generated types          │
-                        │   yata-store      pure: store instructions → SQL (ADR-0019)   │
-                        └───────────────────────────────────────────────────────────────┘
+  ┌────────────────┐                    ┌──────────────────────────┐
+  │ imported file  │                    │  Flutter app             │
+  │ (the user's)   │                    │  presentation only       │
+  └───────┬────────┘                    └───────────▲──────────────┘
+          │ ① file import                           │ ③ stdio frames
+          │ (spec/import-format.md)                 │ typed protocol,
+          │                                         │ generated (ADR-0004)
+  ┌───────▼─────────────────────────────────────────┴────────────┐
+  │  yata-daemon — the core, as a separate process               │
+  │                                                              │
+  │     the protocol session, every effect, the store            │
+  │     (─────► ② SQLite fact log, durable), QR, file import     │
+  │                                                              │
+  │   yata-core       pure: domain, decode, scheme, fold,        │
+  │                   query, scoring                             │
+  │   yata-protocol   pure: frame codec, generated types         │
+  │   yata-store      pure: store instructions → SQL (ADR-0019)  │
+  └──────────────────────────────────────────────────────────────┘
 ```
 
 Reading the numbered edges as _risk classes_ rather than as data flow is the
 useful part:
 
-| Edge             | Class                                                                                        | Why it is where it is                                                                                                |
-| ---------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| ① game → probe   | **irreversible if wrong.** Reads another process's memory; cannot be tested without the game | Isolated in a separate repository so this repository can forbid `unsafe` outright (ADR-0005, ADR-0007)               |
-| ② probe → core   | **unverifiable live, verifiable by replay.** No CI can run a game                            | Pipe, not temp file; the protocol is specified and decoded _here_, and recorded sessions become golden fixtures      |
-| ③ core → store   | **the only durable state.** Mistakes outlive the process                                     | Append-only fact log; every write is an added fact, never an edited one (ADR-0002)                                   |
-| ④ core → Flutter | **the only place UI latency is paid.** Everything above it is microseconds                   | A process boundary, not FFI: a core panic cannot take down the UI, and the same binary serves CI headless (ADR-0004) |
+| Edge             | Class                                                                       | Why it is where it is                                                                                                |
+| ---------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| ① file → core    | **untrusted input.** The file comes from outside and its format is not ours | Parsed once at the boundary into domain observations; what cannot be parsed is refused, never defaulted (ADR-0030)   |
+| ② core → store   | **the only durable state.** Mistakes outlive the process                    | Append-only fact log; every write is an added fact, never an edited one (ADR-0002)                                   |
+| ③ core → Flutter | **the only place UI latency is paid.** Everything above it is microseconds  | A process boundary, not FFI: a core panic cannot take down the UI, and the same binary serves CI headless (ADR-0004) |
 
-Edges ③ and ④ are inside this repository and fully testable. Edge ② is testable
-only against recorded bytes. Edge ① is testable only by a human with the game
-running. **No rule is allowed to depend on edge ① to be tested** — see "What CI
-can and cannot see" below.
-
-Edges ② and ④ have the same shape — a child process reached over pipes — which
-is deliberate. The UI layer knows exactly one child process (the daemon); the
-probe is the daemon's child, not the app's. That keeps the number of process
-relationships the presentation layer must survive at one.
+All three edges are inside this repository's control and testable with files and
+fixtures. The UI layer knows exactly one child process, the daemon.
 
 ## Crates
 
@@ -74,12 +64,12 @@ triggers (four, and a fifth added by ADR-0019), the merge rule, and the
 invariants. This table is the current result. A crate is added or folded by
 naming its trigger and editing this table.
 
-| Crate           | Class     | Owns                                                                                                                                                                                         | Trigger                                |
-| --------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
-| `yata-core`     | pure      | domain vocabulary; decode rules from probe records to domain values; scheme-code model, payload codec, and `matches`; the projection fold; query evaluation; scoring                         | root                                   |
-| `yata-protocol` | pure      | the frame codec; Rust types generated from the core and probe schemas                                                                                                                        | 3 — the probe repository depends on it |
-| `yata-store`    | pure      | the store's instruction set; the SQLite schema; translation of instructions into SQL and of result rows into typed values                                                                    | 5 — language boundary (ADR-0019)       |
-| `yata-daemon`   | effectful | the binary; the protocol session; domain ↔ message conversion; the store (fact schema, fact codec and lifting, the SQLite executor); probe spawning (Windows only); QR reading and rendering | 1 — the effectful shell                |
+| Crate           | Class     | Owns                                                                                                                                                                       | Trigger                                         |
+| --------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| `yata-core`     | pure      | domain vocabulary; decode rules from probe records to domain values; scheme-code model, payload codec, and `matches`; the projection fold; query evaluation; scoring       | root                                            |
+| `yata-protocol` | pure      | the frame codec; Rust types generated from the core and probe schemas                                                                                                      | 3 — its reader-side consumer is gone (ADR-0030) |
+| `yata-store`    | pure      | the store's instruction set; the SQLite schema; translation of instructions into SQL and of result rows into typed values                                                  | 5 — language boundary (ADR-0019)                |
+| `yata-daemon`   | effectful | the binary; the protocol session; domain ↔ message conversion; the store (fact schema, fact codec and lifting, the SQLite executor); file import; QR reading and rendering | 1 — the effectful shell                         |
 
 `app/` holds the Flutter desktop application; its package layout is outside
 ADR-0005.
@@ -97,8 +87,9 @@ Dependency direction rules (ADR-0005 invariants):
 - `yata-core` depends on no workspace crate and knows nothing about the wire, so
   the whole domain is exercisable from `cargo test` with no protocol, no Dart,
   no process.
-- `yata-protocol` depends on no workspace crate either, so the probe repository
-  can use it without compiling the domain.
+- `yata-protocol` depends on no workspace crate either. The reason was that the
+  reader repository could use it without compiling the domain; that repository
+  is deleted (ADR-0030).
 - `yata-store` depends on no workspace crate and on no SQLite binding. It is the
   only crate that contains SQL; the daemon's executor runs its plans and cannot
   build one (ADR-0019).
@@ -177,55 +168,44 @@ durable derived thing is the user's _decisions_ — marks and notes (`SoulMarked
 
 ## Data exchange paths
 
-The user-facing answer to "how many paths are there" is: **eleven, of which two
-are outside this repository's control, one exists for testing, and one carries a
-probe reading by file** (ADR-0008).
+The user-facing answer to "how many paths are there" is: **eight, of which one
+is a file from outside and two remain from the reader's wire for tests and
+research** (ADR-0030).
 
-| #   | Path                                     | Format                                                            | Lives in                              | Verifiable                           |
-| --- | ---------------------------------------- | ----------------------------------------------------------------- | ------------------------------------- | ------------------------------------ |
-| 1   | game process → probe                     | engine-specific binary read                                       | probe repo                            | manually, with the game              |
-| 2   | probe → core (data)                      | protobuf in length-prefixed frames, one message per frame         | `../spec/probe-protocol.md`           | **fixture replay**                   |
-| 3   | probe → core (progress, diagnostics)     | same pipe, same framing, different kind                           | same                                  | fixture replay                       |
-| 4   | core → probe (control: cancel, shutdown) | same pipe, reverse direction                                      | same                                  | fixture replay                       |
-| 5   | core → blob store (raw snapshot bytes)   | content-addressed by SHA-256                                      | `yata-daemon`, store module           | `cargo test`                         |
-| 6   | core → fact log (durable state)          | versioned tagged records, append-only                             | `../spec/fact-format.md`              | `cargo test`                         |
-| 7   | fact log → projection (in memory)        | pure fold, no wire format                                         | `yata-core`                           | `cargo test`                         |
-| 8   | core → Flutter (queries and commands)    | same framing, the core schema                                     | `../spec/core-protocol.md`, ADR-0004  | `cargo test` + Dart tests            |
-| 9   | core → Flutter (subscriptions)           | same wire; the message carries a revision, not a value            | same                                  | same                                 |
-| 10  | recording file → core                    | the reader's frame stream captured by the daemon, frame for frame | `../spec/probe-protocol.md`           | `cargo test` (this is the mechanism) |
-| 11  | probe export file → core                 | proto3 JSON of a `ProbeExport`, the probe schema's own message    | `../spec/probe-protocol.md`, ADR-0008 | `cargo test`                         |
+| #   | Path                                   | Format                                                 | Lives in                             | Verifiable                |
+| --- | -------------------------------------- | ------------------------------------------------------ | ------------------------------------ | ------------------------- |
+| 1   | imported file → core                   | a community snapshot format, recognized by its header  | `../spec/import-format.md`, PRP-0008 | `cargo test`              |
+| 2   | core → blob store (raw snapshot bytes) | content-addressed by SHA-256                           | `yata-daemon`, store module          | `cargo test`              |
+| 3   | core → fact log (durable state)        | versioned tagged records, append-only                  | `../spec/fact-format.md`             | `cargo test`              |
+| 4   | fact log → projection (in memory)      | pure fold, no wire format                              | `yata-core`                          | `cargo test`              |
+| 5   | core → Flutter (queries and commands)  | length-prefixed frames, the core schema                | `../spec/core-protocol.md`, ADR-0004 | `cargo test` + Dart tests |
+| 6   | core → Flutter (subscriptions)         | same wire; the message carries a revision, not a value | same                                 | same                      |
+| 7   | recording file → core                  | a reader session's frame stream, kept as a fixture     | `../spec/probe-protocol.md`          | `cargo test`              |
+| 8   | probe export file → core               | proto3 JSON of a `ProbeExport`                         | `../spec/probe-protocol.md`          | `cargo test`              |
 
-Paths 5–10 are inside this repository or generated from it and are covered by
-ordinary tests. Paths 1–4 are the probe boundary, and path 10 is what makes them
-testable without the game: a recording is the probe's own byte stream, so the
-decoder cannot tell it from a live pipe (ADR-0006).
-
-Paths 2–4 and 10 speak the same wire as paths 8 and 9 — one framing codec, one
-encoding, one versioning story (ADR-0006). The two channels are still separate
-schemas with disjoint error-code namespaces, so a change to one cannot silently
-change the other.
+Path 1 is not implemented yet (PRP-0008). Paths 7 and 8 are what remains of the
+reader's wire. PRP-0008 decides whether they survive the community-format
+import.
 
 Two rules keep this list from growing, which is its own kind of design:
 
-**A new channel is a new path 1–4, and needs an ADR.** Reading the game a second
-way (a third memory route, a new emulator, a network capture) is a decision to
-trust a new source, and the glossary's "two channels only" is the current answer
-(`../spec/glossary.md`, and [ADR-0006](../decisions/0006-reader-channel.md) for
-what a channel must speak once it exists).
+**No path reads the game.** A path that reads, attaches to, or automates the
+game or an emulator is excluded by
+[ADR-0030](../decisions/0030-no-game-reader.md), not merely undecided.
 
 **No path exists only to serve the UI.** A boundary whose purpose is "the UI
 needs it more conveniently" is a violation of the layer table above; the fix is
-a better shape on path 8, not a twelfth path.
+a better shape on path 5, not a ninth path.
 
 ### What each boundary carries, and in which direction
 
-The counter-intuitive one is path 9. A subscription carries **no data** — only
+The counter-intuitive one is path 6. A subscription carries **no data** — only
 the fact that something changed and the new revision. The UI then issues a path
-8 query for the value it needs. Sending the changed value down the subscription
+5 query for the value it needs. Sending the changed value down the subscription
 would put a second copy of the truth in the Flutter layer, where it can go stale
 silently; a revision cannot.
 
-Path 8 is where the one real performance question lives. A query returns a
+Path 5 is where the one real performance question lives. A query returns a
 _page_: the result rows plus a total, a cursor, and the revision they are valid
 at. The cursor is an opaque domain value (a sort key continuation), not an
 offset and not a SQL LIMIT — nothing in this project knows what a query plan is.
@@ -236,51 +216,24 @@ actual failure mode).
 
 ## Where the dirty code lives
 
-There is exactly one kind of dirty code in this project — reading another
-process's memory — and it lives outside both this repository and any crate in
-this workspace.
-
-```text
-   separate repository: yata-reader                    this repository
-   ───────────────────────────────                 ───────────────
-   probe.exe  ── reads ──► game                    yata-core::import (pure)
-                                                   yata-daemon  (spawns, pumps)
-                  ② pipes ▲   │                                   ▲
-                          └───┘                                   │
-                  spawn + named pipe ─────────────────────────────┘
-```
-
-| Concern                                                                | Where it lives                                                  | Why there                                                                                                              |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| external read-only memory access, structure parsing, offsets, patterns | reader repo (open source, ADR-0007)                             | needs `unsafe`; must not be able to weaken this workspace's lints; held to `spec/reader-security.md`                   |
-| engine detection and per-engine read strategy                          | probe repo                                                      | changes when the game patches, on its own release cadence                                                              |
-| the message schema                                                     | **this repo**, `docs/spec/probe-protocol.md`                    | the consumer defines the contract; the producer conforms                                                               |
-| the frame codec and generated probe types                              | **this repo**, `yata-protocol`, which the probe repo depends on | one codec, not two that agree today (ADR-0006); the reason the crate exists (ADR-0005 trigger 3)                       |
-| decoding a probe record into a domain value                            | **this repo**, `yata-core`                                      | it is a pure function over bytes and must be unit-testable                                                             |
-| spawning, pumping, timeout, cancel, restart-on-crash                   | **this repo**, `yata-daemon`                                    | effects belong at the boundary (ADR-0001), and the daemon is the only crate that may spawn anything (ADR-0004 rule 10) |
-
-The property this buys, stated plainly: **`unsafe_code = "forbid"` in the
-workspace manifest is a constraint that can be violated.** Inside one workspace
-it is decorative as soon as a member re-declares its lints to escape it, and
-code that reads another process is the code most tempted to. A separate
-repository removes the escape hatch rather than trusting nobody will use it.
+Nowhere. The one kind of dirty code this project once had, reading another
+process's memory, lived in the separate `yata-reader` repository, which is
+deleted (ADR-0030). The workspace forbids `unsafe` and has no platform-specific
+module.
 
 ## What CI can and cannot see
 
 Stated once, here, because it explains why the test strategy is shaped the way
 it is.
 
-| Layer                                                         | In CI          | Mechanism                                                                                                      |
-| ------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------------- |
-| byte decode, fact format, fold, quality, fit, matching, query | yes            | `cargo test`, pure functions over recorded bytes                                                               |
-| the probe protocol                                            | yes, by replay | a fixture session file fed through the real decoder                                                            |
-| the probe's own behaviour against a live game                 | never          | manual, on the developer's machine                                                                             |
-| the protocol surface                                          | yes            | `cargo test` on the Rust session; Dart tests against a stubbed transport, plus a committed-bindings diff check |
-| the UI                                                        | yes, weakly    | widget tests over a fake repository; no scoring assertions, because the UI has no scores to assert             |
+| Layer                                                         | In CI       | Mechanism                                                                                                      |
+| ------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------- |
+| byte decode, fact format, fold, quality, fit, matching, query | yes         | `cargo test`, pure functions over recorded bytes                                                               |
+| file import                                                   | yes         | `cargo test` over fixture files                                                                                |
+| the protocol surface                                          | yes         | `cargo test` on the Rust session; Dart tests against a stubbed transport, plus a committed-bindings diff check |
+| the UI                                                        | yes, weakly | widget tests over a fake repository; no scoring assertions, because the UI has no scores to assert             |
 
-The gap is path 1, and it is closed by discipline rather than by tooling: **when
-the probe can read the game, it records.** A fixture recorded today is the only
-thing that will still be testable after the game patches.
+There is no layer CI cannot see: nothing depends on a running game.
 
 ## Open, and deliberately not decided here
 
@@ -299,7 +252,8 @@ thing that will still be testable after the game patches.
   [ADR-0002](../decisions/0002-fact-log-projection-and-fact-schema.md)
 - Two-pass scoring: [ADR-0003](../decisions/0003-two-pass-scoring.md)
 - The Flutter boundary: [ADR-0004](../decisions/0004-core-process-boundary.md)
-- The probe wire: [ADR-0006](../decisions/0006-reader-channel.md)
+- No game reader, and the import format:
+  [ADR-0030](../decisions/0030-no-game-reader.md)
 - What crosses each boundary:
   [../spec/core-protocol.md](../spec/core-protocol.md),
   [../spec/probe-protocol.md](../spec/probe-protocol.md),
