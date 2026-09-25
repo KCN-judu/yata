@@ -45,10 +45,12 @@
 
 ## Compatibility and migration
 
-No wire or storage format changes. A query whose inline selection has neither
-`any_set` nor a suit code, a soul with a star outside 1 to 6, or a value that is
-NaN, infinite, or negative, a level above 15, or a suit code no scheme can
-choose is now `query.malformed`. `yata-daemon scheme diff` lists every bit of a
+No wire or storage format changes. A query whose inline selection chooses a suit
+code no scheme can choose, or whose inventory holds a soul with a star outside 1
+to 6, a level above 15, or a value that is NaN, infinite, or negative, is now
+`query.malformed`. Until the core protocol carries soul bits beyond the mapped
+sets, a scheme entry that chooses one is sent without a selection, with
+`has_unknown_conditions` set. `yata-daemon scheme diff` lists every bit of a
 byte only one payload has.
 
 ## Evidence
