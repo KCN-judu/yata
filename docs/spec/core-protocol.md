@@ -132,17 +132,19 @@ one is an additive schema change, which is a minor version bump.
 A query returns a page. `QueryPage` always carries the `revision` the page is
 valid at; a page is never returned without the revision it describes.
 
-**The cursor is opaque.** `Page.cursor` is a serialized sort-key continuation
-produced by the daemon. It is not an offset, not a row number, and not a SQL
-`LIMIT`. A client stores it and sends it back unmodified; a client that parses
-it is depending on something the protocol does not promise. An invalid or
-foreign cursor is `query.malformed_cursor`, refused rather than approximated.
+**The cursor is opaque.** `QueryPage.next_cursor` is a serialized sort-key
+continuation produced by the daemon. It is not an offset, not a row number, and
+not a SQL `LIMIT`. A client stores it and sends it back unmodified; a client
+that parses it is depending on something the protocol does not promise. An
+invalid or foreign cursor is `query.malformed_cursor`, refused rather than
+approximated. `PageRequest.cursor` is absent on a scan's first page; a present
+cursor is one the daemon wrote, and a present empty one is malformed.
 
-**The row budget bounds the response.** `Page.row_budget` states the maximum
-rows the daemon may return for that query, chosen by the client. When a result
-set exceeds it, the daemon returns a full page and a cursor; when the client
-omits the budget, the daemon applies its default. A query whose result fits
-returns `has_more = false` and an empty cursor.
+**The row budget bounds the response.** `PageRequest.row_budget` states the
+maximum rows the daemon may return for that query, chosen by the client. When a
+result set exceeds it, the daemon returns a full page and a `next_cursor`; when
+the client omits the budget, the daemon applies its default. A page with no
+`next_cursor` is the last: there is no second field saying so.
 
 **A page is valid at one revision.** If the projection advances between two
 pages of the same scan, the second page is refused with `query.stale_revision`

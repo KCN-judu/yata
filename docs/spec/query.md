@@ -140,21 +140,29 @@ Expr =
 
 The test a predicate may apply is fixed by the field's type:
 
-| Field type                                             | Tests                                      |
-| ------------------------------------------------------ | ------------------------------------------ |
-| enum (`SoulSet`, `SoulSlot`, `SoulAttribute`, mark, …) | `In [value]`                               |
-| int                                                    | `Range { min?, max? }` over integers       |
-| number, score                                          | `Range { min?, max? }` over finite numbers |
-| bool                                                   | `Is bool`                                  |
+| Field type                                             | Tests                       |
+| ------------------------------------------------------ | --------------------------- |
+| enum (`SoulSet`, `SoulSlot`, `SoulAttribute`, mark, …) | `In [value]`                |
+| int                                                    | `Range` over integers       |
+| number, score                                          | `Range` over finite numbers |
+| bool                                                   | `Is bool`                   |
 
-Both bounds of a `Range` are inclusive, and at least one is present. A number
-bound compares stored values with the domain's tolerance, so
-`sub_value(Spd) ≥ 17` agrees with 真 17 速 (ADR-0026, rule 3).
+A `Range` is `AtLeast min`, `AtMost max`, or `Between min max`, every bound
+inclusive; a range with no bound cannot be written. A number bound compares
+stored values with the domain's tolerance, so `sub_value(Spd) ≥ 17` agrees
+with 真 17 速 (ADR-0026, rule 3).
 
-A test that does not fit its field's type is `query.type_mismatch`. `In []`, a
-range with no bound or with its minimum above its maximum, and a bound that is
-not finite are `query.malformed`, not evaluated as false, because each is always
-a UI bug.
+A test that does not fit its field's type is `query.type_mismatch`. `In []`,
+`Between` with its minimum above its maximum, and a bound that is not finite are
+`query.malformed`, not evaluated as false, because each is always a UI bug.
+
+The schema gives each of these one encoding. A field is a oneof of the fields
+that take nothing beside their name and those that carry an attribute
+(`sub_value`, `has_sub`) or a score component; `In` holds one list, of one type.
+In an inline `SoulSelection`, 类型 is `all` or a non-empty `chosen` list: the
+game's "nothing chosen" means every set, and is written as `all` only, so an
+empty `chosen` list is `query.malformed`. 副属性 is a list of attribute and ○/✕
+pairs, each attribute at most once.
 
 **`Matches`** is the official filter (roadmap milestone 1): the soul filter UI
 builds a `SoulSelection`, the game's own condition model, and the daemon
@@ -164,18 +172,20 @@ and is presented as the advanced filter.
 **`MatchesScheme`** evaluates a scheme with `matches(selection, soul)`
 (`scheme-code.md`). `SchemeRef` is a saved scheme id (`SchemeSaved` in
 `fact-format.md`) or an inline scheme code string, plus the index of one plan or
-discard scheme. The index is required when the code holds more than one
-(ADR-0026, rule 5). A query never re-implements a scheme's condition logic as an
-`Expr`; it asks the one evaluator that exists.
+discard scheme. The schema carries the inline code only; the saved id joins it
+as a oneof when saved schemes exist. The index is required when the code holds
+more than one (ADR-0026, rule 5). A query never re-implements a scheme's
+condition logic as an `Expr`; it asks the one evaluator that exists.
 
 `matches` gives a three-way verdict (`scheme-code.md`, "Evaluation"), and a
 filter keeps it (ADR-0026). `And`, `Or` and `Not` combine verdicts by strong
 Kleene logic: a decided operand settles a node when it can, and an open result
 names the open rules beneath it. A result holds every row that is decided true
-or open, and each row carries its verdict. So when a verdict is open, the result
-is a superset of the game's selection, and the rows that may be the difference
-are marked. Under `Not`, an open row stays open: it is in the result of a filter
-and of its negation.
+or open, and each row carries its verdict: `exact`, or `open` with at least one
+rule. A row the filter rules out is not in the result, so a row has no third
+verdict. So when a verdict is open, the result is a superset of the game's
+selection, and the rows that may be the difference are marked. Under `Not`, an
+open row stays open: it is in the result of a filter and of its negation.
 
 ## Sort
 
@@ -235,17 +245,17 @@ query. No UI control should come near them.
 
 All in the `query.*` namespace (`core-protocol.md`, "Errors"):
 
-| Code                       | When                                                                             |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| `query.unknown_field`      | a field this collection does not have                                            |
-| `query.type_mismatch`      | a test that does not fit the field's type                                        |
-| `query.param_set_required` | a score field with no `params`                                                   |
-| `query.field_unavailable`  | a field of this page that this build cannot evaluate yet (ADR-0026, rule 4)      |
-| `query.malformed`          | a tree the schema can carry and the vocabulary cannot mean; see the tests above  |
-| `query.unknown_scheme`     | a `SchemeRef` that names no saved scheme, or an inline code that does not decode |
-| `query.too_complex`        | a limit above is exceeded                                                        |
-| `query.malformed_cursor`   | defined in `core-protocol.md`                                                    |
-| `query.stale_revision`     | defined in `core-protocol.md`                                                    |
+| Code                       | When                                                                                                           |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `query.unknown_field`      | a field this collection does not have                                                                          |
+| `query.type_mismatch`      | a test that does not fit the field's type                                                                      |
+| `query.param_set_required` | a score field with no `params`                                                                                 |
+| `query.field_unavailable`  | a field of this page that this build cannot evaluate yet (ADR-0026, rule 4)                                    |
+| `query.malformed`          | a tree the schema can carry and the vocabulary cannot mean; see the tests above                                |
+| `query.unknown_scheme`     | a `SchemeRef` that names no plan or scheme: a code that does not decode, has none, or has several and no index |
+| `query.too_complex`        | a limit above is exceeded                                                                                      |
+| `query.malformed_cursor`   | defined in `core-protocol.md`                                                                                  |
+| `query.stale_revision`     | defined in `core-protocol.md`                                                                                  |
 
 ## Not decided here
 
