@@ -186,16 +186,12 @@ recognition rule inherited and no field mapped, their container keys, a
 deterministic survey, a presence/absence cross-tabulation, and a suit-code
 ledger that stays unretired.
 
-| Claim                                                                                                     | Test in `probe::convert::tests` or `probe::launch::tests` (Windows)                                   |
-| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| a value on an unmapped field is refused; an established mapping keeps its basis                           | `a_value_for_an_unmapped_field_is_refused`, `an_established_mapping_keeps_its_basis`                  |
-| unstated coverage, mappings, evidence, bases, innate readings, and values are refused, not defaulted      | `unstated_shapes_are_refused_not_defaulted`                                                           |
-| a cut sequence or mapping states a full length above what it holds                                        | `a_cut_length_must_be_above_what_is_held`                                                             |
-| a blob is the reading alone, whatever request carried it                                                  | `a_blob_is_the_reading_alone`                                                                         |
-| the pipe's descriptor grants its owner only; the owner connects and its process id is checked (R10, part) | `the_pipe_refuses_everyone_but_its_owner`, `the_owner_connects_and_its_process_id_is_checked`         |
-| a client that is not the reader is refused; a second server cannot take the first instance                | `a_client_that_is_not_the_reader_is_refused`, `the_first_instance_cannot_be_taken_by_a_second_server` |
-| a pipe name is random and local                                                                           | `a_pipe_name_is_random_and_local`                                                                     |
-| a file's hash is its SHA-256, written as hex and parsed from nothing else (R7)                            | `a_file_hash_is_its_sha256`, `hashes_are_read_and_written_as_hex_and_nothing_else`                    |
+| Claim                                                                                                | Test in `probe::convert::tests`                                                      |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| a value on an unmapped field is refused; an established mapping keeps its basis                      | `a_value_for_an_unmapped_field_is_refused`, `an_established_mapping_keeps_its_basis` |
+| unstated coverage, mappings, evidence, bases, innate readings, and values are refused, not defaulted | `unstated_shapes_are_refused_not_defaulted`                                          |
+| a cut sequence or mapping states a full length above what it holds                                   | `a_cut_length_must_be_above_what_is_held`                                            |
+| a blob is the reading alone, whatever request carried it                                             | `a_blob_is_the_reading_alone`                                                        |
 
 ## Soul observations and evidence analyses — `yata-core::import`
 
@@ -208,10 +204,8 @@ ledger that stays unretired.
 | matching codes re-establish a bit; a code attested for two bits contradicts both                                                       | `evidence::tests::matching_codes_reestablish_their_bits`, `a_code_attested_for_two_bits_contradicts_both`                                                                 |
 | unjoinable attestations are reported; only every bit re-established retires the inheritance                                            | `evidence::tests::unjoinable_attestations_are_reported_not_dropped`, `every_bit_reestablished_retires_the_inheritance`                                                    |
 
-The reader's own tests — discovery, attach classification, the layout decoder on
-synthetic memory and on a live process of the runtime it reads, its session
-side, and the fixtures' byte-for-byte reproduction — are in the `yata-reader`
-repository, `docs/project/status.md` there.
+The reader and its tests were in the `yata-reader` repository, which is deleted
+(ADR-0030). The fixture recording above is kept as test data.
 
 ## Core protocol session — `yata-daemon`
 
@@ -385,6 +379,5 @@ Test data is the recorded session, so no test builds a soul by hand.
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
 implemented.
 
-The probe channel's live elevation path — a UAC prompt accepted or declined —
-runs only by hand; no CI can answer a prompt. R10's check that a second user's
-token cannot connect is not written. No recording of the game exists yet.
+The community snapshot formats have no importer yet, so nothing tests it
+(PRP-0008).
