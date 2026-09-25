@@ -54,72 +54,75 @@ Integration tests in `crates/yata-daemon/tests/store.rs`, each against a real
 SQLite file under a directory whose name has Chinese characters and a space
 (ADR-0010), on Linux, Windows, and macOS.
 
-| Claim                                                                | Test                                                         |
-| -------------------------------------------------------------------- | ------------------------------------------------------------ |
-| a store is created, initialized with its format and id, and reopened | `a_store_is_created_initialized_and_reopened`                |
-| opening never creates a missing store                                | `opening_never_creates_a_missing_store`                      |
-| an existing store is opened without a new id                         | `an_existing_store_is_opened_without_a_new_id`               |
-| commits append densely; a gap or a repeat is refused                 | `commits_append_densely_and_read_back_in_order`              |
-| a failed commit keeps none of its writes                             | `a_failed_commit_keeps_none_of_its_writes`                   |
-| blobs are stored once and pruned by digest                           | `blobs_are_stored_once_and_pruned_by_digest`                 |
-| the projection cache keeps one entry                                 | `the_projection_cache_keeps_one_entry`                       |
-| a file that is not a database is refused and left untouched          | `a_foreign_file_is_refused_and_left_untouched`               |
-| an empty file is uninitialized until creation is asked for           | `an_empty_file_is_uninitialized_until_creation_is_asked_for` |
+| Claim                                                                | Test                                                                         |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| a store is created, initialized with its format and id, and reopened | `a_store_is_created_initialized_and_reopened`                                |
+| opening never creates a missing store                                | `opening_never_creates_a_missing_store`                                      |
+| an existing store is opened without a new id                         | `an_existing_store_is_opened_without_a_new_id`                               |
+| commits append densely; a gap or a repeat is refused                 | `commits_append_densely_and_read_back_in_order`                              |
+| a failed commit keeps none of its writes                             | `a_failed_commit_keeps_none_of_its_writes`                                   |
+| blobs are stored once and pruned by digest                           | `blobs_are_stored_once_and_pruned_by_digest`                                 |
+| the projection cache keeps one entry                                 | `the_projection_cache_keeps_one_entry`                                       |
+| a file that is not a database is refused and left untouched          | `a_foreign_file_is_refused_and_left_untouched`                               |
+| an empty file is uninitialized until creation is asked for           | `an_empty_file_is_uninitialized_until_creation_is_asked_for`                 |
+| a format-1 store is retired and a newer one refused                  | `store::tests::a_format_one_store_is_retired_and_a_newer_one_refused` (unit) |
 
 ## Fact model and fold — `yata-core`
 
 Claims of [fact-format.md](../spec/fact-format.md) that hold without a store.
 
-| Claim                                                                                                                         | Tests                                                                                                                                                                                                                                                                |
-| ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| the fold is a function of the log; commits apply densely in `seq` order                                                       | `fact::projection::tests::the_fold_is_a_function_of_the_log`, `commits_apply_densely_in_seq_order`                                                                                                                                                                   |
-| facts within a commit apply in their order; a commit of no facts, a `seq` of 0, and an empty note are not values              | `projection::tests::facts_within_a_commit_apply_in_their_order`, `fact::model::tests::empty_values_have_no_second_encoding`                                                                                                                                          |
-| a fact needs its profile; a profile is created once; profiles share nothing                                                   | `projection::tests::a_fact_needs_its_profile_to_exist_and_a_profile_is_created_once`, `profiles_share_nothing`                                                                                                                                                       |
-| a reading of another account does not apply; the known account                                                                | `projection::tests::a_reading_of_another_account_does_not_apply`, `a_withdrawn_reading_no_longer_decides_the_account`                                                                                                                                                |
-| the live snapshot; partials without a complete one                                                                            | `projection::tests::the_live_snapshot_is_the_latest_complete_one_not_withdrawn`, `without_a_complete_snapshot_every_partial_one_is_live`                                                                                                                             |
-| what a retraction withdraws                                                                                                   | `projection::tests::a_retraction_withdraws_only_what_came_before_it`, `a_retraction_must_withdraw_something_in_its_own_profile`                                                                                                                                      |
-| a no-op is decided by state, whatever the revision                                                                            | `projection::tests::a_state_is_the_same_whatever_the_revision`                                                                                                                                                                                                       |
-| a newer complete reading replaces the inventory; a partial one overlays                                                       | `fact::inventory::tests::a_newer_complete_reading_replaces_the_inventory`, `a_partial_reading_overlays_and_removes_nothing`                                                                                                                                          |
-| a decision outlives its soul; decisions belong to one profile                                                                 | `inventory::tests::a_decision_outlives_its_soul_and_applies_when_it_returns`, `decisions_belong_to_one_profile`                                                                                                                                                      |
-| a missing or disagreeing reading is an error                                                                                  | `inventory::tests::a_missing_or_disagreeing_reading_is_an_error`                                                                                                                                                                                                     |
-| a reading without an established soul id, with one soul twice, or with a record without an id or with an empty one is refused | `fact::admission::tests::a_reading_without_an_established_soul_id_is_refused`, `a_reading_with_one_soul_twice_is_refused`, `a_record_without_an_id_is_refused`, `an_empty_soul_id_is_refused_by_name`, `an_admitted_reading_names_its_souls_and_account`             |
-| a row needs its fields established and present; the code-free premises of W-Soul; a failing record is reported, not repaired  | `admission::tests::a_row_needs_every_row_field_established_and_present`, `each_premise_of_w_soul_that_needs_no_code_table_is_checked`, `recorded_rolls_cannot_exceed_the_nodes_reached`, `inventory::tests::a_record_that_cannot_be_a_soul_is_reported_not_repaired` |
-| admission parses records into typed rows and defects by position; an unmapped field is named as unmapped                      | `admission::tests::admission_splits_rows_from_defects_by_record`, `an_unmapped_row_field_is_named_as_unmapped`                                                                                                                                                       |
+| Claim                                                                                                                                      | Tests                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| the fold is a function of the log; commits apply densely in `seq` order                                                                    | `fact::projection::tests::the_fold_is_a_function_of_the_log`, `commits_apply_densely_in_seq_order`                                                                                      |
+| facts within a commit apply in their order; a commit of no facts, a `seq` of 0, an empty note, and an import of no sections are not values | `projection::tests::facts_within_a_commit_apply_in_their_order`, `fact::model::tests::empty_values_have_no_second_encoding`, `an_import_holds_at_least_one_section`                     |
+| a fact needs its profile; a profile is created once; profiles share nothing                                                                | `projection::tests::a_fact_needs_its_profile_to_exist_and_a_profile_is_created_once`, `profiles_share_nothing`                                                                          |
+| a section's base is its latest complete import not withdrawn; without one, every live import is a layer                                    | `projection::tests::the_base_is_the_latest_complete_import_not_withdrawn`, `without_a_complete_import_every_live_one_is_a_layer`                                                        |
+| an import without a section leaves that section alone                                                                                      | `projection::tests::an_import_without_a_section_leaves_that_section_alone`                                                                                                              |
+| a retraction withdraws every section of its snapshot, only what came before it, in its own profile                                         | `projection::tests::a_retraction_withdraws_every_section_of_its_snapshot`, `a_retraction_withdraws_only_what_came_before_it`, `a_retraction_must_withdraw_something_in_its_own_profile` |
+| `held` is `Complete` over a base and the strongest layer without one                                                                       | `projection::tests::held_is_complete_over_a_base_and_the_strongest_layer_without_one`                                                                                                   |
+| a no-op is decided by state, whatever the revision                                                                                         | `projection::tests::a_state_is_the_same_whatever_the_revision`                                                                                                                          |
+| a newer complete import replaces the inventory; a partial or unstated one overlays                                                         | `fact::inventory::tests::a_newer_complete_import_replaces_the_inventory`, `a_partial_or_unstated_import_overlays_and_removes_nothing`                                                   |
+| an import without souls, a repeated import, and a retracted import leave the inventory as it should be                                     | `inventory::tests::an_import_without_souls_leaves_the_inventory_alone`, `importing_the_same_snapshot_again_changes_no_soul`, `a_retracted_import_leaves_the_inventory`                  |
+| a decision outlives its soul; decisions belong to one profile                                                                              | `inventory::tests::a_decision_outlives_its_soul_and_applies_when_it_returns`, `decisions_belong_to_one_profile`                                                                         |
+| a record admission refuses is reported, not repaired                                                                                       | `inventory::tests::a_record_that_cannot_be_a_soul_is_reported_not_repaired`                                                                                                             |
+| a missing, disagreeing, or refused snapshot is an error                                                                                    | `inventory::tests::a_missing_disagreeing_or_refused_snapshot_is_an_error`                                                                                                               |
 
 ## Fact codec and blobs — `yata-daemon`
 
-| Claim                                                                                              | Tests                                                                                                                                                               |
-| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| every kind and origin round-trips                                                                  | `store::fact::tests::every_kind_round_trips`, `every_origin_round_trips`                                                                                            |
-| encoding is deterministic, and its bytes are pinned                                                | `fact::tests::encoding_is_deterministic_and_pinned`                                                                                                                 |
-| a newer kind, kind version, or enum value is `store.newer_format`                                  | `fact::tests::a_newer_kind_version_or_enum_value_is_newer_format`                                                                                                   |
-| a malformed commit, envelope, or payload is `store.malformed_commit`                               | `fact::tests::bytes_that_are_not_a_commit_are_malformed`, `a_malformed_envelope_or_payload_is_refused`, `a_commit_must_sit_under_its_own_seq`                       |
-| a commit is at most 1 MiB, written or read                                                         | `fact::tests::decoding_is_bounded`                                                                                                                                  |
-| a note is written at version 2 as a text or a clearing; version 1 lifts, its empty text to cleared | `fact::tests::a_note_is_written_at_version_two_with_its_case`, `a_version_one_note_lifts_its_empty_text_to_cleared`, `a_version_two_note_must_say_which_case_it_is` |
-| a blob is SHA-256-named, zstd-compressed, bounded, and checked on open                             | `store::blob::tests`                                                                                                                                                |
+| Claim                                                                                           | Tests                                                                                                                                                                 |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every kind and origin round-trips                                                               | `store::fact::tests::every_kind_round_trips`, `every_origin_round_trips`                                                                                              |
+| encoding is deterministic, and its bytes are pinned; an import lists its sections in kind order | `fact::tests::encoding_is_deterministic_and_pinned`, `an_import_lists_its_sections_in_kind_order`                                                                     |
+| a fact is about a profile and is some case; an unknown case is malformed, never newer           | `fact::tests::a_fact_is_about_a_profile_and_is_some_case`                                                                                                             |
+| an import states its digests, source, and sections, each section once                           | `fact::tests::an_import_states_its_digests_source_and_sections_once_each`                                                                                             |
+| a malformed commit or payload is `store.malformed_commit`; a note says which case it is         | `fact::tests::bytes_that_are_not_a_commit_are_malformed`, `a_malformed_payload_is_refused`, `a_commit_must_sit_under_its_own_seq`, `a_note_must_say_which_case_it_is` |
+| a commit is at most 1 MiB, written or read                                                      | `fact::tests::decoding_is_bounded`                                                                                                                                    |
+| a blob is SHA-256-named, zstd-compressed, bounded, and checked on open                          | `store::blob::tests`                                                                                                                                                  |
 
 ## The fact log on SQLite — `yata-daemon`
 
 Integration tests in `crates/yata-daemon/tests/facts.rs`, and unit tests in
-`store::log::tests`, against real SQLite files.
+`store::log::tests`, against real SQLite files, with the IR's canonical codec.
 
-| Claim                                                                              | Test                                                                                                             |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| the projection and inventories rebuild from the log alone; the cache is not read   | `the_projection_rebuilds_from_the_log_alone`                                                                     |
-| the same facts replayed into another store fold to the same state                  | `the_log_copied_into_another_store_folds_to_the_same_state`                                                      |
-| a repeated import is a second observation of one blob                              | `a_repeated_import_is_a_second_observation_of_one_blob`                                                          |
-| a newer reading updates and removes souls; a returning soul keeps its mark         | `a_newer_reading_updates_removes_and_restores_souls`                                                             |
-| profiles are isolated; a reading never crosses accounts                            | `profiles_are_isolated_and_a_reading_never_crosses_accounts`                                                     |
-| a command is stale, unchanged, or applied; one that changes nothing is not written | `a_fact_that_changes_nothing_is_not_written`, `store::log::tests::a_command_is_stale_unchanged_or_applied`       |
-| an impossible reading, or one for an unknown profile, writes nothing               | `an_impossible_reading_is_refused_and_writes_nothing`                                                            |
-| a record that cannot be a soul is kept, reported, and left out                     | `a_record_that_cannot_be_a_soul_is_kept_reported_and_left_out`                                                   |
-| a reading without an established soul id is refused and writes nothing             | `a_reading_without_an_established_soul_id_is_refused_and_writes_nothing`                                         |
-| a record whose row fields are not established is reported, not a row               | `a_record_whose_row_fields_are_not_established_is_reported_not_a_row`                                            |
-| a reading by pipe and by file is one blob: a `Reading` holds no request id         | `probe::convert::tests::a_blob_is_the_reading_alone`                                                             |
-| a failed transaction keeps neither the blob nor the projection change              | `store::log::tests::a_failed_transaction_keeps_neither_the_blob_nor_the_projection`                              |
-| a refused commit writes nothing                                                    | `store::log::tests::a_refused_commit_writes_nothing`                                                             |
-| a malformed log, or one the fold refuses, refuses the store                        | `store::log::tests::a_malformed_commit_in_the_log_refuses_the_store`, `a_log_the_fold_refuses_refuses_the_store` |
-| the dump shows every fact and hides account ids                                    | `store::log::tests::the_dump_shows_every_fact_and_hides_account_ids`                                             |
+| Claim                                                                                         | Test                                                                                                             |
+| --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| souls alone give the inventory and no other capability                                        | `souls_alone_give_the_inventory_and_nothing_else`                                                                |
+| souls and Shikigami give both capabilities, each at its section's completeness                | `souls_and_shikigami_give_both_capabilities`                                                                     |
+| a guild alone holds the guild and no souls                                                    | `a_guild_alone_holds_the_guild_and_no_souls`                                                                     |
+| a present guild is held and an absent one is not                                              | `a_present_guild_is_held_and_an_absent_one_is_not`                                                               |
+| a partial import updates souls and removes none                                               | `a_partial_import_updates_souls_and_removes_none`                                                                |
+| an import without the guild keeps the guild                                                   | `an_import_without_the_guild_keeps_the_guild`                                                                    |
+| importing the same snapshot again changes nothing but the log, and stores each blob once      | `importing_the_same_snapshot_again_changes_nothing_but_the_log`                                                  |
+| a retraction withdraws every section of its snapshot                                          | `a_retraction_withdraws_every_section_of_its_snapshot`                                                           |
+| the projection, `held`, and the inventories rebuild from the log alone; the cache is not read | `the_projection_rebuilds_from_the_log_alone`                                                                     |
+| the canonical codec gives one snapshot one digest                                             | `the_canonical_codec_gives_one_snapshot_one_digest`                                                              |
+| an import stores both blobs and its sections                                                  | `store::log::tests::an_import_stores_both_blobs_and_its_sections`                                                |
+| an import must carry its own file and at least one section                                    | `store::log::tests::an_import_must_carry_its_own_file_and_a_section`                                             |
+| a command is stale, unchanged, or applied; one that changes nothing is not written            | `store::log::tests::a_command_is_stale_unchanged_or_applied`                                                     |
+| a failed transaction keeps neither the blobs nor the projection change                        | `store::log::tests::a_failed_transaction_keeps_neither_the_blob_nor_the_projection`                              |
+| a refused commit writes nothing                                                               | `store::log::tests::a_refused_commit_writes_nothing`                                                             |
+| a malformed log, or one the fold refuses, refuses the store                                   | `store::log::tests::a_malformed_commit_in_the_log_refuses_the_store`, `a_log_the_fold_refuses_refuses_the_store` |
+| the dump shows every fact and hides account ids                                               | `store::log::tests::the_dump_shows_every_fact_and_hides_account_ids`                                             |
 
 ## Frame codec — `yata-protocol`
 
@@ -146,7 +149,7 @@ The same outcomes are asserted on the shared fixture files in
 | every stated code parses, round-trips, and has a distinct dotted name; only session codes end a reader, never cleanly | `failure::tests::every_stated_code_parses_round_trips_and_has_a_distinct_name`, `only_session_codes_end_the_reader_and_never_cleanly` |
 | a failure round-trips through the wire; shapes the schema rules out are refused                                       | `failure::tests::a_failure_round_trips_through_the_wire`, `shapes_the_schema_rules_out_are_refused`                                   |
 
-| Claim in [probe-protocol.md](../spec/probe-protocol.md)                                    | Test                                                                                                                    |
+| Claim of the retired probe protocol                                                        | Test                                                                                                                    |
 | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | an export survives its JSON text; the text is the proto3 JSON mapping                      | `export::tests::an_export_survives_its_json_text`, `the_text_follows_the_proto3_json_mapping`                           |
 | an unset field stays unset through the file                                                | `export::tests::an_unset_field_stays_unset`                                                                             |
@@ -155,57 +158,6 @@ The same outcomes are asserted on the shared fixture files in
 | a byte-order mark and Windows line ends are not content; oversized and non-JSON is refused | `export::tests::a_byte_order_mark_and_windows_line_ends_are_not_content`, `an_oversized_file_is_refused_before_parsing` |
 | a value of the wrong kind is malformed; text that is not a JSON object is not an export    | `export::tests::a_wrong_value_kind_is_malformed`, `non_json_and_non_objects_are_not_exports`                            |
 | zero is never a request id; ids only grow; exactly one answer; progress only before it     | `discipline::tests`                                                                                                     |
-
-## Probe sessions, recordings, and exports — `yata-daemon`
-
-Integration tests in `crates/yata-daemon/tests/probe_session.rs` run the live
-session against a scripted reader over in-memory pipes, then replay what it
-recorded.
-
-| Claim in [probe-protocol.md](../spec/probe-protocol.md)                              | Test                                                                                    |
-| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| a framed request gets its progress and one result; the recording replays to them     | `a_framed_request_gets_its_progress_and_one_result`                                     |
-| a cancel is sent once and the request still gets one answer                          | `a_cancel_is_sent_once_and_the_request_still_gets_one_answer`                           |
-| a session-level failure ends the handshake and is a whole capture                    | `a_session_level_failure_ends_the_handshake`                                            |
-| a failure without its error, or with no code, is undecodable                         | `a_failure_without_its_error_or_code_is_undecodable`                                    |
-| a failure whose subject disagrees with its code's kind is undecodable                | `a_failure_whose_subject_disagrees_with_its_code_is_undecodable`                        |
-| a log message without its level is undecodable; an export with no reading is refused | `a_log_without_its_level_is_undecodable`, `an_export_with_no_reading_is_refused`        |
-| a malformed frame, and a frame that is not a message, end the session                | `a_malformed_frame_ends_the_session`, `a_frame_that_is_not_a_message_is_undecodable`    |
-| a second answer to one request breaks the discipline                                 | `a_reader_that_answers_twice_breaks_the_discipline`                                     |
-| a reader of another major version is refused                                         | `a_reader_of_another_major_version_is_refused`                                          |
-| a reader that dies inside a frame leaves a truncated capture                         | `a_reader_that_dies_mid_frame_leaves_a_truncated_capture`                               |
-| a capture ending with a request open is broken; a request id of 0 is a breach        | `a_capture_that_ends_with_a_request_open_is_broken`, `a_request_id_of_zero_is_a_breach` |
-| a reading has the same readings and blob by recording and by export                  | `a_reading_arrives_the_same_by_recording_and_by_export`                                 |
-| a recording with no acknowledgement has no provenance, so no export                  | `a_recording_with_no_acknowledgement_has_no_provenance_to_export`                       |
-
-`crates/yata-daemon/tests/probe_fixtures.rs` replays
-`tests/fixtures/synthetic-souls.frames`, a recording the reader's own session
-code made over synthetic memory (a pinned copy of the reader repository's
-fixture): its provenance, four souls with every typed field unset and the
-recognition rule inherited and no field mapped, their container keys, a
-deterministic survey, a presence/absence cross-tabulation, and a suit-code
-ledger that stays unretired.
-
-| Claim                                                                                                | Test in `probe::convert::tests`                                                      |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| a value on an unmapped field is refused; an established mapping keeps its basis                      | `a_value_for_an_unmapped_field_is_refused`, `an_established_mapping_keeps_its_basis` |
-| unstated coverage, mappings, evidence, bases, innate readings, and values are refused, not defaulted | `unstated_shapes_are_refused_not_defaulted`                                          |
-| a cut sequence or mapping states a full length above what it holds                                   | `a_cut_length_must_be_above_what_is_held`                                            |
-| a blob is the reading alone, whatever request carried it                                             | `a_blob_is_the_reading_alone`                                                        |
-
-## Soul observations and evidence analyses — `yata-core::import`
-
-| Claim                                                                                                                                  | Tests                                                                                                                                                                     |
-| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| field names round-trip; inherited is weaker than established; renderings keep kinds apart                                              | `observation::tests`                                                                                                                                                      |
-| a value on an unmapped field, an empty account id, or an empty soul id contradicts the reading; a mapped field a record lacks is empty | `observation::tests::a_value_on_an_unmapped_field_contradicts_the_reading`, `an_empty_account_or_soul_id_is_refused`, `a_mapped_field_a_record_lacks_is_mapped_and_empty` |
-| a survey counts kinds, integer ranges, and distinct values                                                                             | `evidence::tests::a_survey_counts_kinds_ranges_and_distinct_values`                                                                                                       |
-| groups order absent first, then integers numerically; a crosstab separates absent, null, values                                        | `evidence::tests::groups_order_absent_then_integers_numerically`, `a_crosstab_separates_absent_null_and_values`                                                           |
-| matching codes re-establish a bit; a code attested for two bits contradicts both                                                       | `evidence::tests::matching_codes_reestablish_their_bits`, `a_code_attested_for_two_bits_contradicts_both`                                                                 |
-| unjoinable attestations are reported; only every bit re-established retires the inheritance                                            | `evidence::tests::unjoinable_attestations_are_reported_not_dropped`, `every_bit_reestablished_retires_the_inheritance`                                                    |
-
-The reader and its tests were in the `yata-reader` repository, which is deleted
-(ADR-0030). The fixture recording above is kept as test data.
 
 ## Core protocol session — `yata-daemon`
 
@@ -414,5 +366,5 @@ soul illegal, and its export to a yata-snapshot file imports back to the same
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
 implemented.
 
-Storing a snapshot in the fact log, and capabilities over a profile's folded
-sections, are not implemented (ADR-0031), so nothing tests them.
+The import job and the protocol session do not call the fact log yet, so no test
+drives an import from a file to the store, or capabilities to the application.
