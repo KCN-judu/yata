@@ -254,6 +254,8 @@ What changed for someone. Append-only; one fragment per change.
 - [changes/unreleased/2026-09-typed-failures.md](changes/unreleased/2026-09-typed-failures.md)
   — failures typed by their code with a debug record each; the session query is
   its own call
+- [changes/unreleased/2026-09-scheme-mechanics-types.md](changes/unreleased/2026-09-scheme-mechanics-types.md)
+  — scheme and soul types hold only states the game has
 
 ## Outside `docs/`
 
