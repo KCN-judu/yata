@@ -147,3 +147,12 @@ database.
 terms. The data directory holds `store.sqlite3` in place of `store.redb`
 (ADR-0010, amended). `architecture/overview.md` adds `yata-store` to the crate
 table.
+
+## Amendment 2026-09-25
+
+The closed instruction set of rule 4 is a sealed trait, not an enum: each
+instruction is a type with its own output, and instructions that land together
+are a tuple or a list whose output has the same shape. A caller reads an output
+by its type, not by its position in a list, so a mismatched shape does not
+compile. The set stays closed, because only `yata-store` can implement the
+trait, and rules 5 to 9 are unchanged.

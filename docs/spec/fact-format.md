@@ -65,9 +65,31 @@ Commit {
 - **`seq` is the revision.** The core protocol's revision (`core-protocol.md`)
   is the `seq` of the last commit. A commit is by definition a semantic change,
   and the revision advances by exactly one per commit.
-- **A command maps to exactly one commit.** A command that would change nothing
-  — locking a soul that is already locked — is acknowledged without a commit and
-  without advancing the revision. The log never records a no-op.
+- **A command maps to at most one commit.** A command carries the revision it
+  was formed against (`core-protocol.md`, § Commands), and has one of three
+  outcomes. The log never records a no-op.
+
+  ```text
+  CommandOutcome = Applied { revision : Revision }
+                 | Unchanged { revision : Revision }
+                 | Stale { base : Revision, current : Revision }   -- command.stale_revision
+
+   current = r    base ≠ r
+   ---------------------------------- (Stale: nothing applied)
+   command(base, facts) = Stale { base, r }
+
+   current = r    base = r    fold(s, facts) = s
+   ---------------------------------------------- (Unchanged: no commit)
+   command(base, facts) = Unchanged { r }
+
+   current = r    base = r    fold(s, facts) = s' ≠ s
+   ------------------------------------------------ (Applied: one commit at r + 1)
+   command(base, facts) = Applied { r + 1 }
+  ```
+
+  Locking a soul that is already locked is `Unchanged`. An import is a job, not
+  a command: it carries no base and always appends its acquisition.
+
 - **`recorded_at` never orders anything.** Order is `seq`. A clock that jumps
   backwards changes a displayed time, never a result.
 - **Blob writes share the commit's transaction.** A commit that references a
@@ -167,7 +189,7 @@ These are the only durable things the user authors about the inventory
 | Kind                | Payload                                 | Meaning                                             |
 | ------------------- | --------------------------------------- | --------------------------------------------------- |
 | `SoulMarked`        | game soul id, mark                      | `Keep`, `Discard`, `Strengthen`, or `None` to clear |
-| `SoulNoted`         | game soul id, text                      | empty text clears the note                          |
+| `SoulNoted`         | game soul id, note: text or cleared     | a text is never empty; clearing is its own case     |
 | `SchemeSaved`       | scheme id, name, official payload bytes | a scheme code imported or authored and kept         |
 | `SchemeRemoved`     | scheme id                               |                                                     |
 | `ParamSetActivated` | param set id, version                   | the scoring parameter set this profile uses         |
@@ -223,9 +245,10 @@ levels, which fail differently:
 - **A reading without soul identity is refused**, and nothing is committed.
   Unless the reading states `SoulRecord.soul_id` as established, no record has
   an identity the inventory can key on, and the import is
-  `import.unestablished_identity`. Two records of one soul are
-  `import.duplicate_soul`. A record without a soul id, a reading that does not
-  state its coverage, and a result that is not a soul reading are
+  `import.unestablished_identity`, naming whether the soul id is unmapped or
+  inherited. Two records of one soul are `import.duplicate_soul`. A record
+  without a soul id or with an empty one, an empty account id, a reading that
+  does not state its coverage, and a result that is not a soul reading are
   `import.malformed_reading`.
 - **A record that cannot be a row is kept and reported.** A row needs its set,
   slot, star, level, main attribute, and sub-attributes, each established by the
@@ -234,9 +257,21 @@ levels, which fail differently:
   then the premises of W-Soul that need no code table (`soul-mechanics.md`:
   star, level, at most four sub-attributes, no attribute twice, finite
   non-negative values, recorded rolls within the nodes reached). The lock and
-  discard flags are carried as read. A record that fails is not a row
-  (`query.md`) and is listed with the import and the inventory. The blob keeps
-  it as read; nothing is guessed or repaired.
+  discard flags are carried as read, with their evidence. A record that fails is
+  not a row (`query.md`) and is listed, by its position in the reading, with the
+  import and the inventory. The blob keeps it as read; nothing is guessed or
+  repaired.
+
+Admission parses rather than checks: what passes is an admitted row whose fields
+are present and established by type, so no later step checks them again.
+
+```text
+admit : SoulReading -> Result<Admitted, AdmissionError>
+Admitted       { coverage, account : GameAccountId?, rows : [AdmittedSoul], defects : [RecordDefect] }
+AdmittedSoul   { id, suit, star, slot, level, main, subs, innate : InnateReading, locked : Field<bool>, discarded : Field<bool> }
+RecordDefect   { index : usize, soul : GameSoulId, kind : SoulDefectKind }
+NotEstablished = Unmapped | Inherited
+```
 
 Until the reader establishes these fields, every real reading is refused at the
 first level. That is the intended state: the store holds no soul whose identity
@@ -311,10 +346,13 @@ removed.
 At HEAD, with the tests named in `evidence/testing.md`:
 
 - the fact kinds `ProfileCreated`, `ProfileRenamed`, `ProfileRetired`,
-  `ProfileRestored`, `SnapshotAcquired`, `SnapshotRetracted`, `SoulMarked`, and
-  `SoulNoted`, each at version 1, in `crates/yata-daemon/proto/fact.proto`
-- the codec and the lift chain (no steps yet), `store.newer_format` and
+  `ProfileRestored`, `SnapshotAcquired`, `SnapshotRetracted`, and `SoulMarked`
+  at version 1, and `SoulNoted` at version 2, in
+  `crates/yata-daemon/proto/fact.proto`
+- the codec and the lift chain, whose one step lifts `SoulNoted` version 1
+  (where the empty text meant "cleared") to version 2; `store.newer_format` and
   `store.malformed_commit`
+- commands with the outcomes above; imports as jobs
 - the fold, as `yata-core::fact`; the soul inventory derived from the live
   snapshots over `yata-core::import`'s observations, carrying the game's raw
   codes, because decode to `SoulSet`, `SoulSlot`, and `SoulAttribute` waits on
