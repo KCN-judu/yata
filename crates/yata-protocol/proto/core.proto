@@ -492,6 +492,64 @@ message Profile {
   string id = 1;
   // The user's own name for it.
   string name = 2;
+  // What the profile can do, derived from the sections its imports hold (snapshot-ir.md,
+  // "Capabilities"), never from a file's format. Every capability of this schema, each once, in
+  // the order of `Capability`.
+  repeated ProfileCapability capabilities = 3;
+}
+
+// A section of an imported snapshot (snapshot-ir.md).
+enum SectionKind {
+  SECTION_KIND_UNSPECIFIED = 0;
+  SECTION_KIND_SOULS = 1;
+  SECTION_KIND_SHIKIGAMI = 2;
+  SECTION_KIND_PRESETS = 3;
+  SECTION_KIND_ASSETS = 4;
+  SECTION_KIND_GUILD = 5;
+}
+
+// Whether a present section holds everything it covers, by the source's own statement. Weakest
+// first.
+enum Completeness {
+  COMPLETENESS_UNSPECIFIED = 0;
+  COMPLETENESS_UNSTATED = 1;
+  COMPLETENESS_PARTIAL = 2;
+  COMPLETENESS_COMPLETE = 3;
+}
+
+// What a profile can do (snapshot-ir.md, "Capabilities").
+enum Capability {
+  CAPABILITY_UNSPECIFIED = 0;
+  // The soul list, the filters, quality, and the recommendations.
+  CAPABILITY_INVENTORY = 1;
+  CAPABILITY_SHIKIGAMI_COLLECTION = 2;
+  // The player's saved loadouts.
+  CAPABILITY_GAME_PRESETS = 3;
+  CAPABILITY_ASSETS = 4;
+  CAPABILITY_GUILD_VIEW = 5;
+}
+
+// One capability of a profile and whether it can be used.
+message ProfileCapability {
+  Capability capability = 1;
+  // Exactly one is set.
+  oneof availability {
+    CapabilityUnavailable unavailable = 2;
+    CapabilityAvailable available = 3;
+  }
+}
+
+// The profile lacks sections the capability needs. It is answered with these, never with empty
+// data.
+message CapabilityUnavailable {
+  // The sections missing, each once; never empty.
+  repeated SectionKind missing = 1;
+}
+
+// The profile holds every section the capability needs.
+message CapabilityAvailable {
+  // The weakest completeness of those sections.
+  Completeness completeness = 1;
 }
 
 // ---- the session: soul queries (core-protocol.md, "Queries and pages") ----

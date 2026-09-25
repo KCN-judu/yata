@@ -1,14 +1,21 @@
-//! What a session reads: the profiles and each profile's souls, at one revision.
+//! What a session reads: the profiles, the sections each holds, and each profile's souls, at one
+//! revision.
 //!
 //! Until the session reads the store's fold, it serves either an empty projection — a first run,
 //! no profile, nothing imported — or the development fixture of [`fixture`]. Both are queried
 //! through the same path a folded projection will be: [`crate::query::prepare`] and
-//! [`crate::query::run`], over souls keyed by soul id.
+//! [`crate::query::run`], over souls keyed by soul id. A profile's capabilities are derived from
+//! its [`Held`] sections by [`crate::wire::capabilities`], whatever filled them.
 
 use std::collections::BTreeMap;
 
 use yata_core::fact::{GameSoulId, ProfileId, Revision};
+use yata_core::import::ir::{Completeness, SectionKind};
 use yata_core::soul::Soul;
+
+/// The sections a profile's imports hold, and how complete each is (`snapshot-ir.md`,
+/// "Capabilities"). A section it has never received is not a key; a received, empty one is.
+pub type Held = BTreeMap<SectionKind, Completeness>;
 
 /// The projection a session serves.
 #[derive(Debug, Clone, PartialEq)]
@@ -18,10 +25,11 @@ pub struct Projection {
     pub profiles: BTreeMap<ProfileId, ProfileEntry>,
 }
 
-/// One game account and its souls, keyed by soul id, the row identity.
+/// One game account: the sections it holds, and its souls, keyed by soul id, the row identity.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ProfileEntry {
     pub name: String,
+    pub held: Held,
     pub souls: BTreeMap<GameSoulId, Soul>,
 }
 
@@ -43,11 +51,12 @@ pub mod fixture {
     use std::collections::BTreeMap;
 
     use yata_core::fact::{GameSoulId, ProfileId, Revision, Seq};
+    use yata_core::import::ir::{Completeness, SectionKind};
     use yata_core::soul::{
         Level, Soul, SoulAttribute, SoulKind, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
     };
 
-    use super::{ProfileEntry, Projection};
+    use super::{Held, ProfileEntry, Projection};
 
     /// The fixture's profiles: their ids spell what they are, so a reader of a wire dump knows.
     pub const PROFILE_ID: ProfileId = ProfileId(*b"yata-fixture-000");
@@ -130,8 +139,15 @@ pub mod fixture {
             .collect()
     }
 
-    /// Two profiles: one with the fixture souls, one with none, so the application can show both
-    /// a filled and an empty inventory.
+    /// What each fixture profile holds: a complete souls section, as if one file carrying souls
+    /// alone had been imported, and nothing else. Every capability but the inventory is then
+    /// unavailable, which the application shows as such.
+    pub fn held() -> Held {
+        Held::from([(SectionKind::Souls, Completeness::Complete)])
+    }
+
+    /// Two profiles: one with the fixture souls, one whose souls section is present and empty, so
+    /// the application can show both a filled and an empty inventory.
     pub fn projection() -> Projection {
         Projection {
             revision: Revision::at(Seq::FIRST),
@@ -140,6 +156,7 @@ pub mod fixture {
                     PROFILE_ID,
                     ProfileEntry {
                         name: "Fixture".to_owned(),
+                        held: held(),
                         souls: souls(),
                     },
                 ),
@@ -147,6 +164,7 @@ pub mod fixture {
                     EMPTY_PROFILE_ID,
                     ProfileEntry {
                         name: "Fixture (empty)".to_owned(),
+                        held: held(),
                         souls: BTreeMap::new(),
                     },
                 ),

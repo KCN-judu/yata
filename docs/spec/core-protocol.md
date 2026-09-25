@@ -138,6 +138,47 @@ one.
 The commands and job kinds in this schema are the ones that exist today. A new
 one is an additive schema change, which is a minor version bump.
 
+## Profiles and capabilities
+
+`ListProfiles` answers with every profile and, on each, what it can do. A
+capability is derived from the sections the profile's imports hold, through the
+one table of [snapshot-ir.md](snapshot-ir.md), "Capabilities". It is never
+derived from a file's format, and the application decides what a feature's page
+shows from it alone.
+
+```text
+record Profile           { id : ProfileId, name : string, capabilities : [ProfileCapability] }
+record ProfileCapability { capability : Capability, availability : Availability }
+
+Capability   = Inventory | ShikigamiCollection | GamePresets | Assets | GuildView
+SectionKind  = Souls | Shikigami | Presets | Assets | Guild
+Completeness = Unstated | Partial | Complete                 -- weakest first
+Availability = Unavailable { missing : NonEmpty<Set<SectionKind>> }
+             | Available   { completeness : Completeness }   -- the weakest required section's
+```
+
+- **Every capability, each once.** `capabilities` holds every capability of the
+  daemon's schema exactly once, in the order of `Capability`. A client refuses a
+  list that names one twice. A capability the client does not know, from a newer
+  minor, is skipped; one the client knows and the daemon did not send is not
+  reported, which a client built against a newer minor than the daemon's shows
+  as such.
+- **Unstated is refused.** `CAPABILITY_UNSPECIFIED`, `SECTION_KIND_UNSPECIFIED`,
+  and `COMPLETENESS_UNSPECIFIED` are refused where they are read, as is a
+  `ProfileCapability` with no availability, or an `unavailable` that names no
+  section or one section twice.
+- **Unavailable is not empty.** An unavailable capability is reported with the
+  sections it lacks; the application shows that, and never an empty page as if
+  it were the profile's data. A present, empty section is a real answer: it
+  makes the capability available, and its page shows nothing because there is
+  nothing.
+- **Completeness is shown.** An available capability states the weakest
+  completeness of the sections it needs, so a page over a partial section can
+  say that it may not hold everything.
+
+The equipment relation, which Shikigami wears which soul, is never imported
+(ADR-0031, rule 9), so no capability covers it.
+
 ## Queries and pages
 
 A query (`query.md`) says what is asked. The call that carries it says where in

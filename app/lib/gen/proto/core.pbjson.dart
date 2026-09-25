@@ -204,6 +204,63 @@ final $typed_data.Uint8List openRuleDescriptor = $convert.base64Decode(
     'CghPcGVuUnVsZRIZChVPUEVOX1JVTEVfVU5TUEVDSUZJRUQQABIUChBPUEVOX1JVTEVfSU5OQV'
     'RFEAESIAocT1BFTl9SVUxFX1VOS05PV05fQ09ORElUSU9OUxAC');
 
+@$core.Deprecated('Use sectionKindDescriptor instead')
+const SectionKind$json = {
+  '1': 'SectionKind',
+  '2': [
+    {'1': 'SECTION_KIND_UNSPECIFIED', '2': 0},
+    {'1': 'SECTION_KIND_SOULS', '2': 1},
+    {'1': 'SECTION_KIND_SHIKIGAMI', '2': 2},
+    {'1': 'SECTION_KIND_PRESETS', '2': 3},
+    {'1': 'SECTION_KIND_ASSETS', '2': 4},
+    {'1': 'SECTION_KIND_GUILD', '2': 5},
+  ],
+};
+
+/// Descriptor for `SectionKind`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List sectionKindDescriptor = $convert.base64Decode(
+    'CgtTZWN0aW9uS2luZBIcChhTRUNUSU9OX0tJTkRfVU5TUEVDSUZJRUQQABIWChJTRUNUSU9OX0'
+    'tJTkRfU09VTFMQARIaChZTRUNUSU9OX0tJTkRfU0hJS0lHQU1JEAISGAoUU0VDVElPTl9LSU5E'
+    'X1BSRVNFVFMQAxIXChNTRUNUSU9OX0tJTkRfQVNTRVRTEAQSFgoSU0VDVElPTl9LSU5EX0dVSU'
+    'xEEAU=');
+
+@$core.Deprecated('Use completenessDescriptor instead')
+const Completeness$json = {
+  '1': 'Completeness',
+  '2': [
+    {'1': 'COMPLETENESS_UNSPECIFIED', '2': 0},
+    {'1': 'COMPLETENESS_UNSTATED', '2': 1},
+    {'1': 'COMPLETENESS_PARTIAL', '2': 2},
+    {'1': 'COMPLETENESS_COMPLETE', '2': 3},
+  ],
+};
+
+/// Descriptor for `Completeness`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List completenessDescriptor = $convert.base64Decode(
+    'CgxDb21wbGV0ZW5lc3MSHAoYQ09NUExFVEVORVNTX1VOU1BFQ0lGSUVEEAASGQoVQ09NUExFVE'
+    'VORVNTX1VOU1RBVEVEEAESGAoUQ09NUExFVEVORVNTX1BBUlRJQUwQAhIZChVDT01QTEVURU5F'
+    'U1NfQ09NUExFVEUQAw==');
+
+@$core.Deprecated('Use capabilityDescriptor instead')
+const Capability$json = {
+  '1': 'Capability',
+  '2': [
+    {'1': 'CAPABILITY_UNSPECIFIED', '2': 0},
+    {'1': 'CAPABILITY_INVENTORY', '2': 1},
+    {'1': 'CAPABILITY_SHIKIGAMI_COLLECTION', '2': 2},
+    {'1': 'CAPABILITY_GAME_PRESETS', '2': 3},
+    {'1': 'CAPABILITY_ASSETS', '2': 4},
+    {'1': 'CAPABILITY_GUILD_VIEW', '2': 5},
+  ],
+};
+
+/// Descriptor for `Capability`. Decode as a `google.protobuf.EnumDescriptorProto`.
+final $typed_data.Uint8List capabilityDescriptor = $convert.base64Decode(
+    'CgpDYXBhYmlsaXR5EhoKFkNBUEFCSUxJVFlfVU5TUEVDSUZJRUQQABIYChRDQVBBQklMSVRZX0'
+    'lOVkVOVE9SWRABEiMKH0NBUEFCSUxJVFlfU0hJS0lHQU1JX0NPTExFQ1RJT04QAhIbChdDQVBB'
+    'QklMSVRZX0dBTUVfUFJFU0VUUxADEhUKEUNBUEFCSUxJVFlfQVNTRVRTEAQSGQoVQ0FQQUJJTE'
+    'lUWV9HVUlMRF9WSUVXEAU=');
+
 @$core.Deprecated('Use schemeKindDescriptor instead')
 const SchemeKind$json = {
   '1': 'SchemeKind',
@@ -1651,12 +1708,106 @@ const Profile$json = {
   '2': [
     {'1': 'id', '3': 1, '4': 1, '5': 9, '10': 'id'},
     {'1': 'name', '3': 2, '4': 1, '5': 9, '10': 'name'},
+    {
+      '1': 'capabilities',
+      '3': 3,
+      '4': 3,
+      '5': 11,
+      '6': '.yata.core.v1.ProfileCapability',
+      '10': 'capabilities'
+    },
   ],
 };
 
 /// Descriptor for `Profile`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List profileDescriptor = $convert.base64Decode(
-    'CgdQcm9maWxlEg4KAmlkGAEgASgJUgJpZBISCgRuYW1lGAIgASgJUgRuYW1l');
+    'CgdQcm9maWxlEg4KAmlkGAEgASgJUgJpZBISCgRuYW1lGAIgASgJUgRuYW1lEkMKDGNhcGFiaW'
+    'xpdGllcxgDIAMoCzIfLnlhdGEuY29yZS52MS5Qcm9maWxlQ2FwYWJpbGl0eVIMY2FwYWJpbGl0'
+    'aWVz');
+
+@$core.Deprecated('Use profileCapabilityDescriptor instead')
+const ProfileCapability$json = {
+  '1': 'ProfileCapability',
+  '2': [
+    {
+      '1': 'capability',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.yata.core.v1.Capability',
+      '10': 'capability'
+    },
+    {
+      '1': 'unavailable',
+      '3': 2,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.CapabilityUnavailable',
+      '9': 0,
+      '10': 'unavailable'
+    },
+    {
+      '1': 'available',
+      '3': 3,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.CapabilityAvailable',
+      '9': 0,
+      '10': 'available'
+    },
+  ],
+  '8': [
+    {'1': 'availability'},
+  ],
+};
+
+/// Descriptor for `ProfileCapability`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List profileCapabilityDescriptor = $convert.base64Decode(
+    'ChFQcm9maWxlQ2FwYWJpbGl0eRI4CgpjYXBhYmlsaXR5GAEgASgOMhgueWF0YS5jb3JlLnYxLk'
+    'NhcGFiaWxpdHlSCmNhcGFiaWxpdHkSRwoLdW5hdmFpbGFibGUYAiABKAsyIy55YXRhLmNvcmUu'
+    'djEuQ2FwYWJpbGl0eVVuYXZhaWxhYmxlSABSC3VuYXZhaWxhYmxlEkEKCWF2YWlsYWJsZRgDIA'
+    'EoCzIhLnlhdGEuY29yZS52MS5DYXBhYmlsaXR5QXZhaWxhYmxlSABSCWF2YWlsYWJsZUIOCgxh'
+    'dmFpbGFiaWxpdHk=');
+
+@$core.Deprecated('Use capabilityUnavailableDescriptor instead')
+const CapabilityUnavailable$json = {
+  '1': 'CapabilityUnavailable',
+  '2': [
+    {
+      '1': 'missing',
+      '3': 1,
+      '4': 3,
+      '5': 14,
+      '6': '.yata.core.v1.SectionKind',
+      '10': 'missing'
+    },
+  ],
+};
+
+/// Descriptor for `CapabilityUnavailable`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List capabilityUnavailableDescriptor = $convert.base64Decode(
+    'ChVDYXBhYmlsaXR5VW5hdmFpbGFibGUSMwoHbWlzc2luZxgBIAMoDjIZLnlhdGEuY29yZS52MS'
+    '5TZWN0aW9uS2luZFIHbWlzc2luZw==');
+
+@$core.Deprecated('Use capabilityAvailableDescriptor instead')
+const CapabilityAvailable$json = {
+  '1': 'CapabilityAvailable',
+  '2': [
+    {
+      '1': 'completeness',
+      '3': 1,
+      '4': 1,
+      '5': 14,
+      '6': '.yata.core.v1.Completeness',
+      '10': 'completeness'
+    },
+  ],
+};
+
+/// Descriptor for `CapabilityAvailable`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List capabilityAvailableDescriptor = $convert.base64Decode(
+    'ChNDYXBhYmlsaXR5QXZhaWxhYmxlEj4KDGNvbXBsZXRlbmVzcxgBIAEoDjIaLnlhdGEuY29yZS'
+    '52MS5Db21wbGV0ZW5lc3NSDGNvbXBsZXRlbmVzcw==');
 
 @$core.Deprecated('Use sessionQueryDescriptor instead')
 const SessionQuery$json = {

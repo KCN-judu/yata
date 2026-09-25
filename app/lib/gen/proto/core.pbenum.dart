@@ -319,6 +319,101 @@ class OpenRule extends $pb.ProtobufEnum {
   const OpenRule._(super.value, super.name);
 }
 
+/// A section of an imported snapshot (snapshot-ir.md).
+class SectionKind extends $pb.ProtobufEnum {
+  static const SectionKind SECTION_KIND_UNSPECIFIED =
+      SectionKind._(0, _omitEnumNames ? '' : 'SECTION_KIND_UNSPECIFIED');
+  static const SectionKind SECTION_KIND_SOULS =
+      SectionKind._(1, _omitEnumNames ? '' : 'SECTION_KIND_SOULS');
+  static const SectionKind SECTION_KIND_SHIKIGAMI =
+      SectionKind._(2, _omitEnumNames ? '' : 'SECTION_KIND_SHIKIGAMI');
+  static const SectionKind SECTION_KIND_PRESETS =
+      SectionKind._(3, _omitEnumNames ? '' : 'SECTION_KIND_PRESETS');
+  static const SectionKind SECTION_KIND_ASSETS =
+      SectionKind._(4, _omitEnumNames ? '' : 'SECTION_KIND_ASSETS');
+  static const SectionKind SECTION_KIND_GUILD =
+      SectionKind._(5, _omitEnumNames ? '' : 'SECTION_KIND_GUILD');
+
+  static const $core.List<SectionKind> values = <SectionKind>[
+    SECTION_KIND_UNSPECIFIED,
+    SECTION_KIND_SOULS,
+    SECTION_KIND_SHIKIGAMI,
+    SECTION_KIND_PRESETS,
+    SECTION_KIND_ASSETS,
+    SECTION_KIND_GUILD,
+  ];
+
+  static final $core.List<SectionKind?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 5);
+  static SectionKind? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const SectionKind._(super.value, super.name);
+}
+
+/// Whether a present section holds everything it covers, by the source's own statement. Weakest
+/// first.
+class Completeness extends $pb.ProtobufEnum {
+  static const Completeness COMPLETENESS_UNSPECIFIED =
+      Completeness._(0, _omitEnumNames ? '' : 'COMPLETENESS_UNSPECIFIED');
+  static const Completeness COMPLETENESS_UNSTATED =
+      Completeness._(1, _omitEnumNames ? '' : 'COMPLETENESS_UNSTATED');
+  static const Completeness COMPLETENESS_PARTIAL =
+      Completeness._(2, _omitEnumNames ? '' : 'COMPLETENESS_PARTIAL');
+  static const Completeness COMPLETENESS_COMPLETE =
+      Completeness._(3, _omitEnumNames ? '' : 'COMPLETENESS_COMPLETE');
+
+  static const $core.List<Completeness> values = <Completeness>[
+    COMPLETENESS_UNSPECIFIED,
+    COMPLETENESS_UNSTATED,
+    COMPLETENESS_PARTIAL,
+    COMPLETENESS_COMPLETE,
+  ];
+
+  static final $core.List<Completeness?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 3);
+  static Completeness? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const Completeness._(super.value, super.name);
+}
+
+/// What a profile can do (snapshot-ir.md, "Capabilities").
+class Capability extends $pb.ProtobufEnum {
+  static const Capability CAPABILITY_UNSPECIFIED =
+      Capability._(0, _omitEnumNames ? '' : 'CAPABILITY_UNSPECIFIED');
+
+  /// The soul list, the filters, quality, and the recommendations.
+  static const Capability CAPABILITY_INVENTORY =
+      Capability._(1, _omitEnumNames ? '' : 'CAPABILITY_INVENTORY');
+  static const Capability CAPABILITY_SHIKIGAMI_COLLECTION =
+      Capability._(2, _omitEnumNames ? '' : 'CAPABILITY_SHIKIGAMI_COLLECTION');
+
+  /// The player's saved loadouts.
+  static const Capability CAPABILITY_GAME_PRESETS =
+      Capability._(3, _omitEnumNames ? '' : 'CAPABILITY_GAME_PRESETS');
+  static const Capability CAPABILITY_ASSETS =
+      Capability._(4, _omitEnumNames ? '' : 'CAPABILITY_ASSETS');
+  static const Capability CAPABILITY_GUILD_VIEW =
+      Capability._(5, _omitEnumNames ? '' : 'CAPABILITY_GUILD_VIEW');
+
+  static const $core.List<Capability> values = <Capability>[
+    CAPABILITY_UNSPECIFIED,
+    CAPABILITY_INVENTORY,
+    CAPABILITY_SHIKIGAMI_COLLECTION,
+    CAPABILITY_GAME_PRESETS,
+    CAPABILITY_ASSETS,
+    CAPABILITY_GUILD_VIEW,
+  ];
+
+  static final $core.List<Capability?> _byValue =
+      $pb.ProtobufEnum.$_initByValueList(values, 5);
+  static Capability? valueOf($core.int value) =>
+      value < 0 || value >= _byValue.length ? null : _byValue[value];
+
+  const Capability._(super.value, super.name);
+}
+
 class SchemeKind extends $pb.ProtobufEnum {
   static const SchemeKind SCHEME_KIND_UNSPECIFIED =
       SchemeKind._(0, _omitEnumNames ? '' : 'SCHEME_KIND_UNSPECIFIED');

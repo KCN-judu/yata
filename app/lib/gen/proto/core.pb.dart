@@ -3831,10 +3831,12 @@ class Profile extends $pb.GeneratedMessage {
   factory Profile({
     $core.String? id,
     $core.String? name,
+    $core.Iterable<ProfileCapability>? capabilities,
   }) {
     final result = Profile._();
     if (id != null) result.id = id;
     if (name != null) result.name = name;
+    if (capabilities != null) result.capabilities.addAll(capabilities);
     return result;
   }
 
@@ -3853,6 +3855,8 @@ class Profile extends $pb.GeneratedMessage {
       createEmptyInstance: Profile.$_createMessage)
     ..aOS(1, _omitFieldNames ? '' : 'id')
     ..aOS(2, _omitFieldNames ? '' : 'name')
+    ..pPM<ProfileCapability>(3, _omitFieldNames ? '' : 'capabilities',
+        subBuilder: ProfileCapability.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -3894,6 +3898,238 @@ class Profile extends $pb.GeneratedMessage {
   $core.bool hasName() => $_has(1);
   @$pb.TagNumber(2)
   void clearName() => $_clearField(2);
+
+  /// What the profile can do, derived from the sections its imports hold (snapshot-ir.md,
+  /// "Capabilities"), never from a file's format. Every capability of this schema, each once, in
+  /// the order of `Capability`.
+  @$pb.TagNumber(3)
+  $pb.PbList<ProfileCapability> get capabilities => $_getList(2);
+}
+
+enum ProfileCapability_Availability { unavailable, available, notSet }
+
+/// One capability of a profile and whether it can be used.
+class ProfileCapability extends $pb.GeneratedMessage {
+  factory ProfileCapability({
+    Capability? capability,
+    CapabilityUnavailable? unavailable,
+    CapabilityAvailable? available,
+  }) {
+    final result = ProfileCapability._();
+    if (capability != null) result.capability = capability;
+    if (unavailable != null) result.unavailable = unavailable;
+    if (available != null) result.available = available;
+    return result;
+  }
+
+  ProfileCapability._();
+
+  factory ProfileCapability.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ProfileCapability()..mergeFromBuffer(data, registry);
+  factory ProfileCapability.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ProfileCapability()..mergeFromJson(json, registry);
+
+  static const $core.Map<$core.int, ProfileCapability_Availability>
+      _ProfileCapability_AvailabilityByTag = {
+    2: ProfileCapability_Availability.unavailable,
+    3: ProfileCapability_Availability.available,
+    0: ProfileCapability_Availability.notSet
+  };
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ProfileCapability',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ProfileCapability.$_createMessage)
+    ..oo(0, [2, 3])
+    ..aE<Capability>(1, _omitFieldNames ? '' : 'capability',
+        enumValues: Capability.values)
+    ..aOM<CapabilityUnavailable>(2, _omitFieldNames ? '' : 'unavailable',
+        subBuilder: CapabilityUnavailable.$_createMessage)
+    ..aOM<CapabilityAvailable>(3, _omitFieldNames ? '' : 'available',
+        subBuilder: CapabilityAvailable.$_createMessage)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ProfileCapability clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ProfileCapability copyWith(void Function(ProfileCapability) updates) =>
+      super.copyWith((message) => updates(message as ProfileCapability))
+          as ProfileCapability;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use ProfileCapability() / ProfileCapability.new instead')
+  static ProfileCapability create() => ProfileCapability._();
+  static $pb.GeneratedMessage $_createMessage() => ProfileCapability._();
+  @$core.override
+  ProfileCapability createEmptyInstance() => ProfileCapability._();
+  @$core.pragma('dart2js:noInline')
+  static ProfileCapability getDefault() =>
+      _defaultInstance ??= $pb.GeneratedMessage.$_defaultFor<ProfileCapability>(
+          ProfileCapability.$_createMessage);
+  static ProfileCapability? _defaultInstance;
+
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  ProfileCapability_Availability whichAvailability() =>
+      _ProfileCapability_AvailabilityByTag[$_whichOneof(0)]!;
+  @$pb.TagNumber(2)
+  @$pb.TagNumber(3)
+  void clearAvailability() => $_clearField($_whichOneof(0));
+
+  @$pb.TagNumber(1)
+  Capability get capability => $_getN(0);
+  @$pb.TagNumber(1)
+  set capability(Capability value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCapability() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCapability() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  CapabilityUnavailable get unavailable => $_getN(1);
+  @$pb.TagNumber(2)
+  set unavailable(CapabilityUnavailable value) => $_setField(2, value);
+  @$pb.TagNumber(2)
+  $core.bool hasUnavailable() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearUnavailable() => $_clearField(2);
+  @$pb.TagNumber(2)
+  CapabilityUnavailable ensureUnavailable() => $_ensure(1);
+
+  @$pb.TagNumber(3)
+  CapabilityAvailable get available => $_getN(2);
+  @$pb.TagNumber(3)
+  set available(CapabilityAvailable value) => $_setField(3, value);
+  @$pb.TagNumber(3)
+  $core.bool hasAvailable() => $_has(2);
+  @$pb.TagNumber(3)
+  void clearAvailable() => $_clearField(3);
+  @$pb.TagNumber(3)
+  CapabilityAvailable ensureAvailable() => $_ensure(2);
+}
+
+/// The profile lacks sections the capability needs. It is answered with these, never with empty
+/// data.
+class CapabilityUnavailable extends $pb.GeneratedMessage {
+  factory CapabilityUnavailable({
+    $core.Iterable<SectionKind>? missing,
+  }) {
+    final result = CapabilityUnavailable._();
+    if (missing != null) result.missing.addAll(missing);
+    return result;
+  }
+
+  CapabilityUnavailable._();
+
+  factory CapabilityUnavailable.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CapabilityUnavailable()..mergeFromBuffer(data, registry);
+  factory CapabilityUnavailable.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CapabilityUnavailable()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CapabilityUnavailable',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: CapabilityUnavailable.$_createMessage)
+    ..pc<SectionKind>(1, _omitFieldNames ? '' : 'missing', $pb.PbFieldType.KE,
+        valueOf: SectionKind.valueOf,
+        enumValues: SectionKind.values,
+        defaultEnumValue: SectionKind.SECTION_KIND_UNSPECIFIED)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CapabilityUnavailable clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CapabilityUnavailable copyWith(
+          void Function(CapabilityUnavailable) updates) =>
+      super.copyWith((message) => updates(message as CapabilityUnavailable))
+          as CapabilityUnavailable;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use CapabilityUnavailable() / CapabilityUnavailable.new instead')
+  static CapabilityUnavailable create() => CapabilityUnavailable._();
+  static $pb.GeneratedMessage $_createMessage() => CapabilityUnavailable._();
+  @$core.override
+  CapabilityUnavailable createEmptyInstance() => CapabilityUnavailable._();
+  @$core.pragma('dart2js:noInline')
+  static CapabilityUnavailable getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CapabilityUnavailable>(
+          CapabilityUnavailable.$_createMessage);
+  static CapabilityUnavailable? _defaultInstance;
+
+  /// The sections missing, each once; never empty.
+  @$pb.TagNumber(1)
+  $pb.PbList<SectionKind> get missing => $_getList(0);
+}
+
+/// The profile holds every section the capability needs.
+class CapabilityAvailable extends $pb.GeneratedMessage {
+  factory CapabilityAvailable({
+    Completeness? completeness,
+  }) {
+    final result = CapabilityAvailable._();
+    if (completeness != null) result.completeness = completeness;
+    return result;
+  }
+
+  CapabilityAvailable._();
+
+  factory CapabilityAvailable.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CapabilityAvailable()..mergeFromBuffer(data, registry);
+  factory CapabilityAvailable.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      CapabilityAvailable()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'CapabilityAvailable',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: CapabilityAvailable.$_createMessage)
+    ..aE<Completeness>(1, _omitFieldNames ? '' : 'completeness',
+        enumValues: Completeness.values)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CapabilityAvailable clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  CapabilityAvailable copyWith(void Function(CapabilityAvailable) updates) =>
+      super.copyWith((message) => updates(message as CapabilityAvailable))
+          as CapabilityAvailable;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core
+      .Deprecated('Use CapabilityAvailable() / CapabilityAvailable.new instead')
+  static CapabilityAvailable create() => CapabilityAvailable._();
+  static $pb.GeneratedMessage $_createMessage() => CapabilityAvailable._();
+  @$core.override
+  CapabilityAvailable createEmptyInstance() => CapabilityAvailable._();
+  @$core.pragma('dart2js:noInline')
+  static CapabilityAvailable getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<CapabilityAvailable>(
+          CapabilityAvailable.$_createMessage);
+  static CapabilityAvailable? _defaultInstance;
+
+  /// The weakest completeness of those sections.
+  @$pb.TagNumber(1)
+  Completeness get completeness => $_getN(0);
+  @$pb.TagNumber(1)
+  set completeness(Completeness value) => $_setField(1, value);
+  @$pb.TagNumber(1)
+  $core.bool hasCompleteness() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearCompleteness() => $_clearField(1);
 }
 
 enum SessionQuery_Position { first, next, notSet }

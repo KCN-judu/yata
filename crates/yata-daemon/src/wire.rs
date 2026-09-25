@@ -1,13 +1,17 @@
 //! Domain values as the session's core-protocol messages (ADR-0004, rule 1): souls, selections,
-//! scheme codes, QR matrices, and failures.
+//! scheme codes, QR matrices, a profile's capabilities, and failures.
 //!
 //! Domain → wire is total: every value renders. Wire → domain validates and returns a `Result`,
 //! because a client can send anything; for queries and souls that direction is
 //! [`crate::query::convert`], whose attribute and slot mappings this module reuses, so each enum
 //! is mapped in one place.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use yata_core::fact::{ProfileId, Revision, Seq};
-use yata_core::import::ir::IrError;
+use yata_core::import::capability::{Availability, Capability, availability};
+use yata_core::import::ir::{Completeness, IrError, SectionKind};
+use yata_core::nonempty::NonEmpty;
 use yata_core::scheme::code::{DiscardScheme, SchemeCode, StrengtheningPlan};
 use yata_core::scheme::selection::{
     LevelBand, SetBit, SetChoice, SoulSelection, SubAttributeMode, SubCount,
@@ -258,6 +262,150 @@ pub fn profile_id_of(text: &str) -> Option<ProfileId> {
     Some(ProfileId(bytes))
 }
 
+// ---- capabilities (`snapshot-ir.md`, "Capabilities") ----
+
+pub fn capability(c: Capability) -> pb::Capability {
+    match c {
+        Capability::Inventory => pb::Capability::Inventory,
+        Capability::ShikigamiCollection => pb::Capability::ShikigamiCollection,
+        Capability::GamePresets => pb::Capability::GamePresets,
+        Capability::Assets => pb::Capability::Assets,
+        Capability::GuildView => pb::Capability::GuildView,
+    }
+}
+
+pub fn section_kind(k: SectionKind) -> pb::SectionKind {
+    match k {
+        SectionKind::Souls => pb::SectionKind::Souls,
+        SectionKind::Shikigami => pb::SectionKind::Shikigami,
+        SectionKind::Presets => pb::SectionKind::Presets,
+        SectionKind::Assets => pb::SectionKind::Assets,
+        SectionKind::Guild => pb::SectionKind::Guild,
+    }
+}
+
+pub fn completeness(c: Completeness) -> pb::Completeness {
+    match c {
+        Completeness::Unstated => pb::Completeness::Unstated,
+        Completeness::Partial => pb::Completeness::Partial,
+        Completeness::Complete => pb::Completeness::Complete,
+    }
+}
+
+/// One capability and its availability.
+pub fn profile_capability(c: Capability, a: &Availability) -> pb::ProfileCapability {
+    use pb::profile_capability::Availability as Wire;
+    let availability = match a {
+        Availability::Unavailable { missing } => Wire::Unavailable(pb::CapabilityUnavailable {
+            missing: missing.iter().map(|&k| section_kind(k).into()).collect(),
+        }),
+        Availability::Available { completeness: c } => Wire::Available(pb::CapabilityAvailable {
+            completeness: completeness(*c).into(),
+        }),
+    };
+    pb::ProfileCapability {
+        capability: capability(c).into(),
+        availability: Some(availability),
+    }
+}
+
+/// Every capability of a profile that holds `held`, in [`Capability::ALL`] order. The one place
+/// the session derives what a profile can do, whatever the held sections came from.
+pub fn capabilities(held: &BTreeMap<SectionKind, Completeness>) -> Vec<pb::ProfileCapability> {
+    Capability::ALL
+        .into_iter()
+        .map(|c| profile_capability(c, &availability(held, c)))
+        .collect()
+}
+
+/// Why a `ProfileCapability` is not a capability and its availability.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CapabilityWireError {
+    /// An enum field holds its `UNSPECIFIED` value: the sender left it unstated.
+    Unspecified { field: &'static str },
+    /// An enum field holds a value this build does not know.
+    UnknownValue { field: &'static str, value: i32 },
+    /// Neither `unavailable` nor `available` is set.
+    NoAvailability,
+    /// `unavailable` names no section.
+    NothingMissing,
+    /// `unavailable` names a section twice.
+    MissingTwice { section: SectionKind },
+}
+
+fn capability_of(v: i32) -> Result<Capability, CapabilityWireError> {
+    use pb::Capability as W;
+    let field = "capability";
+    match W::try_from(v) {
+        Ok(W::Inventory) => Ok(Capability::Inventory),
+        Ok(W::ShikigamiCollection) => Ok(Capability::ShikigamiCollection),
+        Ok(W::GamePresets) => Ok(Capability::GamePresets),
+        Ok(W::Assets) => Ok(Capability::Assets),
+        Ok(W::GuildView) => Ok(Capability::GuildView),
+        Ok(W::Unspecified) => Err(CapabilityWireError::Unspecified { field }),
+        Err(_) => Err(CapabilityWireError::UnknownValue { field, value: v }),
+    }
+}
+
+fn section_kind_of(v: i32) -> Result<SectionKind, CapabilityWireError> {
+    use pb::SectionKind as W;
+    let field = "missing";
+    match W::try_from(v) {
+        Ok(W::Souls) => Ok(SectionKind::Souls),
+        Ok(W::Shikigami) => Ok(SectionKind::Shikigami),
+        Ok(W::Presets) => Ok(SectionKind::Presets),
+        Ok(W::Assets) => Ok(SectionKind::Assets),
+        Ok(W::Guild) => Ok(SectionKind::Guild),
+        Ok(W::Unspecified) => Err(CapabilityWireError::Unspecified { field }),
+        Err(_) => Err(CapabilityWireError::UnknownValue { field, value: v }),
+    }
+}
+
+fn completeness_of(v: i32) -> Result<Completeness, CapabilityWireError> {
+    use pb::Completeness as W;
+    let field = "completeness";
+    match W::try_from(v) {
+        Ok(W::Unstated) => Ok(Completeness::Unstated),
+        Ok(W::Partial) => Ok(Completeness::Partial),
+        Ok(W::Complete) => Ok(Completeness::Complete),
+        Ok(W::Unspecified) => Err(CapabilityWireError::Unspecified { field }),
+        Err(_) => Err(CapabilityWireError::UnknownValue { field, value: v }),
+    }
+}
+
+/// A wire capability as the domain's, refusing anything left unstated.
+pub fn profile_capability_of(
+    m: &pb::ProfileCapability,
+) -> Result<(Capability, Availability), CapabilityWireError> {
+    use pb::profile_capability::Availability as Wire;
+    let c = capability_of(m.capability)?;
+    let a = match &m.availability {
+        None => return Err(CapabilityWireError::NoAvailability),
+        Some(Wire::Available(a)) => Availability::Available {
+            completeness: completeness_of(a.completeness)?,
+        },
+        Some(Wire::Unavailable(u)) => {
+            let mut seen = BTreeSet::new();
+            let missing = u
+                .missing
+                .iter()
+                .map(|&v| {
+                    let k = section_kind_of(v)?;
+                    if seen.insert(k) {
+                        Ok(k)
+                    } else {
+                        Err(CapabilityWireError::MissingTwice { section: k })
+                    }
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Availability::Unavailable {
+                missing: NonEmpty::new(missing).ok_or(CapabilityWireError::NothingMissing)?,
+            }
+        }
+    };
+    Ok((c, a))
+}
+
 fn attribute(a: yata_core::soul::SoulAttribute) -> i32 {
     wire_attribute(a).into()
 }
@@ -427,6 +575,8 @@ mod tests {
         InnateAttribute, Level, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue,
     };
 
+    use prost::Message;
+
     use super::*;
     use pb::error::Kind;
 
@@ -567,6 +717,101 @@ mod tests {
             panic!("an unknown format");
         };
         assert_eq!(record.stated.as_deref(), Some("other"));
+    }
+
+    fn held(sections: &[(SectionKind, Completeness)]) -> BTreeMap<SectionKind, Completeness> {
+        sections.iter().copied().collect()
+    }
+
+    #[test]
+    fn every_capability_reads_back_as_it_was_sent() {
+        use Completeness::*;
+        use SectionKind::*;
+        let cases = [
+            held(&[]),
+            held(&[(Souls, Complete)]),
+            held(&[
+                (Souls, Partial),
+                (Presets, Unstated),
+                (Shikigami, Complete),
+                (Assets, Partial),
+                (Guild, Complete),
+            ]),
+            held(&[(Presets, Complete)]),
+        ];
+        for h in cases {
+            let wire = capabilities(&h);
+            assert_eq!(wire.len(), Capability::ALL.len());
+            for (c, m) in Capability::ALL.into_iter().zip(&wire) {
+                let decoded =
+                    pb::ProfileCapability::decode(m.encode_to_vec().as_slice()).expect("decodes");
+                assert_eq!(
+                    profile_capability_of(&decoded),
+                    Ok((c, availability(&h, c))),
+                    "{h:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_unstated_capability_field_is_refused() {
+        use pb::profile_capability::Availability as Wire;
+        let inventory = || {
+            profile_capability(
+                Capability::Inventory,
+                &Availability::Available {
+                    completeness: Completeness::Complete,
+                },
+            )
+        };
+        let refusal = |edit: &dyn Fn(&mut pb::ProfileCapability)| {
+            let mut m = inventory();
+            edit(&mut m);
+            profile_capability_of(&m).expect_err("refused")
+        };
+        assert_eq!(
+            refusal(&|m| m.capability = pb::Capability::Unspecified.into()),
+            CapabilityWireError::Unspecified {
+                field: "capability"
+            }
+        );
+        assert_eq!(
+            refusal(&|m| m.capability = 99),
+            CapabilityWireError::UnknownValue {
+                field: "capability",
+                value: 99
+            }
+        );
+        assert_eq!(
+            refusal(&|m| m.availability = Some(Wire::Available(pb::CapabilityAvailable::default()))),
+            CapabilityWireError::Unspecified {
+                field: "completeness"
+            }
+        );
+        assert_eq!(
+            refusal(&|m| m.availability = None),
+            CapabilityWireError::NoAvailability
+        );
+        let missing = |sections: Vec<i32>| {
+            refusal(&move |m| {
+                m.availability = Some(Wire::Unavailable(pb::CapabilityUnavailable {
+                    missing: sections.clone(),
+                }));
+            })
+        };
+        assert_eq!(missing(vec![]), CapabilityWireError::NothingMissing);
+        assert_eq!(
+            missing(vec![pb::SectionKind::Unspecified.into()]),
+            CapabilityWireError::Unspecified { field: "missing" }
+        );
+        let souls: i32 = pb::SectionKind::Souls.into();
+        assert_eq!(
+            missing(vec![souls, souls]),
+            CapabilityWireError::MissingTwice {
+                section: SectionKind::Souls
+            }
+        );
     }
 
     #[test]

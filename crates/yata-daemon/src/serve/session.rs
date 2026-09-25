@@ -177,6 +177,7 @@ impl Session {
                 .map(|(&id, p)| pb::Profile {
                     id: wire::profile_id(id),
                     name: p.name.clone(),
+                    capabilities: wire::capabilities(&p.held),
                 })
                 .collect(),
         })
@@ -336,4 +337,90 @@ fn qr_failure(e: QrError) -> Failure {
         }),
     };
     Failure::new(kind, problem)
+}
+
+#[cfg(test)]
+mod tests {
+    use yata_core::import::capability::{Availability, Capability};
+    use yata_core::import::ir::{Completeness, SectionKind};
+    use yata_core::nonempty::NonEmpty;
+
+    use super::*;
+    use crate::serve::projection::fixture;
+
+    fn listed(session: &mut Session) -> pb::ProfileList {
+        let request = |id, kind| pb::ClientMessage {
+            id,
+            kind: Some(kind),
+        };
+        session.handle(request(
+            1,
+            Kind::OpenSession(pb::OpenSession {
+                client_version: Some(pb::VERSION),
+            }),
+        ));
+        let (out, _) = session.handle(request(2, Kind::ListProfiles(pb::ListProfiles {})));
+        match out.into_iter().next().and_then(|m| m.kind) {
+            Some(server_message::Kind::Response(pb::Response {
+                result: Some(Reply::ProfileList(l)),
+                ..
+            })) => l,
+            other => panic!("expected a profile list, got {other:?}"),
+        }
+    }
+
+    fn read(profile: &pb::Profile) -> Vec<(Capability, Availability)> {
+        profile
+            .capabilities
+            .iter()
+            .map(|c| wire::profile_capability_of(c).expect("a capability"))
+            .collect()
+    }
+
+    fn lacking(s: SectionKind) -> Availability {
+        Availability::Unavailable {
+            missing: NonEmpty::one(s),
+        }
+    }
+
+    #[test]
+    fn the_fixture_offers_the_inventory_and_names_what_the_rest_lack() {
+        let list = listed(&mut Session::new(fixture::projection()));
+        assert_eq!(list.profiles.len(), 2);
+        for profile in &list.profiles {
+            assert_eq!(
+                read(profile),
+                vec![
+                    (
+                        Capability::Inventory,
+                        Availability::Available {
+                            completeness: Completeness::Complete
+                        }
+                    ),
+                    (
+                        Capability::ShikigamiCollection,
+                        lacking(SectionKind::Shikigami)
+                    ),
+                    (Capability::GamePresets, lacking(SectionKind::Presets)),
+                    (Capability::Assets, lacking(SectionKind::Assets)),
+                    (Capability::GuildView, lacking(SectionKind::Guild)),
+                ],
+                "{}",
+                profile.name
+            );
+        }
+    }
+
+    #[test]
+    fn capabilities_follow_the_held_sections_not_the_souls() {
+        let mut projection = fixture::projection();
+        for p in projection.profiles.values_mut() {
+            p.held.clear();
+        }
+        let list = listed(&mut Session::new(projection));
+        assert_eq!(
+            read(&list.profiles[0])[0],
+            (Capability::Inventory, lacking(SectionKind::Souls))
+        );
+    }
 }
