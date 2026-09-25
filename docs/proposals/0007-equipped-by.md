@@ -1,6 +1,6 @@
 ---
 id: PRP-0007
-status: draft
+status: withdrawn
 date: 2026-09-25
 area: import
 related-issues: []
@@ -90,4 +90,6 @@ unmapped. The query field appears only in a build that evaluates it.
 
 ## Outcome
 
-Open. Deferred past the first version by the maintainer, 2026-09-25.
+Withdrawn by the maintainer, 2026-09-25 (ADR-0031, rule 9): the equipment
+relation is never imported. Yata builds simulated loadouts instead, and the
+game's saved presets are imported as their own section.

@@ -32,9 +32,12 @@ Current truth about what the system means. Edited in place.
   cut, what is deferred, and why
 - [spec/core-protocol.md](spec/core-protocol.md) — the daemon ↔ Flutter wire:
   frames, call categories, pages, revisions, the error envelope
-- [spec/import-format.md](spec/import-format.md) — the community snapshot
-  formats a user imports, each by its shape and header, and a CSV template to
-  fill in by hand
+- [spec/import-format.md](spec/import-format.md) — the external formats a user
+  imports, each by its header and shape and its mapping into the snapshot IR,
+  and a CSV template to fill in by hand
+- [spec/snapshot-ir.md](spec/snapshot-ir.md) — the snapshot IR: independent
+  sections, completeness, provenance, admission, capabilities, and Yata's own
+  snapshot file
 - [spec/probe-protocol.md](spec/probe-protocol.md) — the retired reader wire:
   the reading records, export file, and recording format that data reception
   still reads
@@ -147,6 +150,9 @@ rewrite.
 - [decisions/0030-no-game-reader.md](decisions/0030-no-game-reader.md) — the
   project does not read the game and maintains no reader; the user supplies a
   file in a community snapshot format; no tool is named or recommended
+- [decisions/0031-snapshot-ir.md](decisions/0031-snapshot-ir.md) — imports end
+  at a Yata-owned IR of independent sections; capabilities are derived; Yata's
+  own snapshot format is accepted; the equipment relation is never imported
 
 ## Proposals — `proposals/`
 
@@ -167,11 +173,12 @@ Design questions under active consideration. Close with `accepted` (→ ADR) or
   — a fact's payload typed by its envelope, and facts about the store without a
   profile; **draft**
 - [proposals/0007-equipped-by.md](proposals/0007-equipped-by.md) — which
-  Shikigami wears a soul, as a type; **draft**, deferred past the first version
+  Shikigami wears a soul, as a type; **withdrawn**: the equipment relation is
+  never imported (ADR-0031)
 - PRP-0001 and PRP-0002 are kept in local research (ADR-0016).
 - [proposals/0008-community-snapshot-import.md](proposals/0008-community-snapshot-import.md)
   — importing a community snapshot file, and the provenance of an imported file;
-  **draft**
+  **accepted** as ADR-0031
 
 ## Issues — `issues/`
 

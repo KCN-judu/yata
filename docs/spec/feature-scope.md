@@ -27,9 +27,10 @@ The application scores every soul in the user's inventory using two passes
   `quality-model.md`.
 - **Pass 2 (affinity/matching):** target-relative. Given a set of Shikigami need
   profiles, produces per-soul affinity scores, candidate loadout assignments,
-  and the delta against what the account currently has equipped. The inversion
-  list — souls with low quality but high affinity for a specific need — is a
-  first-class output and the feature a single-pass model cannot produce.
+  and the delta against a simulated loadout. Yata never imports what the account
+  currently has equipped (ADR-0031, rule 9). The inversion list — souls with low
+  quality but high affinity for a specific need — is a first-class output and
+  the feature a single-pass model cannot produce.
 
 ### Scheme code import and export
 
@@ -45,17 +46,16 @@ image as well as text, and export produces one. The model and codec rules are
 ### Soul import from a file the user supplies
 
 The application does not read the game (ADR-0030). The inventory comes from a
-file the user imports, in a community snapshot format, and the import is the
-same on Windows and macOS. The formats and the CSV template a user can fill in
-by hand are [import-format.md](import-format.md). The application does not
-suggest where a file comes from.
+file the user imports, and the import is the same on Windows and macOS. A file
+is a community snapshot format, Yata's own snapshot format, or (planned) a CSV
+the user fills in by hand ([import-format.md](import-format.md)). Every format
+ends at the snapshot IR ([snapshot-ir.md](snapshot-ir.md)), whose sections say
+which features a profile can use. The application does not suggest where a file
+comes from.
 
 ```text
-type InventorySource = ImportedFile(FormatTag)   -- FormatTag: import-format.md
+type InventorySource = ImportedFile(Format)       -- Format: import-format.md
 ```
-
-The daemon does not parse these formats yet (PRP-0008). Until it does, the probe
-export file is the only file it reads.
 
 ### GameProfile — multi-profile support
 
@@ -74,10 +74,11 @@ items and realm cards an imported file can carry).
 
 ### Shikigami collection (式神录)
 
-The application shows the Shikigami the account owns — level, star, evolution —
-and the six souls each one has equipped. It is a place of its own and the usual
-way into matching, because matching answers "how much better than what this
-Shikigami wears now". Added 2026-09-23 (PRP-0002).
+The application shows the Shikigami the account owns — level, star, evolution.
+It is a place of its own and the usual way into matching, which answers "how
+much better than a simulated loadout for this Shikigami". Which souls a
+Shikigami wears in the game is not imported (ADR-0031, rule 9). Added 2026-09-23
+(PRP-0002).
 
 ### Guild view (寮) — view only
 

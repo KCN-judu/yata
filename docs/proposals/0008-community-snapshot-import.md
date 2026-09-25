@@ -1,6 +1,6 @@
 ---
 id: PRP-0008
-status: draft
+status: accepted
 date: 2026-09-25
 area: import
 related-issues: []
@@ -104,4 +104,8 @@ These stay open:
 
 ## Outcome
 
-Open.
+Accepted on 2026-09-25 in a redesigned form, recorded as ADR-0031: formats end
+at a Yata-owned snapshot IR of independent sections (`spec/snapshot-ir.md`),
+which Yata's own snapshot format serializes. The provenance question above is
+answered there and in `spec/fact-format.md`. The design sketch in this proposal
+(one format-independent `Snapshot` of souls) is superseded by the IR.
