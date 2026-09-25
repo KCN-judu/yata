@@ -1,10 +1,10 @@
 ---
 id: ADR-0006
-status: accepted
+status: superseded
 date: 2026-09-23
 area: import
 supersedes: []
-superseded-by: []
+superseded-by: [ADR-0030]
 related: [ADR-0004, ADR-0005, ADR-0007, ADR-0008, ISS-0002]
 ---
 
