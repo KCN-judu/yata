@@ -2485,6 +2485,15 @@ const Error$json = {
       '10': 'storeUninitialized'
     },
     {
+      '1': 'store_retired_format',
+      '3': 90,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.StoreRetiredFormat',
+      '9': 0,
+      '10': 'storeRetiredFormat'
+    },
+    {
       '1': 'internal_panic',
       '3': 100,
       '4': 1,
@@ -2612,16 +2621,18 @@ final $typed_data.Uint8List errorDescriptor = $convert.base64Decode(
     'VOb0Zvcm1hdFZlcnNpb24SQQoNc3RvcmVfZGFtYWdlZBhYIAEoCzIaLnlhdGEuY29yZS52MS5T'
     'dG9yZURhbWFnZWRIAFIMc3RvcmVEYW1hZ2VkElMKE3N0b3JlX3VuaW5pdGlhbGl6ZWQYWSABKA'
     'syIC55YXRhLmNvcmUudjEuU3RvcmVVbmluaXRpYWxpemVkSABSEnN0b3JlVW5pbml0aWFsaXpl'
-    'ZBJECg5pbnRlcm5hbF9wYW5pYxhkIAEoCzIbLnlhdGEuY29yZS52MS5JbnRlcm5hbFBhbmljSA'
-    'BSDWludGVybmFsUGFuaWMSUgoUaW50ZXJuYWxfcXJfdG9vX2xvbmcYZSABKAsyHy55YXRhLmNv'
-    'cmUudjEuSW50ZXJuYWxRclRvb0xvbmdIAFIRaW50ZXJuYWxRclRvb0xvbmcSZwobaW50ZXJuYW'
-    'xfcmVzcG9uc2VfdG9vX2xhcmdlGGYgASgLMiYueWF0YS5jb3JlLnYxLkludGVybmFsUmVzcG9u'
-    'c2VUb29MYXJnZUgAUhhpbnRlcm5hbFJlc3BvbnNlVG9vTGFyZ2USZAoaaW50ZXJuYWxfcGFnZV'
-    '93aXRob3V0X3NvdWwYZyABKAsyJS55YXRhLmNvcmUudjEuSW50ZXJuYWxQYWdlV2l0aG91dFNv'
-    'dWxIAFIXaW50ZXJuYWxQYWdlV2l0aG91dFNvdWxCBgoEa2luZEoECAEQAkoECAMQBEoECDwQQV'
-    'IEY29kZVIHZGV0YWlsc1IXaW1wb3J0X3Byb2ZpbGVfbWlzbWF0Y2hSGGltcG9ydF9tYWxmb3Jt'
-    'ZWRfcmVhZGluZ1IYaW1wb3J0X3JlYWRpbmdfdG9vX2xhcmdlUh1pbXBvcnRfdW5lc3RhYmxpc2'
-    'hlZF9pZGVudGl0eVIVaW1wb3J0X2R1cGxpY2F0ZV9zb3Vs');
+    'ZBJUChRzdG9yZV9yZXRpcmVkX2Zvcm1hdBhaIAEoCzIgLnlhdGEuY29yZS52MS5TdG9yZVJldG'
+    'lyZWRGb3JtYXRIAFISc3RvcmVSZXRpcmVkRm9ybWF0EkQKDmludGVybmFsX3BhbmljGGQgASgL'
+    'MhsueWF0YS5jb3JlLnYxLkludGVybmFsUGFuaWNIAFINaW50ZXJuYWxQYW5pYxJSChRpbnRlcm'
+    '5hbF9xcl90b29fbG9uZxhlIAEoCzIfLnlhdGEuY29yZS52MS5JbnRlcm5hbFFyVG9vTG9uZ0gA'
+    'UhFpbnRlcm5hbFFyVG9vTG9uZxJnChtpbnRlcm5hbF9yZXNwb25zZV90b29fbGFyZ2UYZiABKA'
+    'syJi55YXRhLmNvcmUudjEuSW50ZXJuYWxSZXNwb25zZVRvb0xhcmdlSABSGGludGVybmFsUmVz'
+    'cG9uc2VUb29MYXJnZRJkChppbnRlcm5hbF9wYWdlX3dpdGhvdXRfc291bBhnIAEoCzIlLnlhdG'
+    'EuY29yZS52MS5JbnRlcm5hbFBhZ2VXaXRob3V0U291bEgAUhdpbnRlcm5hbFBhZ2VXaXRob3V0'
+    'U291bEIGCgRraW5kSgQIARACSgQIAxAESgQIPBBBUgRjb2RlUgdkZXRhaWxzUhdpbXBvcnRfcH'
+    'JvZmlsZV9taXNtYXRjaFIYaW1wb3J0X21hbGZvcm1lZF9yZWFkaW5nUhhpbXBvcnRfcmVhZGlu'
+    'Z190b29fbGFyZ2VSHWltcG9ydF91bmVzdGFibGlzaGVkX2lkZW50aXR5UhVpbXBvcnRfZHVwbG'
+    'ljYXRlX3NvdWw=');
 
 @$core.Deprecated('Use sessionFailedDescriptor instead')
 const SessionFailed$json = {
@@ -3325,6 +3336,18 @@ const StoreUninitialized$json = {
 /// Descriptor for `StoreUninitialized`. Decode as a `google.protobuf.DescriptorProto`.
 final $typed_data.Uint8List storeUninitializedDescriptor =
     $convert.base64Decode('ChJTdG9yZVVuaW5pdGlhbGl6ZWQ=');
+
+@$core.Deprecated('Use storeRetiredFormatDescriptor instead')
+const StoreRetiredFormat$json = {
+  '1': 'StoreRetiredFormat',
+  '2': [
+    {'1': 'found', '3': 1, '4': 1, '5': 13, '10': 'found'},
+  ],
+};
+
+/// Descriptor for `StoreRetiredFormat`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List storeRetiredFormatDescriptor = $convert
+    .base64Decode('ChJTdG9yZVJldGlyZWRGb3JtYXQSFAoFZm91bmQYASABKA1SBWZvdW5k');
 
 @$core.Deprecated('Use internalPanicDescriptor instead')
 const InternalPanic$json = {

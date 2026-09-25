@@ -717,6 +717,7 @@ message Error {
     StoreNoFormatVersion store_no_format_version = 87;
     StoreDamaged store_damaged = 88;
     StoreUninitialized store_uninitialized = 89;
+    StoreRetiredFormat store_retired_format = 90;
 
     InternalPanic internal_panic = 100;
     InternalQrTooLong internal_qr_too_long = 101;
@@ -900,6 +901,11 @@ message StoreDamaged {
   repeated string problems = 1;
 }
 message StoreUninitialized {}
+// The store is in a format no build reads any more (ADR-0032, rule 3). Nothing was written to it.
+message StoreRetiredFormat {
+  // The store's format version.
+  uint32 found = 1;
+}
 
 message InternalPanic {}
 message InternalQrTooLong {

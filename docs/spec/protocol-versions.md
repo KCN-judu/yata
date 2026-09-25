@@ -41,8 +41,9 @@ the session's query given its own call, `SessionQuery`; then, the same day, the
 reader's `import.*` codes replaced by the import failure taxonomy of ADR-0031
 (tags 50 to 57; 60 to 64 retired); then, the same day, each profile's
 capabilities, derived from the sections it holds (`Profile.capabilities`, tag
-3). Version 1 stays reserved until commands and jobs are in the file; until then
-a tag may still change.
+3), and `store.retired_format` (tag 90) for a store in a format no build reads.
+Version 1 stays reserved until commands and jobs are in the file; until then a
+tag may still change.
 
 | Version | Status   | Date       | What it introduced                                                                                                        | Refused below |
 | ------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |

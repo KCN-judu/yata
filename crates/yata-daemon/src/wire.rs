@@ -86,10 +86,9 @@ pub fn open_failure(e: &OpenError) -> pb::error::Kind {
         OpenError::NewerFormat { .. } => Kind::StoreNewerFormat(pb::StoreNewerFormat {
             problem: problem(e),
         }),
-        // No code names a retired format yet; the problem says which and why (ADR-0032).
-        OpenError::RetiredFormat { .. } => Kind::StoreFailure(pb::StoreFailure {
-            problem: problem(e),
-        }),
+        OpenError::RetiredFormat { found } => {
+            Kind::StoreRetiredFormat(pb::StoreRetiredFormat { found: *found })
+        }
         OpenError::NoFormatVersion => Kind::StoreNoFormatVersion(pb::StoreNoFormatVersion {}),
         OpenError::Damaged { problems } => Kind::StoreDamaged(pb::StoreDamaged {
             problems: problems.clone(),
@@ -632,6 +631,12 @@ mod tests {
         assert_eq!(client.code(), "client.daemon_not_found");
         let store = pb::error::Kind::StoreNotADatabase(pb::StoreNotADatabase::default());
         assert_eq!(store.code(), "store.not_a_database");
+        let retired = open_failure(&OpenError::RetiredFormat { found: 1 });
+        assert_eq!(retired.code(), "store.retired_format");
+        assert_eq!(
+            retired,
+            pb::error::Kind::StoreRetiredFormat(pb::StoreRetiredFormat { found: 1 })
+        );
     }
 
     #[test]

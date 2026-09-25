@@ -5024,6 +5024,7 @@ enum Error_Kind {
   storeNoFormatVersion,
   storeDamaged,
   storeUninitialized,
+  storeRetiredFormat,
   internalPanic,
   internalQrTooLong,
   internalResponseTooLarge,
@@ -5078,6 +5079,7 @@ class Error extends $pb.GeneratedMessage {
     StoreNoFormatVersion? storeNoFormatVersion,
     StoreDamaged? storeDamaged,
     StoreUninitialized? storeUninitialized,
+    StoreRetiredFormat? storeRetiredFormat,
     InternalPanic? internalPanic,
     InternalQrTooLong? internalQrTooLong,
     InternalResponseTooLarge? internalResponseTooLarge,
@@ -5157,6 +5159,8 @@ class Error extends $pb.GeneratedMessage {
     if (storeDamaged != null) result.storeDamaged = storeDamaged;
     if (storeUninitialized != null)
       result.storeUninitialized = storeUninitialized;
+    if (storeRetiredFormat != null)
+      result.storeRetiredFormat = storeRetiredFormat;
     if (internalPanic != null) result.internalPanic = internalPanic;
     if (internalQrTooLong != null) result.internalQrTooLong = internalQrTooLong;
     if (internalResponseTooLarge != null)
@@ -5220,6 +5224,7 @@ class Error extends $pb.GeneratedMessage {
     87: Error_Kind.storeNoFormatVersion,
     88: Error_Kind.storeDamaged,
     89: Error_Kind.storeUninitialized,
+    90: Error_Kind.storeRetiredFormat,
     100: Error_Kind.internalPanic,
     101: Error_Kind.internalQrTooLong,
     102: Error_Kind.internalResponseTooLarge,
@@ -5275,6 +5280,7 @@ class Error extends $pb.GeneratedMessage {
       87,
       88,
       89,
+      90,
       100,
       101,
       102,
@@ -5387,6 +5393,8 @@ class Error extends $pb.GeneratedMessage {
         subBuilder: StoreDamaged.$_createMessage)
     ..aOM<StoreUninitialized>(89, _omitFieldNames ? '' : 'storeUninitialized',
         subBuilder: StoreUninitialized.$_createMessage)
+    ..aOM<StoreRetiredFormat>(90, _omitFieldNames ? '' : 'storeRetiredFormat',
+        subBuilder: StoreRetiredFormat.$_createMessage)
     ..aOM<InternalPanic>(100, _omitFieldNames ? '' : 'internalPanic',
         subBuilder: InternalPanic.$_createMessage)
     ..aOM<InternalQrTooLong>(101, _omitFieldNames ? '' : 'internalQrTooLong',
@@ -5463,6 +5471,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(87)
   @$pb.TagNumber(88)
   @$pb.TagNumber(89)
+  @$pb.TagNumber(90)
   @$pb.TagNumber(100)
   @$pb.TagNumber(101)
   @$pb.TagNumber(102)
@@ -5512,6 +5521,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(87)
   @$pb.TagNumber(88)
   @$pb.TagNumber(89)
+  @$pb.TagNumber(90)
   @$pb.TagNumber(100)
   @$pb.TagNumber(101)
   @$pb.TagNumber(102)
@@ -6029,51 +6039,62 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(89)
   StoreUninitialized ensureStoreUninitialized() => $_ensure(44);
 
+  @$pb.TagNumber(90)
+  StoreRetiredFormat get storeRetiredFormat => $_getN(45);
+  @$pb.TagNumber(90)
+  set storeRetiredFormat(StoreRetiredFormat value) => $_setField(90, value);
+  @$pb.TagNumber(90)
+  $core.bool hasStoreRetiredFormat() => $_has(45);
+  @$pb.TagNumber(90)
+  void clearStoreRetiredFormat() => $_clearField(90);
+  @$pb.TagNumber(90)
+  StoreRetiredFormat ensureStoreRetiredFormat() => $_ensure(45);
+
   @$pb.TagNumber(100)
-  InternalPanic get internalPanic => $_getN(45);
+  InternalPanic get internalPanic => $_getN(46);
   @$pb.TagNumber(100)
   set internalPanic(InternalPanic value) => $_setField(100, value);
   @$pb.TagNumber(100)
-  $core.bool hasInternalPanic() => $_has(45);
+  $core.bool hasInternalPanic() => $_has(46);
   @$pb.TagNumber(100)
   void clearInternalPanic() => $_clearField(100);
   @$pb.TagNumber(100)
-  InternalPanic ensureInternalPanic() => $_ensure(45);
+  InternalPanic ensureInternalPanic() => $_ensure(46);
 
   @$pb.TagNumber(101)
-  InternalQrTooLong get internalQrTooLong => $_getN(46);
+  InternalQrTooLong get internalQrTooLong => $_getN(47);
   @$pb.TagNumber(101)
   set internalQrTooLong(InternalQrTooLong value) => $_setField(101, value);
   @$pb.TagNumber(101)
-  $core.bool hasInternalQrTooLong() => $_has(46);
+  $core.bool hasInternalQrTooLong() => $_has(47);
   @$pb.TagNumber(101)
   void clearInternalQrTooLong() => $_clearField(101);
   @$pb.TagNumber(101)
-  InternalQrTooLong ensureInternalQrTooLong() => $_ensure(46);
+  InternalQrTooLong ensureInternalQrTooLong() => $_ensure(47);
 
   @$pb.TagNumber(102)
-  InternalResponseTooLarge get internalResponseTooLarge => $_getN(47);
+  InternalResponseTooLarge get internalResponseTooLarge => $_getN(48);
   @$pb.TagNumber(102)
   set internalResponseTooLarge(InternalResponseTooLarge value) =>
       $_setField(102, value);
   @$pb.TagNumber(102)
-  $core.bool hasInternalResponseTooLarge() => $_has(47);
+  $core.bool hasInternalResponseTooLarge() => $_has(48);
   @$pb.TagNumber(102)
   void clearInternalResponseTooLarge() => $_clearField(102);
   @$pb.TagNumber(102)
-  InternalResponseTooLarge ensureInternalResponseTooLarge() => $_ensure(47);
+  InternalResponseTooLarge ensureInternalResponseTooLarge() => $_ensure(48);
 
   @$pb.TagNumber(103)
-  InternalPageWithoutSoul get internalPageWithoutSoul => $_getN(48);
+  InternalPageWithoutSoul get internalPageWithoutSoul => $_getN(49);
   @$pb.TagNumber(103)
   set internalPageWithoutSoul(InternalPageWithoutSoul value) =>
       $_setField(103, value);
   @$pb.TagNumber(103)
-  $core.bool hasInternalPageWithoutSoul() => $_has(48);
+  $core.bool hasInternalPageWithoutSoul() => $_has(49);
   @$pb.TagNumber(103)
   void clearInternalPageWithoutSoul() => $_clearField(103);
   @$pb.TagNumber(103)
-  InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(48);
+  InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(49);
 }
 
 enum SessionFailed_Kind {
@@ -8953,6 +8974,65 @@ class StoreUninitialized extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<StoreUninitialized>(
           StoreUninitialized.$_createMessage);
   static StoreUninitialized? _defaultInstance;
+}
+
+/// The store is in a format no build reads any more (ADR-0032, rule 3). Nothing was written to it.
+class StoreRetiredFormat extends $pb.GeneratedMessage {
+  factory StoreRetiredFormat({
+    $core.int? found,
+  }) {
+    final result = StoreRetiredFormat._();
+    if (found != null) result.found = found;
+    return result;
+  }
+
+  StoreRetiredFormat._();
+
+  factory StoreRetiredFormat.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreRetiredFormat()..mergeFromBuffer(data, registry);
+  factory StoreRetiredFormat.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      StoreRetiredFormat()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'StoreRetiredFormat',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: StoreRetiredFormat.$_createMessage)
+    ..aI(1, _omitFieldNames ? '' : 'found', fieldType: $pb.PbFieldType.OU3)
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreRetiredFormat clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  StoreRetiredFormat copyWith(void Function(StoreRetiredFormat) updates) =>
+      super.copyWith((message) => updates(message as StoreRetiredFormat))
+          as StoreRetiredFormat;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated('Use StoreRetiredFormat() / StoreRetiredFormat.new instead')
+  static StoreRetiredFormat create() => StoreRetiredFormat._();
+  static $pb.GeneratedMessage $_createMessage() => StoreRetiredFormat._();
+  @$core.override
+  StoreRetiredFormat createEmptyInstance() => StoreRetiredFormat._();
+  @$core.pragma('dart2js:noInline')
+  static StoreRetiredFormat getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<StoreRetiredFormat>(
+          StoreRetiredFormat.$_createMessage);
+  static StoreRetiredFormat? _defaultInstance;
+
+  /// The store's format version.
+  @$pb.TagNumber(1)
+  $core.int get found => $_getIZ(0);
+  @$pb.TagNumber(1)
+  set found($core.int value) => $_setUnsignedInt32(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasFound() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearFound() => $_clearField(1);
 }
 
 class InternalPanic extends $pb.GeneratedMessage {

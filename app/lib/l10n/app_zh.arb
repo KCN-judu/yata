@@ -118,6 +118,8 @@
   "remedyStoreDamaged": "请从备份恢复数据；没有备份时，请带上错误代码反馈。",
   "causeStoreNewerFormat": "本机数据由更新版本的八咫镜写入。",
   "remedyStoreNewerFormat": "请把应用更新到最新版本。",
+  "causeStoreRetiredFormat": "本机数据使用的是已停用的旧格式，当前版本无法读取。",
+  "remedyStoreRetiredFormat": "请重新创建本机数据，然后重新导入数据文件。",
   "causeStoreMissing": "找不到本机数据文件。",
   "remedyStoreMissing": "请确认数据目录没有被移动或删除。",
   "causeStoreNotOurs": "数据文件不是八咫镜的数据。",

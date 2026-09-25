@@ -126,6 +126,10 @@ Explanation _request(AppLocalizations l, pb.Error_Kind kind) => switch (kind) {
   pb.Error_Kind.storeDamaged => Explanation(l.causeStoreDamaged, l.remedyStoreDamaged),
   pb.Error_Kind.storeNewerFormat => Explanation(l.causeStoreNewerFormat, l.remedyStoreNewerFormat),
   pb.Error_Kind.storeMissing => Explanation(l.causeStoreMissing, l.remedyStoreMissing),
+  pb.Error_Kind.storeRetiredFormat => Explanation(
+    l.causeStoreRetiredFormat,
+    l.remedyStoreRetiredFormat,
+  ),
   pb.Error_Kind.storeNotADatabase ||
   pb.Error_Kind.storeForeign ||
   pb.Error_Kind.storeNoFormatVersion ||
