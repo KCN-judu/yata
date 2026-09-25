@@ -267,12 +267,13 @@ pub fn soul(id: &str, s: &Soul) -> pb::Soul {
 pub fn selection(s: &SoulSelection) -> pb::SoulSelection {
     use pb::soul_selection::Sets;
     let sets = match &s.sets {
-        // An empty 类型 is no restriction, as `AnySet` is: the game's one meaning, one encoding.
         SetChoice::AnySet => Sets::All(pb::AnySet {}),
-        SetChoice::Sets(sets) if sets.is_empty() => Sets::All(pb::AnySet {}),
         SetChoice::Sets(sets) => Sets::Chosen(pb::SuitCodes {
             codes: sets.iter().map(|x| u32::from(x.suit_code())).collect(),
         }),
+        // Souls the model does not map: no suit code can name them. The entry reports its unknown
+        // conditions, and the selection is shown, not sent back; a query decoder refuses it.
+        SetChoice::OnlyUnmapped => Sets::Chosen(pb::SuitCodes { codes: Vec::new() }),
     };
     let marked = |mode, wire_mode: pb::SubAttributeMode| {
         s.sub_attributes
@@ -301,7 +302,7 @@ pub fn selection(s: &SoulSelection) -> pb::SoulSelection {
 
 fn plan(p: &StrengtheningPlan) -> pb::SchemeEntry {
     pb::SchemeEntry {
-        name: p.name.clone(),
+        name: p.name.to_string(),
         selection: Some(selection(&p.selection)),
         has_unknown_conditions: p.has_unknown_conditions(),
     }
@@ -309,8 +310,8 @@ fn plan(p: &StrengtheningPlan) -> pb::SchemeEntry {
 
 fn discard(d: &DiscardScheme) -> pb::SchemeEntry {
     pb::SchemeEntry {
-        name: d.name.clone(),
-        selection: Some(selection(&d.selection)),
+        name: d.name.to_string(),
+        selection: Some(selection(d.selection())),
         has_unknown_conditions: d.has_unknown_conditions(),
     }
 }

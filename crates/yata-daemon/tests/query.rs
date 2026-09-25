@@ -4,6 +4,7 @@
 use prost::Message;
 use yata_core::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningSchemeSet, encode_code};
 use yata_core::scheme::layout::{AccountSegment, Record, SchemeLayout, serialize};
+use yata_core::scheme::name::SchemeName;
 use yata_core::scheme::selection::{SetChoice, SoulSelection};
 use yata_core::scheme::transport::encode_text;
 use yata_core::soul::SoulSlot as DomainSlot;
@@ -213,8 +214,8 @@ fn a_scheme_filter_reports_each_rows_verdict() {
     slot4.slots = [DomainSlot::Slot4].into();
     let set = SchemeCode::Strengthening(StrengtheningSchemeSet {
         plans: vec![
-            StrengtheningPlan::new("a", slot2),
-            StrengtheningPlan::new("b", slot4),
+            StrengtheningPlan::new(SchemeName::new("a").expect("short"), slot2),
+            StrengtheningPlan::new(SchemeName::new("b").expect("short"), slot4),
         ],
     });
     let code = text(&encode_code(&set, account()).expect("valid"));

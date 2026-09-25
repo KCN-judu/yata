@@ -55,7 +55,10 @@ pub fn matches(selection: &SoulSelection, soul: &Soul) -> Verdict {
     let picks = |empty: bool, chosen: bool| empty || chosen;
     let sets = match &s.sets {
         SetChoice::AnySet => true,
-        SetChoice::Sets(sets) => picks(sets.is_empty(), sets.contains(&soul.set)),
+        SetChoice::Sets(sets) => sets.contains(&soul.set),
+        // Only souls the model does not map are chosen; a soul's set, mapped or not, is not
+        // among them as far as the model can tell, as with `Sets`.
+        SetChoice::OnlyUnmapped => false,
     };
     let has = |a| soul.sub(a).is_some();
     let picked = sets
@@ -132,7 +135,7 @@ impl DiscardScheme {
     /// Whether this scheme picks `soul`; see [`matches`].
     pub fn matches(&self, soul: &Soul) -> Verdict {
         with_unknown(
-            matches(&self.selection, soul),
+            matches(self.selection(), soul),
             self.has_unknown_conditions(),
         )
     }
@@ -142,10 +145,11 @@ impl DiscardScheme {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::super::layout::{Record, SchemeKind};
+    use super::super::layout::Record;
     use super::super::mapping::soul_set;
     use super::super::selection::decode_selection;
     use super::*;
+    use crate::nonempty::NonEmptySet;
     use crate::soul::{
         InnateAttribute, SoulAttribute, SoulSet, SoulSlot, Star, StoredValue, SubAttribute,
     };
@@ -174,6 +178,12 @@ mod tests {
         }
     }
 
+    fn sets(codes: &[u8]) -> SetChoice {
+        SetChoice::Sets(
+            NonEmptySet::collect(codes.iter().map(|&c| SoulSet::from_suit_code(c))).expect("some"),
+        )
+    }
+
     /// 破势, slot 2, 6★, +15, main Spd; subs Crit, CritDmg, AtkPercent.
     fn soul() -> Soul {
         with_subs(SoulSlot::Slot2, 6, 15, &[Crit, CritDmg, AtkPercent])
@@ -181,10 +191,7 @@ mod tests {
 
     /// Every group chosen so that `soul()` passes it; 数量 and 固有属性 left empty.
     fn passing() -> SoulSelection {
-        let mut s = SoulSelection::new(SetChoice::Sets(BTreeSet::from([
-            SoulSet::from_suit_code(30),
-            SoulSet::from_suit_code(10),
-        ])));
+        let mut s = SoulSelection::new(sets(&[30, 10]));
         s.slots = BTreeSet::from([SoulSlot::Slot2, SoulSlot::Slot4]);
         s.stars = BTreeSet::from([Star::Six]);
         s.levels = BTreeSet::from([LevelBand::L15]);
@@ -202,7 +209,7 @@ mod tests {
         let s = soul();
         let mut out = Vec::new();
         let mut sel = passing();
-        sel.sets = SetChoice::Sets(BTreeSet::from([SoulSet::from_suit_code(36)]));
+        sel.sets = sets(&[36]);
         out.push(sel);
         let mut sel = passing();
         sel.slots = BTreeSet::from([SoulSlot::Slot1]);
@@ -232,7 +239,8 @@ mod tests {
 
     #[test]
     fn an_empty_group_is_no_constraint() {
-        let everything_empty = SoulSelection::new(SetChoice::Sets(BTreeSet::new()));
+        // 类型 with nothing chosen is AnySet: the one encoding of "all souls".
+        let everything_empty = SoulSelection::new(SetChoice::AnySet);
         assert_eq!(matches(&everything_empty, &soul()), Verdict::Matches);
         let mut beyond_every_band = soul();
         beyond_every_band.level = 16;
@@ -369,7 +377,9 @@ mod tests {
     /// `passing()` with 土蜘蛛 and 破势 chosen together, as the maintainer did, and 固有属性 `chosen`.
     fn with_innate(chosen: &[SoulAttribute]) -> SoulSelection {
         let mut sel = passing();
-        sel.sets = SetChoice::Sets(BTreeSet::from([boss_set(), SoulSet::from_suit_code(30)]));
+        sel.sets = SetChoice::Sets(
+            NonEmptySet::collect([boss_set(), SoulSet::from_suit_code(30)]).expect("two"),
+        );
         sel.innate = chosen
             .iter()
             .map(|&a| InnateAttribute::new(a).expect("an innate attribute"))
@@ -413,10 +423,10 @@ mod tests {
 
     #[test]
     fn a_boss_soul_whose_set_is_not_chosen_is_open_unless_its_innate_attribute_is() {
-        // `AnySet`, and a 类型 with nothing chosen: neither chooses the boss soul's own set.
-        for sets in [SetChoice::AnySet, SetChoice::Sets(BTreeSet::new())] {
+        // `AnySet`, which is also a 类型 with nothing chosen, chooses no set of its own.
+        {
             let mut sel = with_innate(&[Crit]);
-            sel.sets = sets;
+            sel.sets = SetChoice::AnySet;
             assert_eq!(matches(&sel, &boss(Crit)), Verdict::Matches);
             assert_eq!(
                 matches(&sel, &boss(AtkPercent)),
@@ -472,6 +482,13 @@ mod tests {
     }
 
     #[test]
+    fn only_unmapped_souls_chosen_picks_no_mapped_soul() {
+        let mut sel = passing();
+        sel.sets = SetChoice::OnlyUnmapped;
+        assert_eq!(matches(&sel, &soul()), Verdict::DoesNotMatch);
+    }
+
+    #[test]
     fn any_set_picks_every_soul() {
         let mut sel = passing();
         sel.sets = SetChoice::AnySet;
@@ -502,20 +519,20 @@ mod tests {
         )
         .expect("valid");
         let code = super::super::code::decode_code(&layout).expect("ok");
-        let super::super::code::SchemeCode::Discard(mut schemes) = code else {
+        let super::super::code::SchemeCode::Discard(schemes) = code else {
             panic!("a discard code");
         };
-        schemes.remove(0)
+        schemes.first().clone()
     }
 
     #[test]
     fn unknown_conditions_make_a_plan_never_exact() {
         // Slot 2, 6★, +15, Spd main; soul 破势 (bit 21); filter bit 61 unmapped.
         let record = record(vec![0, 0, 0x20], &[1, 11, 18, 54, 61]);
-        let (selection, _) = decode_selection(&record, SchemeKind::Discard).expect("ok");
+        let (selection, _) = decode_selection(&record).expect("ok");
         let scheme = &discard(record);
         assert!(scheme.has_unknown_conditions());
-        assert_eq!(scheme.selection, selection);
+        assert_eq!(scheme.selection(), &selection);
         assert_eq!(matches(&selection, &soul()), Verdict::Matches);
         assert_eq!(
             scheme.matches(&soul()),

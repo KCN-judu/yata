@@ -8,6 +8,7 @@ use super::*;
 use crate::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningSchemeSet, encode_code};
 use crate::scheme::evaluate::{OpenRule, Verdict};
 use crate::scheme::layout::{AccountSegment, Record, SchemeLayout, serialize};
+use crate::scheme::name::SchemeName;
 use crate::scheme::selection::{InnateAttribute, SetChoice, SoulSelection};
 use crate::scheme::transport::encode_text;
 use crate::soul::{
@@ -341,7 +342,7 @@ fn code_of(selections: Vec<SoulSelection>) -> String {
     let plans = selections
         .into_iter()
         .enumerate()
-        .map(|(i, s)| StrengtheningPlan::new(format!("p{i}"), s))
+        .map(|(i, s)| StrengtheningPlan::new(SchemeName::new(format!("p{i}")).expect("short"), s))
         .collect();
     let code = SchemeCode::Strengthening(StrengtheningSchemeSet { plans });
     text_of(&encode_code(&code, account()).expect("valid"))

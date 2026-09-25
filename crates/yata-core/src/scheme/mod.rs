@@ -10,6 +10,7 @@
 //! - [`layout`]: the payload as its header (account and kind) and records, written back byte for
 //!   byte.
 //! - [`edit`]: records built or changed bit by bit, for solved bits only.
+//! - [`name`]: the names the game imports.
 //! - [`inspect`]: a hex dump, a byte-and-bit diff of two payloads, and a low-level bit reader, for
 //!   comparing controlled samples.
 //! - [`selection`]: what a record means, as a [`selection::SoulSelection`] in the game's panel
@@ -25,6 +26,7 @@ pub mod edit;
 pub mod evaluate;
 pub mod inspect;
 pub mod layout;
+pub mod name;
 pub mod selection;
 pub mod transport;
 

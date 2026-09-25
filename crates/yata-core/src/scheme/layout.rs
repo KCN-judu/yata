@@ -16,7 +16,9 @@
 use std::fmt;
 
 use super::RawSchemePayload;
+use super::edit::SoulChoice;
 use super::transport::TransportError;
+use crate::nonempty::NonEmpty;
 
 /// The first two bytes of every scheme payload.
 pub const MAGIC: [u8; 2] = *b"ES";
@@ -63,7 +65,7 @@ impl fmt::Debug for AccountSegment {
 /// What a code holds, from the header's last byte.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SchemeKind {
-    /// `00`: one discard scheme. Confirmed by import (2026-09-24).
+    /// `00`: one or more discard schemes. Confirmed by import (2026-09-24).
     Discard,
     /// `01`: a strengthening scheme set. Confirmed by import.
     Strengthening,
@@ -121,7 +123,7 @@ impl Record {
         &self.name
     }
 
-    /// The soul mask. Empty is the editor's "all souls" choice in a strengthening plan.
+    /// The soul mask as read. No bit set is the editor's "all souls" ([`Record::souls`]).
     pub fn soul_mask(&self) -> &[u8] {
         &self.soul_mask
     }
@@ -131,11 +133,43 @@ impl Record {
     }
 }
 
-/// A payload read as its header and records.
+/// A payload read as its account and records. The kind is the variant, so a layout's header and
+/// its records cannot disagree.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SchemeLayout {
-    pub header: SchemeHeader,
-    pub records: Vec<Record>,
+pub enum SchemeLayout {
+    /// A strengthening scheme set: its plans, possibly none.
+    Strengthening {
+        account: AccountSegment,
+        plans: Vec<Record>,
+    },
+    /// A discard code: one or more discard schemes, each naming its souls.
+    Discard {
+        account: AccountSegment,
+        schemes: NonEmpty<DiscardRecord>,
+    },
+}
+
+/// A discard scheme's record: its soul mask chooses at least one soul.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiscardRecord(Record);
+
+/// The editor's "all souls" choice in a discard scheme. Only the strengthening editor has that
+/// choice (`scheme-code.md`, "SoulSelection"), so a discard scheme must name its souls. The one
+/// error for it, at every level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DiscardCannotSelectAll;
+
+impl DiscardRecord {
+    pub fn new(record: Record) -> Result<DiscardRecord, DiscardCannotSelectAll> {
+        match record.souls() {
+            SoulChoice::All => Err(DiscardCannotSelectAll),
+            SoulChoice::Souls(_) => Ok(DiscardRecord(record)),
+        }
+    }
+
+    pub fn record(&self) -> &Record {
+        &self.0
+    }
 }
 
 /// Why a payload does not have the layout, or a layout cannot be written.
@@ -151,9 +185,8 @@ pub enum LayoutError {
     Truncated { offset: usize },
     /// A discard code with no scheme in it.
     EmptyDiscard,
-    /// A discard scheme built with the "all souls" choice: that choice exists in the
-    /// strengthening editor only (`scheme-code.md`, "SoulSelection"), so it is not encoded.
-    DiscardAllSouls,
+    /// A discard scheme, by index, whose mask chooses all souls ([`DiscardCannotSelectAll`]).
+    DiscardCannotSelectAll { record: usize },
     /// A field longer than a one-byte length can state.
     FieldTooLong { length: usize },
     /// A written payload would exceed the transport's limit.
@@ -208,16 +241,19 @@ pub fn parse(payload: &RawSchemePayload) -> Result<SchemeLayout, LayoutError> {
             filter: field(&mut at)?,
         });
     }
-    let layout = SchemeLayout { header, records };
-    check_kind(&layout)?;
-    Ok(layout)
+    match header.kind {
+        SchemeKind::Strengthening => Ok(SchemeLayout::Strengthening {
+            account: header.account,
+            plans: records,
+        }),
+        SchemeKind::Discard => SchemeLayout::discard(header.account, records),
+    }
 }
 
 /// The payload of a layout: the exact inverse of [`parse`].
 pub fn serialize(layout: &SchemeLayout) -> Result<RawSchemePayload, LayoutError> {
-    check_kind(layout)?;
-    let mut out = layout.header.to_bytes().to_vec();
-    for r in &layout.records {
+    let mut out = layout.header().to_bytes().to_vec();
+    for r in layout.records() {
         for f in [&r.name, &r.soul_mask, &r.filter] {
             let len =
                 u8::try_from(f.len()).map_err(|_| LayoutError::FieldTooLong { length: f.len() })?;
@@ -228,49 +264,68 @@ pub fn serialize(layout: &SchemeLayout) -> Result<RawSchemePayload, LayoutError>
     RawSchemePayload::new(out).map_err(LayoutError::Payload)
 }
 
-fn check_kind(layout: &SchemeLayout) -> Result<(), LayoutError> {
-    match (layout.header.kind, layout.records.len()) {
-        (SchemeKind::Discard, 0) => Err(LayoutError::EmptyDiscard),
-        (SchemeKind::Discard, _) | (SchemeKind::Strengthening, _) => Ok(()),
-    }
-}
-
 impl SchemeLayout {
-    /// A new strengthening scheme set for an account.
-    pub fn strengthening(account: AccountSegment, plans: Vec<Record>) -> SchemeLayout {
-        SchemeLayout {
-            header: SchemeHeader {
-                account,
-                kind: SchemeKind::Strengthening,
-            },
-            records: plans,
-        }
-    }
-
-    /// A new discard code for an account: one or more discard schemes, each naming its souls.
+    /// A discard code for an account from its records: at least one, each naming its souls.
     pub fn discard(
         account: AccountSegment,
-        schemes: Vec<Record>,
+        records: Vec<Record>,
     ) -> Result<SchemeLayout, LayoutError> {
-        if schemes.iter().any(|s| s.soul_mask.is_empty()) {
-            return Err(LayoutError::DiscardAllSouls);
+        let schemes = records
+            .into_iter()
+            .enumerate()
+            .map(|(i, r)| {
+                DiscardRecord::new(r).map_err(|DiscardCannotSelectAll| {
+                    LayoutError::DiscardCannotSelectAll { record: i }
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(SchemeLayout::Discard {
+            account,
+            schemes: NonEmpty::new(schemes).ok_or(LayoutError::EmptyDiscard)?,
+        })
+    }
+
+    pub fn account(&self) -> AccountSegment {
+        match self {
+            SchemeLayout::Strengthening { account, .. } | SchemeLayout::Discard { account, .. } => {
+                *account
+            }
         }
-        let layout = SchemeLayout {
-            header: SchemeHeader {
-                account,
-                kind: SchemeKind::Discard,
-            },
-            records: schemes,
-        };
-        check_kind(&layout)?;
-        Ok(layout)
+    }
+
+    pub fn kind(&self) -> SchemeKind {
+        match self {
+            SchemeLayout::Strengthening { .. } => SchemeKind::Strengthening,
+            SchemeLayout::Discard { .. } => SchemeKind::Discard,
+        }
+    }
+
+    pub fn header(&self) -> SchemeHeader {
+        SchemeHeader {
+            account: self.account(),
+            kind: self.kind(),
+        }
+    }
+
+    /// Every record, in code order.
+    pub fn records(&self) -> Vec<&Record> {
+        match self {
+            SchemeLayout::Strengthening { plans, .. } => plans.iter().collect(),
+            SchemeLayout::Discard { schemes, .. } => {
+                schemes.iter().map(DiscardRecord::record).collect()
+            }
+        }
     }
 
     /// The same layout with another header's account (`scheme-code.md`, "The header and the
     /// user's account"). The kind is kept.
-    pub fn with_account(mut self, account: AccountSegment) -> SchemeLayout {
-        self.header.account = account;
-        self
+    pub fn with_account(self, account: AccountSegment) -> SchemeLayout {
+        match self {
+            SchemeLayout::Strengthening { plans, .. } => {
+                SchemeLayout::Strengthening { account, plans }
+            }
+            SchemeLayout::Discard { schemes, .. } => SchemeLayout::Discard { account, schemes },
+        }
     }
 }
 
@@ -311,11 +366,15 @@ mod tests {
         RawSchemePayload::new(bytes).expect("valid payload")
     }
 
+    fn account() -> AccountSegment {
+        AccountSegment::from_bytes(ACCOUNT)
+    }
+
     /// A synthetic set: a synthetic account, a plan choosing all souls, and a plan choosing one.
     fn synthetic_set() -> SchemeLayout {
-        SchemeLayout {
-            header: header(SchemeKind::Strengthening),
-            records: vec![
+        SchemeLayout::Strengthening {
+            account: account(),
+            plans: vec![
                 record("全部", &[], &[0x3f, 0x08, 0, 0, 0, 0, 0x02]),
                 record(
                     "one",
@@ -386,38 +445,59 @@ mod tests {
 
     #[test]
     fn a_discard_code_holds_one_or_more_schemes() {
-        let mut layout = synthetic_set();
-        layout.header.kind = SchemeKind::Discard;
-        let two = serialize(&layout).expect("two schemes are writable");
-        assert_eq!(parse(&two).map(|l| l.records.len()), Ok(2));
-        layout.records.clear();
-        assert_eq!(serialize(&layout), Err(LayoutError::EmptyDiscard));
+        let two = SchemeLayout::discard(
+            account(),
+            vec![record("a", &[0x01], &[]), record("b", &[0x02], &[])],
+        )
+        .expect("two schemes");
+        let p = serialize(&two).expect("writable");
+        assert_eq!(parse(&p).map(|l| l.records().len()), Ok(2));
+        assert_eq!(
+            SchemeLayout::discard(account(), vec![]),
+            Err(LayoutError::EmptyDiscard)
+        );
+        let mut header_only = p.into_bytes();
+        header_only.truncate(HEADER_LEN);
+        assert_eq!(parse(&payload(header_only)), Err(LayoutError::EmptyDiscard));
     }
 
     #[test]
     fn a_new_discard_code_has_kind_zero() {
-        let account = AccountSegment::from_bytes(ACCOUNT);
         let scheme = record("弃置", &[0x01], &[0x3f, 0x08, 0, 0, 0, 0, 0x02]);
-        let layout = SchemeLayout::discard(account, vec![scheme]).expect("names its souls");
+        let layout = SchemeLayout::discard(account(), vec![scheme]).expect("names its souls");
         let bytes = serialize(&layout).expect("writable").into_bytes();
         assert_eq!(bytes[16], 0);
         assert_eq!(parse(&payload(bytes)), Ok(layout));
     }
 
     #[test]
-    fn a_new_discard_scheme_cannot_choose_all_souls() {
-        let account = AccountSegment::from_bytes(ACCOUNT);
-        assert_eq!(
-            SchemeLayout::discard(account, vec![record("x", &[], &[0x01])]),
-            Err(LayoutError::DiscardAllSouls)
-        );
+    fn a_discard_scheme_cannot_choose_all_souls() {
+        // No soul chosen, as an empty mask or as zero bytes: built, or read from a payload.
+        for mask in [&[][..], &[0, 0]] {
+            let all = record("x", mask, &[0x01]);
+            assert_eq!(DiscardRecord::new(all.clone()), Err(DiscardCannotSelectAll));
+            assert_eq!(
+                SchemeLayout::discard(account(), vec![record("y", &[0x01], &[]), all.clone()]),
+                Err(LayoutError::DiscardCannotSelectAll { record: 1 })
+            );
+            let as_plan = SchemeLayout::Strengthening {
+                account: account(),
+                plans: vec![all],
+            };
+            let mut bytes = serialize(&as_plan).expect("writable").into_bytes();
+            bytes[16] = 0;
+            assert_eq!(
+                parse(&payload(bytes)),
+                Err(LayoutError::DiscardCannotSelectAll { record: 0 })
+            );
+        }
     }
 
     #[test]
     fn a_set_with_no_plans_is_only_a_header() {
-        let layout = SchemeLayout {
-            header: header(SchemeKind::Strengthening),
-            records: vec![],
+        let layout = SchemeLayout::Strengthening {
+            account: account(),
+            plans: vec![],
         };
         let p = serialize(&layout).expect("writable");
         assert_eq!(p.len(), HEADER_LEN);
@@ -446,7 +526,7 @@ mod tests {
     #[test]
     fn a_code_built_on_the_constant_segment_carries_it_in_its_header() {
         let segment = AccountSegment::from_bytes(CONST_SEGMENT);
-        let set = SchemeLayout::strengthening(segment, synthetic_set().records);
+        let set = synthetic_set().with_account(segment);
         let payload = serialize(&set).expect("writable");
         assert_eq!(payload.as_bytes()[2..16], CONST_SEGMENT);
         assert_eq!(header_of(&payload).map(|h| h.account), Ok(segment));
@@ -473,9 +553,9 @@ mod tests {
                 account in proptest::array::uniform14(any::<u8>()),
                 records in proptest::collection::vec((field(40), field(12), field(10)), 0..20),
             ) {
-                let layout = SchemeLayout {
-                    header: SchemeHeader { account: AccountSegment::from_bytes(account), kind: SchemeKind::Strengthening },
-                    records: records.into_iter().map(|(n, s, f)| Record { name: n, soul_mask: s, filter: f }).collect(),
+                let layout = SchemeLayout::Strengthening {
+                    account: AccountSegment::from_bytes(account),
+                    plans: records.into_iter().map(|(n, s, f)| Record { name: n, soul_mask: s, filter: f }).collect(),
                 };
                 let p = serialize(&layout).expect("small layouts fit");
                 prop_assert_eq!(parse(&p), Ok(layout.clone()));

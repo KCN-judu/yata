@@ -49,7 +49,7 @@ fn every_corpus_code_round_trips_through_text_and_qr() {
             path.display()
         );
         let code = decode_code(&layout).expect("a scheme code of selections");
-        let written = encode_code(&code, layout.header.account).expect("encodable");
+        let written = encode_code(&code, layout.account()).expect("encodable");
         assert_eq!(
             serialize(&written).as_ref(),
             Ok(&payload),
@@ -71,7 +71,7 @@ fn every_corpus_code_round_trips_through_text_and_qr() {
             "{}: {} bytes, {} records; our text is {} the game's",
             path.display(),
             payload.len(),
-            layout.records.len(),
+            layout.records().len(),
             if ours.as_str() == text {
                 "identical to"
             } else {

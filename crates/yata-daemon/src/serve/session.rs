@@ -281,11 +281,13 @@ fn decode_scheme(d: pb::DecodeSchemeCode) -> Result<Reply, Failure> {
         ),
     })?;
     let code = decode_code(&layout).map_err(|e| {
+        // Every refusal names the record at fault.
         let record = match &e {
             CodeError::NameNotUtf8 { record }
-            | CodeError::NameTooLong { record }
-            | CodeError::Selection { record, .. } => Some(*record as u32),
-            CodeError::NoDiscardScheme => None,
+            | CodeError::NameTooLong { record, .. }
+            | CodeError::Selection { record, .. }
+            | CodeError::DiscardCannotSelectAll { record }
+            | CodeError::Layout { record, .. } => Some(*record as u32),
         };
         Failure::new(
             Code::DecodeMalformedScheme(pb::DecodeMalformedScheme {

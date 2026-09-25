@@ -9,9 +9,11 @@ use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use yata_core::scheme::edit::{EditError, FilterBit, SoulBit};
+use yata_core::nonempty::NonEmptySet;
+use yata_core::scheme::edit::{FilterBit, SoulBit, SoulChoice};
 use yata_core::scheme::inspect::{PayloadDiff, dump};
 use yata_core::scheme::layout::{Record, SchemeKind, SchemeLayout};
+use yata_core::scheme::name::{NameTooLong, SchemeName};
 use yata_core::scheme::transport::{MAX_PAYLOAD_LEN, MAX_SCHEME_TEXT_LEN, TransportError};
 use yata_core::scheme::{RawSchemePayload, transport};
 
@@ -161,29 +163,28 @@ pub fn format_diff(diff: &PayloadDiff) -> String {
 /// The plans of a layout, one line each: index, name, souls (`all` or bit numbers), the filter in
 /// hex, and its set bits, with `*` on each bit that is not solved. The account is never printed.
 pub fn format_plans(layout: &SchemeLayout) -> String {
-    let kind = match layout.header.kind {
+    let kind = match layout.kind() {
         SchemeKind::Discard => "discard",
         SchemeKind::Strengthening => "strengthening",
     };
     let mut out = format!(
         "kind: {kind}\naccount: present (not shown)\nrecords: {}\n",
-        layout.records.len()
+        layout.records().len()
     );
-    for (i, r) in layout.records.iter().enumerate() {
+    for (i, r) in layout.records().into_iter().enumerate() {
         let name = r.name().map_or_else(
             || format!("<not UTF-8: {} bytes>", r.name_bytes().len()),
             str::to_owned,
         );
-        let souls = if r.is_all_souls() {
-            "all".to_owned()
-        } else {
-            join(&r.soul_bits(), |b| {
+        let souls = match r.souls() {
+            SoulChoice::All => "all".to_owned(),
+            SoulChoice::Souls(bits) => join(&bits.into_iter().collect::<Vec<_>>(), |b| {
                 if SoulBit::new(*b).is_some() {
                     b.to_string()
                 } else {
                     format!("{b}*")
                 }
-            })
+            }),
         };
         let filter_hex: String = r.filter().iter().map(|b| format!("{b:02x}")).collect();
         let filter_bits = join(&r.filter_bits(), |b| {
@@ -213,6 +214,10 @@ pub enum PlanLineProblem {
     /// Not three fields separated by `|`.
     Shape,
     EmptyName,
+    /// A name the game would refuse on import.
+    NameTooLong(NameTooLong),
+    /// A souls field with no number; all souls is written `all`.
+    EmptySouls,
     NotANumber {
         text: String,
     },
@@ -224,7 +229,6 @@ pub enum PlanLineProblem {
     UnsolvedFilterBit {
         bit: u16,
     },
-    Edit(EditError),
 }
 
 /// A refused line of a plan file, by its 1-based line number.
@@ -261,6 +265,7 @@ fn parse_plan_line(line: &str) -> Result<Record, PlanLineProblem> {
     if name.is_empty() {
         return Err(PlanLineProblem::EmptyName);
     }
+    let name = SchemeName::new(*name).map_err(PlanLineProblem::NameTooLong)?;
     let numbers = |text: &str| -> Result<Vec<u16>, PlanLineProblem> {
         text.split(',')
             .map(str::trim)
@@ -272,20 +277,19 @@ fn parse_plan_line(line: &str) -> Result<Record, PlanLineProblem> {
             .collect()
     };
     let souls = if souls.eq_ignore_ascii_case("all") {
-        None
+        SoulChoice::All
     } else {
-        Some(
-            numbers(souls)?
-                .into_iter()
-                .map(|b| SoulBit::new(b).ok_or(PlanLineProblem::UnknownSoulBit { bit: b }))
-                .collect::<Result<Vec<_>, _>>()?,
-        )
+        let bits = numbers(souls)?
+            .into_iter()
+            .map(|b| SoulBit::new(b).ok_or(PlanLineProblem::UnknownSoulBit { bit: b }))
+            .collect::<Result<Vec<_>, _>>()?;
+        SoulChoice::Souls(NonEmptySet::collect(bits).ok_or(PlanLineProblem::EmptySouls)?)
     };
     let filter = numbers(filter)?
         .into_iter()
         .map(|b| FilterBit::new(b).ok_or(PlanLineProblem::UnsolvedFilterBit { bit: b }))
         .collect::<Result<Vec<_>, _>>()?;
-    Record::from_bits(name, souls.as_deref(), &filter).map_err(PlanLineProblem::Edit)
+    Ok(Record::from_bits(&name, &souls, &filter))
 }
 
 #[cfg(test)]
@@ -330,7 +334,7 @@ mod tests {
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].soul_mask(), &[0, 0, 0, 0, 0x80]);
         assert_eq!(records[0].filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x02]);
-        assert!(records[1].is_all_souls());
+        assert_eq!(records[1].souls(), SoulChoice::All);
     }
 
     #[test]
@@ -354,20 +358,25 @@ mod tests {
             parse_plan_file(" | all | 1").map_err(|e| e.problem),
             Err(PlanLineProblem::EmptyName)
         );
+        assert_eq!(
+            parse_plan_file("x |  | 1").map_err(|e| e.problem),
+            Err(PlanLineProblem::EmptySouls)
+        );
+        assert!(matches!(
+            parse_plan_file("攻击固定值-排除-蝠翼 | all | 1").map_err(|e| e.problem),
+            Err(PlanLineProblem::NameTooLong(_))
+        ));
     }
 
     #[test]
     fn plans_list_marks_open_bits_and_never_prints_the_account() {
-        use yata_core::scheme::layout::{AccountSegment, SchemeHeader};
+        use yata_core::scheme::layout::AccountSegment;
         let mut filter = vec![0u8; 8];
         filter[6] = 0x02; // level bit 49
         filter[7] = 0x20; // open bit 61
-        let layout = SchemeLayout {
-            header: SchemeHeader {
-                account: AccountSegment::from_bytes([0xab; 14]),
-                kind: SchemeKind::Strengthening,
-            },
-            records: vec![Record::new("p", vec![0x01], filter).expect("valid")],
+        let layout = SchemeLayout::Strengthening {
+            account: AccountSegment::from_bytes([0xab; 14]),
+            plans: vec![Record::new("p", vec![0x01], filter).expect("valid")],
         };
         let text = format_plans(&layout);
         assert_eq!(

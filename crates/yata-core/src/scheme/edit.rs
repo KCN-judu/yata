@@ -3,26 +3,20 @@
 //! A soul bit is one of the 70 soul sets the research record maps; a filter bit is one of the
 //! solved filter groups: slot, star, main attribute, the sub-attribute include/exclude pairs
 //! that are located, sub-attribute count, level, and innate attribute.
-//! Their constructors refuse every other bit, so an edit can never write an unsolved bit. An
-//! edit changes that one bit and nothing else, with one documented exception: clearing a soul bit
-//! trims trailing zero bytes from the soul mask, as the game writes masks.
+//! Their constructors refuse every other bit, so an edit can never write an unsolved bit, and no
+//! edit can fail. An edit changes that one bit and nothing else, with one documented exception:
+//! clearing a soul bit trims trailing zero bytes from the soul mask, as the game writes masks.
 //!
 //! Which soul or attribute a bit means is [`super::mapping`]'s, applied by [`super::selection`];
 //! here a bit is a position. This is the research tool's level; the application edits selections.
 
-use super::layout::{LayoutError, MAX_FIELD_LEN, Record};
+use super::layout::Record;
 use super::mapping;
+use super::name::SchemeName;
+use crate::nonempty::NonEmptySet;
 
 /// Soul bits in use: one per mapped soul set ([`super::mapping`]).
 pub const SOUL_BIT_COUNT: u16 = mapping::SOUL_BIT_COUNT;
-
-/// The longest plan name the game imports, in characters. Names of 11 characters or more were
-/// refused on import, and the game's own exports never exceed 10 (2026-09-24).
-pub const MAX_NAME_CHARS: usize = 10;
-
-/// The longest plan name, in UTF-8 bytes, known to import: 26. Whether the game's limit counts
-/// characters or bytes is not yet told apart, so a name must meet both.
-pub const MAX_NAME_BYTES: usize = 26;
 
 /// A soul-set bit this codec may write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -52,143 +46,116 @@ impl FilterBit {
     }
 }
 
-/// Why an edit was refused.
+/// 类型 as bits: the editor's "all souls", or the souls chosen.
+///
+/// "All souls" is the game's meaning of a mask with no soul chosen: no restriction. It has this
+/// one name, and is written as a mask with no bit set. `B` is [`SoulBit`] for what this codec
+/// writes, and a raw bit position for what a record holds, where a bit beyond the mapped sets can
+/// be set.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum EditError {
-    /// The edit would leave the soul mask empty, which the game reads as "all souls".
-    EmptySoulMask,
-    /// A record from scratch was given an empty list of souls; "all souls" is `None`.
-    NoSouls,
-    /// A name the game would refuse on import: longer than [`MAX_NAME_CHARS`] characters or
-    /// [`MAX_NAME_BYTES`] bytes.
-    NameTooLong {
-        chars: usize,
-        bytes: usize,
-    },
-    Layout(LayoutError),
+pub enum SoulChoice<B: Ord = SoulBit> {
+    All,
+    Souls(NonEmptySet<B>),
 }
 
-fn get(bytes: &[u8], bit: usize) -> bool {
+/// Whether an edit sets a bit or clears it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BitState {
+    On,
+    Off,
+}
+
+fn get(bytes: &[u8], bit: u16) -> bool {
+    let bit = usize::from(bit);
     bytes.get(bit / 8).is_some_and(|b| b >> (bit % 8) & 1 == 1)
 }
 
-fn set(bytes: &mut Vec<u8>, bit: usize, on: bool) -> Result<(), EditError> {
+/// Set or clear one bit; a field grows for a set bit beyond its end. Every bit this module names
+/// is below 72, so a field it writes stays within nine bytes, far inside a one-byte length.
+fn set(bytes: &mut Vec<u8>, bit: u16, state: BitState) {
+    let bit = usize::from(bit);
     if bytes.len() <= bit / 8 {
-        if !on {
-            return Ok(());
-        }
-        if bit / 8 + 1 > MAX_FIELD_LEN {
-            return Err(EditError::Layout(LayoutError::FieldTooLong {
-                length: bit / 8 + 1,
-            }));
+        if state == BitState::Off {
+            return;
         }
         bytes.resize(bit / 8 + 1, 0);
     }
     let mask = 1u8 << (bit % 8);
-    if on {
-        bytes[bit / 8] |= mask;
-    } else {
-        bytes[bit / 8] &= !mask;
+    match state {
+        BitState::On => bytes[bit / 8] |= mask,
+        BitState::Off => bytes[bit / 8] &= !mask,
     }
-    Ok(())
 }
 
-/// Every set bit of a mask, ascending, solved or not.
-fn set_bits(bytes: &[u8]) -> Vec<u16> {
+/// Every set bit of a field, ascending, solved or not.
+fn set_bits(bytes: &[u8]) -> impl Iterator<Item = u16> + '_ {
     (0..bytes.len() * 8)
-        .filter(|&b| get(bytes, b))
         .filter_map(|b| u16::try_from(b).ok())
-        .collect()
-}
-
-/// Whether the game imports a plan of this name: at most [`MAX_NAME_CHARS`] characters and
-/// [`MAX_NAME_BYTES`] bytes.
-pub(crate) fn importable_name(name: &str) -> bool {
-    name.chars().count() <= MAX_NAME_CHARS && name.len() <= MAX_NAME_BYTES
+        .filter(|&b| get(bytes, b))
 }
 
 impl Record {
-    /// Whether the record uses the editor's "all souls" choice (an empty mask).
-    pub fn is_all_souls(&self) -> bool {
-        self.soul_mask.is_empty()
-    }
-
-    /// Every set soul bit, ascending, including bits beyond the known soul sets.
-    pub fn soul_bits(&self) -> Vec<u16> {
-        set_bits(&self.soul_mask)
+    /// The souls the mask chooses, every set bit included, mapped or not. A mask with no bit set,
+    /// empty or not, is [`SoulChoice::All`].
+    pub fn souls(&self) -> SoulChoice<u16> {
+        NonEmptySet::collect(set_bits(&self.soul_mask)).map_or(SoulChoice::All, SoulChoice::Souls)
     }
 
     /// Every set filter bit, ascending, solved or not.
     pub fn filter_bits(&self) -> Vec<u16> {
-        set_bits(&self.filter)
+        set_bits(&self.filter).collect()
     }
 
     pub fn has_soul(&self, bit: SoulBit) -> bool {
-        get(&self.soul_mask, usize::from(bit.0))
+        get(&self.soul_mask, bit.0)
     }
 
     pub fn has_filter(&self, bit: FilterBit) -> bool {
-        get(&self.filter, usize::from(bit.0))
+        get(&self.filter, bit.0)
     }
 
     /// Set or clear one soul bit. Setting a bit on an "all souls" record makes it choose that one
-    /// soul. Clearing trims trailing zero bytes, and is refused if it would empty the mask.
-    pub fn set_soul(&mut self, bit: SoulBit, on: bool) -> Result<(), EditError> {
-        let mut mask = self.soul_mask.clone();
-        set(&mut mask, usize::from(bit.0), on)?;
-        if !on {
-            while mask.last() == Some(&0) {
-                mask.pop();
-            }
-            if mask.is_empty() && !self.soul_mask.is_empty() {
-                return Err(EditError::EmptySoulMask);
+    /// soul; clearing the last one makes it "all souls" again. Clearing trims trailing zero bytes,
+    /// as the game writes masks.
+    pub fn set_soul(&mut self, bit: SoulBit, state: BitState) {
+        set(&mut self.soul_mask, bit.0, state);
+        if state == BitState::Off {
+            while self.soul_mask.last() == Some(&0) {
+                self.soul_mask.pop();
             }
         }
-        self.soul_mask = mask;
-        Ok(())
     }
 
     /// Set or clear one solved filter bit, and nothing else.
-    pub fn set_filter(&mut self, bit: FilterBit, on: bool) -> Result<(), EditError> {
-        set(&mut self.filter, usize::from(bit.0), on)
+    pub fn set_filter(&mut self, bit: FilterBit, state: BitState) {
+        set(&mut self.filter, bit.0, state);
     }
 
-    /// A record from nothing: `souls` of `None` is "all souls"; the filter has only the given
-    /// solved bits set, and, like the soul mask, is trimmed to its highest set bit, as the game
-    /// writes it. The name must be one the
-    /// game imports.
-    pub fn from_bits(
-        name: &str,
-        souls: Option<&[SoulBit]>,
-        filter: &[FilterBit],
-    ) -> Result<Record, EditError> {
-        if !importable_name(name) {
-            return Err(EditError::NameTooLong {
-                chars: name.chars().count(),
-                bytes: name.len(),
-            });
-        }
+    /// A record from nothing. The filter has only the given solved bits set and, like the soul
+    /// mask, is trimmed to its highest set bit, as the game writes it.
+    pub fn from_bits(name: &SchemeName, souls: &SoulChoice, filter: &[FilterBit]) -> Record {
         let mut soul_mask = Vec::new();
-        if let Some(souls) = souls {
-            if souls.is_empty() {
-                return Err(EditError::NoSouls);
-            }
+        if let SoulChoice::Souls(souls) = souls {
             for s in souls {
-                set(&mut soul_mask, usize::from(s.0), true)?;
+                set(&mut soul_mask, s.0, BitState::On);
             }
         }
         let mut filter_bytes = Vec::new();
         for f in filter {
-            set(&mut filter_bytes, usize::from(f.0), true)?;
+            set(&mut filter_bytes, f.0, BitState::On);
         }
-        Record::new(name, soul_mask, filter_bytes).map_err(EditError::Layout)
+        Record {
+            name: name.as_str().as_bytes().to_vec(),
+            soul_mask,
+            filter: filter_bytes,
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::inspect::diff;
-    use super::super::layout::{AccountSegment, SchemeHeader, SchemeKind, SchemeLayout, serialize};
+    use super::super::layout::{AccountSegment, SchemeLayout, serialize};
     use super::*;
 
     fn soul(n: u16) -> SoulBit {
@@ -199,13 +166,18 @@ mod tests {
         FilterBit::new(n).expect("a solved filter bit")
     }
 
-    fn set_of(records: Vec<Record>) -> SchemeLayout {
-        SchemeLayout {
-            header: SchemeHeader {
-                account: AccountSegment::from_bytes([7; 14]),
-                kind: SchemeKind::Strengthening,
-            },
-            records,
+    fn name(s: &str) -> SchemeName {
+        SchemeName::new(s).expect("an importable name")
+    }
+
+    fn souls(bits: &[u16]) -> SoulChoice {
+        SoulChoice::Souls(NonEmptySet::collect(bits.iter().map(|&b| soul(b))).expect("some"))
+    }
+
+    fn set_of(plans: Vec<Record>) -> SchemeLayout {
+        SchemeLayout::Strengthening {
+            account: AccountSegment::from_bytes([7; 14]),
+            plans,
         }
     }
 
@@ -225,46 +197,47 @@ mod tests {
     #[test]
     fn a_record_from_scratch_trims_its_soul_mask_and_its_filter() {
         let r = Record::from_bits(
-            "测试位39",
-            Some(&[soul(39)]),
+            &name("测试位39"),
+            &souls(&[39]),
             &[filt(0), filt(11), filt(49)],
-        )
-        .expect("valid");
+        );
         assert_eq!(r.soul_mask(), &[0, 0, 0, 0, 0x80]);
         assert_eq!(r.filter(), &[0x01, 0x08, 0, 0, 0, 0, 0x02]);
-        assert!(!r.is_all_souls());
+        assert_eq!(r.souls(), SoulChoice::Souls(NonEmptySet::one(39)));
     }
 
     #[test]
     fn the_discard_schemes_the_game_exported_are_rebuilt() {
         // A discard code exported by the game on 2026-09-24, two schemes, filters trimmed.
-        let first = Record::from_bits("二号位双速招财", Some(&[soul(7)]), &[1, 18, 35].map(filt))
-            .expect("valid");
+        let first = Record::from_bits(
+            &name("二号位双速招财"),
+            &souls(&[7]),
+            &[1, 18, 35].map(filt),
+        );
         assert_eq!(first.filter(), &[0x02, 0x00, 0x04, 0x00, 0x08]);
-        let second = Record::from_bits("一号位针女", Some(&[soul(27)]), &[filt(0)]).expect("valid");
+        let second = Record::from_bits(&name("一号位针女"), &souls(&[27]), &[filt(0)]);
         assert_eq!(second.filter(), &[0x01]);
         assert_eq!(second.soul_mask(), &[0, 0, 0, 0x08]);
     }
 
     #[test]
-    fn all_souls_is_none_and_an_empty_list_is_refused() {
-        let all = Record::from_bits("全部", None, &[]).expect("valid");
-        assert!(all.is_all_souls());
-        assert_eq!(
-            Record::from_bits("x", Some(&[]), &[]),
-            Err(EditError::NoSouls)
-        );
+    fn all_souls_is_a_mask_with_no_bit_set() {
+        let all = Record::from_bits(&name("全部"), &SoulChoice::All, &[]);
+        assert_eq!(all.soul_mask(), &[] as &[u8]);
+        assert_eq!(all.souls(), SoulChoice::All);
+        // A mask of zero bytes chooses no soul either: the same choice, not another one.
+        let zeros = Record::new("x", vec![0, 0], Vec::new()).expect("short");
+        assert_eq!(zeros.souls(), SoulChoice::All);
     }
 
     #[test]
     fn the_experiment_plan_matches_the_imported_bytes() {
         // Plan 测试位39 of the import confirmed on 2026-09-24: filter copied from the game.
         let r = Record::from_bits(
-            "测试位39",
-            Some(&[soul(39)]),
+            &name("测试位39"),
+            &souls(&[39]),
             &[0, 1, 2, 3, 4, 5, 11, 49].map(filt),
-        )
-        .expect("valid");
+        );
         assert_eq!(r.filter(), &[0x3f, 0x08, 0, 0, 0, 0, 0x02]);
     }
 
@@ -274,7 +247,7 @@ mod tests {
         let base = [0u16, 1, 2, 3, 4, 5, 11, 49];
         let with = |extra: &[u16]| {
             let bits: Vec<FilterBit> = base.iter().chain(extra).map(|&b| filt(b)).collect();
-            Record::from_bits("p", Some(&[soul(33)]), &bits).expect("valid")
+            Record::from_bits(&name("p"), &souls(&[33]), &bits)
         };
         assert_eq!(with(&[45]).filter(), &[0x3f, 0x08, 0, 0, 0, 0x20, 0x02]);
         // The flat sub-attributes, from the export of the third template.
@@ -291,54 +264,40 @@ mod tests {
     }
 
     #[test]
-    fn names_the_game_refuses_are_refused() {
-        // Imported on 2026-09-24: 10 characters, 26 bytes.
-        assert!(Record::from_bits("基准-不要改-雪幽魂", None, &[]).is_ok());
-        // Refused on import: 11 characters, 29 bytes.
-        assert_eq!(
-            Record::from_bits("攻击固定值-排除-蝠翼", None, &[]),
-            Err(EditError::NameTooLong {
-                chars: 11,
-                bytes: 29
-            })
-        );
-        // Ten characters, but past the longest byte length known to import.
-        assert!(matches!(
-            Record::from_bits("攻击攻击攻击攻击攻击", None, &[]),
-            Err(EditError::NameTooLong { chars: 10, .. })
-        ));
-    }
-
-    #[test]
-    fn clearing_the_last_soul_is_refused() {
-        let mut r = Record::from_bits("x", Some(&[soul(5)]), &[]).expect("valid");
-        assert_eq!(r.set_soul(soul(5), false), Err(EditError::EmptySoulMask));
-        assert!(r.has_soul(soul(5)));
+    fn clearing_the_last_soul_chooses_all_souls() {
+        let mut r = Record::from_bits(&name("x"), &souls(&[5]), &[]);
+        r.set_soul(soul(5), BitState::Off);
+        assert_eq!(r.souls(), SoulChoice::All);
+        assert_eq!(r.soul_mask(), &[] as &[u8]);
     }
 
     #[test]
     fn clearing_the_highest_soul_trims_the_mask() {
-        let mut r = Record::from_bits("x", Some(&[soul(3), soul(69)]), &[]).expect("valid");
+        let mut r = Record::from_bits(&name("x"), &souls(&[3, 69]), &[]);
         assert_eq!(r.soul_mask().len(), 9);
-        r.set_soul(soul(69), false).expect("one soul remains");
+        r.set_soul(soul(69), BitState::Off);
         assert_eq!(r.soul_mask(), &[0x08]);
     }
 
     #[test]
     fn choosing_a_soul_on_an_all_souls_record_selects_it() {
-        let mut r = Record::from_bits("x", None, &[]).expect("valid");
-        r.set_soul(soul(0), true).expect("valid");
-        assert_eq!(r.soul_bits(), vec![0]);
+        let mut r = Record::from_bits(&name("x"), &SoulChoice::All, &[]);
+        r.set_soul(soul(0), BitState::On);
+        assert_eq!(r.souls(), SoulChoice::Souls(NonEmptySet::one(0)));
     }
 
     #[test]
     fn a_filter_edit_changes_exactly_that_bit_of_the_payload() {
-        let r = Record::from_bits("x", Some(&[soul(2)]), &[filt(1), filt(49)]).expect("valid");
+        let r = Record::from_bits(&name("x"), &souls(&[2]), &[filt(1), filt(49)]);
         let before = serialize(&set_of(vec![r.clone()])).expect("writable");
         for bit in [0u16, 6, 12, 22, 25, 46, 54, 55] {
             let mut edited = r.clone();
-            let on = !edited.has_filter(filt(bit));
-            edited.set_filter(filt(bit), on).expect("valid");
+            let state = if edited.has_filter(filt(bit)) {
+                BitState::Off
+            } else {
+                BitState::On
+            };
+            edited.set_filter(filt(bit), state);
             let after = serialize(&set_of(vec![edited])).expect("writable");
             let d = diff(&before, &after);
             let bits: Vec<usize> = d
@@ -355,10 +314,10 @@ mod tests {
 
     #[test]
     fn a_soul_edit_inside_the_mask_changes_exactly_that_bit() {
-        let r = Record::from_bits("x", Some(&[soul(20)]), &[]).expect("valid");
+        let r = Record::from_bits(&name("x"), &souls(&[20]), &[]);
         let before = serialize(&set_of(vec![r.clone()])).expect("writable");
         let mut edited = r;
-        edited.set_soul(soul(9), true).expect("valid");
+        edited.set_soul(soul(9), BitState::On);
         let after = serialize(&set_of(vec![edited])).expect("writable");
         let bits: Vec<usize> = diff(&before, &after)
             .changes
@@ -377,9 +336,9 @@ mod tests {
             filter[b / 8] |= 1 << (b % 8);
         }
         let mut r = Record::new("x", vec![0x01], filter).expect("valid");
-        r.set_filter(filt(12), true).expect("valid");
-        r.set_filter(filt(12), false).expect("valid");
-        r.set_soul(soul(1), true).expect("valid");
+        r.set_filter(filt(12), BitState::On);
+        r.set_filter(filt(12), BitState::Off);
+        r.set_soul(soul(1), BitState::On);
         assert_eq!(r.filter_bits(), vec![61, 62, 63]);
     }
 
@@ -405,9 +364,13 @@ mod tests {
                 let original = Record::new("p", vec![0x01], filter).expect("valid");
                 let mut r = original.clone();
                 let b = filt(bit);
-                let on = r.has_filter(b);
-                r.set_filter(b, !on).expect("valid");
-                r.set_filter(b, on).expect("valid");
+                let (first, back) = if r.has_filter(b) {
+                    (BitState::Off, BitState::On)
+                } else {
+                    (BitState::On, BitState::Off)
+                };
+                r.set_filter(b, first);
+                r.set_filter(b, back);
                 prop_assert_eq!(r, original);
             }
         }

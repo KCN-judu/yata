@@ -7,6 +7,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use yata_core::fact::GameSoulId;
+use yata_core::nonempty::NonEmptySet;
 use yata_core::query::{
     Bound, Direction, EnumValue, Expr, Field, Limit, MAX_EXPR_DEPTH, MAX_EXPR_NODES, MAX_SORT_KEYS,
     MAX_TEST_VALUES, ParamSetId, ParamSetRef, QualityComponent, QueryError, SchemeCodeText,
@@ -403,8 +404,10 @@ pub fn selection(s: &wire::SoulSelection) -> Result<SoulSelection, RequestError>
     {
         Sets::All(wire::AnySet {}) => SetChoice::AnySet,
         // "Every set" has one encoding, `all`: an empty list is not a second one.
-        Sets::Chosen(c) if c.codes.is_empty() => return Err(malformed(WireProblem::NoSets)),
-        Sets::Chosen(c) => SetChoice::Sets(bounded(&c.codes, suit)?.into_iter().collect()),
+        Sets::Chosen(c) => SetChoice::Sets(
+            NonEmptySet::collect(bounded(&c.codes, suit)?)
+                .ok_or_else(|| malformed(WireProblem::NoSets))?,
+        ),
     };
     let mut out = SoulSelection::new(sets);
     out.slots = bounded(&s.slots, slot)?.into_iter().collect();

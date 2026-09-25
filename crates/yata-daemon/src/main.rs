@@ -161,7 +161,10 @@ fn build(header_code: &Path, plans: &Path, png: Option<&Path>, kind: SchemeKind)
         .map_err(|e| format!("{}: {e}", plans.display()))
         .and_then(|text| parse_plan_file(&text).map_err(|e| format!("{e:?}")));
     let layout = records.and_then(|records| match kind {
-        SchemeKind::Strengthening => Ok(SchemeLayout::strengthening(segment, records)),
+        SchemeKind::Strengthening => Ok(SchemeLayout::Strengthening {
+            account: segment,
+            plans: records,
+        }),
         SchemeKind::Discard => {
             SchemeLayout::discard(segment, records).map_err(|e| format!("{e:?}"))
         }
