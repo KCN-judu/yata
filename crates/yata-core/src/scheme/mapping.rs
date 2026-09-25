@@ -170,6 +170,8 @@ pub(crate) fn soul_bit(set: SoulSet) -> Option<SoulBit> {
 }
 
 /// The set a raw soul-mask position selects, or `None` for a position beyond the mapped sets.
+/// Only tests read a raw position now; the suit-code ledger that did left with the probe.
+#[cfg(test)]
 pub(crate) fn soul_set(bit: u16) -> Option<SoulSet> {
     SoulBit::new(bit).map(SoulBit::set)
 }

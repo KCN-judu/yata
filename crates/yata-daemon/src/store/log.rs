@@ -10,28 +10,51 @@
 //! - a command ([`FactLog::command`]) carries the revision it was formed against, and is
 //!   [`CommandOutcome::Stale`] when that is not the current one, [`CommandOutcome::Unchanged`]
 //!   when it would change nothing (no commit is written), or [`CommandOutcome::Applied`];
-//! - an import ([`FactLog::ingest`]) is a job with no base, and always lands: an acquisition is
-//!   an observation, and the log records every one.
+//! - an import ([`FactLog::import`]) is a job with no base, and always lands: an import is an
+//!   observation, and the log records every one (ADR-0032).
 
 use std::collections::BTreeMap;
 
-use prost::Message;
 use yata_core::fact::{
-    Acquisition, AdmissionError, Channel, Commit, Digest, Fact, FactBody, Facts, FoldError,
-    Inventory, InventoryError, Origin, ProbeVersion, ProfileId, Projection, RecordDefect, Revision,
-    Scope, Seq, Source, admit_reading,
+    Commit, Digest, Fact, FactBody, Facts, FoldError, Inventory, InventoryError, Origin, ProfileId,
+    Projection, Revision, Sections, Seq, SnapshotImport,
 };
-use yata_core::import::observation::SoulReading;
-use yata_protocol::probe;
+use yata_core::import::admit::{AdmittedSnapshot, admit};
+use yata_core::import::ir::{Completeness, IrError, SectionKind, YataSnapshot};
 use yata_store::{AppendCommit, GetBlob, Instruction, PutBlob, ReadCommits};
 
 use super::blob::{self, BlobError};
 use super::fact::{EncodeError, FactError, decode_commit, encode_commit};
 use super::{Failure, Store};
-use crate::probe::convert::{ConvertError, blob_of, soul_reading};
+use crate::import::codec::{SnapshotDecodeError, decode_snapshot, encode_snapshot};
 
 /// Commits read per round trip while replaying.
 const PAGE: u32 = 256;
+
+/// How a snapshot becomes the bytes of its blob, and back. The stored form is the IR's canonical
+/// binary encoding (ADR-0031, rule 4): deterministic, so one snapshot has one digest, and
+/// `decode(encode(s)) == Ok(s)`.
+pub trait SnapshotCodec {
+    type Error: std::fmt::Debug + Clone + PartialEq;
+    fn encode(&self, snapshot: &YataSnapshot) -> Vec<u8>;
+    fn decode(&self, bytes: &[u8]) -> Result<YataSnapshot, Self::Error>;
+}
+
+/// The IR's canonical codec, `snapshot.proto`'s binary encoding ([`crate::import::codec`]).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CanonicalCodec;
+
+impl SnapshotCodec for CanonicalCodec {
+    type Error = SnapshotDecodeError;
+
+    fn encode(&self, snapshot: &YataSnapshot) -> Vec<u8> {
+        encode_snapshot(snapshot)
+    }
+
+    fn decode(&self, bytes: &[u8]) -> Result<YataSnapshot, SnapshotDecodeError> {
+        decode_snapshot(bytes)
+    }
+}
 
 /// Why the log could not be read or replayed. Each variant names what failed.
 #[derive(Debug, Clone, PartialEq)]
@@ -63,56 +86,51 @@ pub enum CommitError {
     Store(Failure),
 }
 
-/// Why a reading could not be imported. Nothing was written.
+/// Why a snapshot could not be imported. Nothing was written.
 #[derive(Debug, Clone, PartialEq)]
-pub enum IngestError {
-    /// The read result is not a soul reading.
-    Convert(ConvertError),
-    /// The reading is not one the fact log admits.
-    Refused(AdmissionError),
+pub enum ImportError {
+    /// The snapshot holds no section: an import of nothing is not an import.
+    NoSections,
+    /// The snapshot's provenance names another file than the one supplied.
+    OriginalMismatch {
+        stated: Digest,
+        found: Digest,
+    },
+    /// The snapshot breaks the IR's own rules (`spec/snapshot-ir.md`).
+    Refused(IrError),
     Blob(BlobError),
     Commit(CommitError),
 }
 
 /// Why an inventory could not be derived. Each is a damaged or inconsistent store.
 #[derive(Debug, Clone, PartialEq)]
-pub enum InventoryReadError {
+pub enum InventoryReadError<E> {
     Store(Failure),
     MissingBlob {
-        digest: Digest,
+        snapshot: Digest,
     },
     Blob {
-        digest: Digest,
+        snapshot: Digest,
         error: BlobError,
     },
-    /// The blob is not a `Reading`.
-    NotAReading {
-        digest: Digest,
-    },
-    Reading {
-        digest: Digest,
-        error: ConvertError,
+    /// The blob is not a snapshot's encoding.
+    NotASnapshot {
+        snapshot: Digest,
+        error: E,
     },
     Derive(InventoryError),
 }
 
-/// Where a reading came from, as the probe's handshake or export file states it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Provenance {
-    pub channel: Channel,
-    pub source: Source,
-    pub probe_build_id: String,
-    pub probe_version: ProbeVersion,
-}
-
 /// A landed import.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Ingested {
+pub struct Imported {
     pub seq: Seq,
-    pub digest: Digest,
-    /// The reading's records that cannot be souls, by their position in the reading: kept as
-    /// read, left out of the inventory.
-    pub defects: Vec<RecordDefect>,
+    /// The digest of the snapshot's canonical encoding.
+    pub snapshot: Digest,
+    pub sections: Sections,
+    /// The snapshot admitted: its domain values, and the records admission left out, which stay
+    /// in the stored snapshot as they were.
+    pub admitted: AdmittedSnapshot,
 }
 
 /// The store, and the projection of everything in its log.
@@ -125,7 +143,7 @@ fn store_digest(d: &Digest) -> yata_store::Digest {
     yata_store::Digest(d.0)
 }
 
-/// Read every commit of the log, in order, decoded and lifted. Nothing is folded.
+/// Read every commit of the log, in order, decoded. Nothing is folded.
 pub fn read_commits(store: &mut Store) -> Result<Vec<Commit>, LoadError> {
     let mut commits = Vec::new();
     let mut from = Some(yata_store::Seq::FIRST);
@@ -165,6 +183,12 @@ impl FactLog {
         self.store
     }
 
+    /// What a profile holds of each section, for [`yata_core::import::capability::availability`];
+    /// `None` for a profile the log does not know.
+    pub fn held(&self, profile: ProfileId) -> Option<BTreeMap<SectionKind, Completeness>> {
+        self.projection.profile(profile).map(|s| s.held())
+    }
+
     /// Apply a command formed against `base`: its facts as one commit at the next `seq`, if the
     /// base is current and the facts change anything.
     pub fn command(
@@ -188,82 +212,101 @@ impl FactLog {
         })
     }
 
-    /// Import one reading into a profile: the reading becomes a blob ([`blob_of`]), and one
-    /// `SnapshotAcquired` commit records it. The same reading imported again, by pipe or by
-    /// file, is a second observation of one blob.
-    pub fn ingest(
+    /// Import one snapshot into a profile (ADR-0032, rule 4). The snapshot's canonical encoding
+    /// and the file it came from become blobs, and one `SnapshotImported` commit records them
+    /// with the sections the snapshot holds. The same snapshot imported again is a second
+    /// observation of the same blobs.
+    pub fn import<C: SnapshotCodec>(
         &mut self,
         profile: ProfileId,
-        wire: &probe::Reading,
-        provenance: Provenance,
+        snapshot: &YataSnapshot,
+        original: &[u8],
+        codec: &C,
         origin: Origin,
         recorded_at_ms: i64,
-    ) -> Result<Ingested, IngestError> {
-        let reading = soul_reading(wire).map_err(IngestError::Convert)?;
-        let admitted = admit_reading(&reading).map_err(IngestError::Refused)?;
-        let (digest, stored) = blob::seal(&blob_of(wire)).map_err(IngestError::Blob)?;
+    ) -> Result<Imported, ImportError> {
+        let sections = Sections::of(snapshot).ok_or(ImportError::NoSections)?;
+        let admitted = admit(snapshot).map_err(ImportError::Refused)?;
+        let (original_digest, original_stored) = blob::seal(original).map_err(ImportError::Blob)?;
+        if original_digest != snapshot.provenance.original {
+            return Err(ImportError::OriginalMismatch {
+                stated: snapshot.provenance.original,
+                found: original_digest,
+            });
+        }
+        let (digest, stored) = blob::seal(&codec.encode(snapshot)).map_err(ImportError::Blob)?;
         let fact = Fact {
             profile,
-            body: FactBody::SnapshotAcquired(Acquisition {
-                digest,
-                scope: Scope::Souls,
-                coverage: admitted.coverage,
-                channel: provenance.channel,
-                source: provenance.source,
-                probe_build_id: provenance.probe_build_id,
-                probe_version: provenance.probe_version,
-                observed_account: admitted.account,
+            body: FactBody::SnapshotImported(SnapshotImport {
+                snapshot: digest,
+                original: original_digest,
+                source: snapshot.provenance.format,
+                sections: sections.clone(),
             }),
         };
         let (commit, next) = self
             .next_commit(origin, recorded_at_ms, Facts::one(fact))
-            .map_err(IngestError::Commit)?;
-        let put = PutBlob {
-            digest: store_digest(&digest),
-            bytes: stored,
-        };
-        let seq = self.land(commit, next, put).map_err(IngestError::Commit)?;
-        Ok(Ingested {
+            .map_err(ImportError::Commit)?;
+        let blobs = (
+            PutBlob {
+                digest: store_digest(&digest),
+                bytes: stored,
+            },
+            PutBlob {
+                digest: store_digest(&original_digest),
+                bytes: original_stored,
+            },
+        );
+        let seq = self
+            .land(commit, next, blobs)
+            .map_err(ImportError::Commit)?;
+        Ok(Imported {
             seq,
-            digest,
-            defects: admitted.defects,
+            snapshot: digest,
+            sections,
+            admitted,
         })
     }
 
-    /// A profile's current soul inventory, from the projection and its live readings.
-    pub fn inventory(&mut self, profile: ProfileId) -> Result<Inventory, InventoryReadError> {
+    /// A profile's current soul inventory, from the projection and its live snapshots.
+    pub fn inventory<C: SnapshotCodec>(
+        &mut self,
+        profile: ProfileId,
+        codec: &C,
+    ) -> Result<Inventory, InventoryReadError<C::Error>> {
         let live = self
             .projection
             .profile(profile)
             .ok_or(InventoryReadError::Derive(InventoryError::UnknownProfile {
                 profile,
             }))?
-            .live(Scope::Souls);
-        let mut readings: BTreeMap<Digest, SoulReading> = BTreeMap::new();
-        for digest in live.digests() {
-            if readings.contains_key(digest) {
+            .live(SectionKind::Souls);
+        let mut snapshots: BTreeMap<Digest, YataSnapshot> = BTreeMap::new();
+        for (_, digest, _) in live.snapshots() {
+            if snapshots.contains_key(&digest) {
                 continue;
             }
             let stored = self
                 .store
                 .apply(GetBlob {
-                    digest: store_digest(digest),
+                    digest: store_digest(&digest),
                 })
                 .map_err(InventoryReadError::Store)?
-                .ok_or(InventoryReadError::MissingBlob { digest: *digest })?;
-            let bytes = blob::open(digest, &stored).map_err(|error| InventoryReadError::Blob {
-                digest: *digest,
+                .ok_or(InventoryReadError::MissingBlob { snapshot: digest })?;
+            let bytes = blob::open(&digest, &stored).map_err(|error| InventoryReadError::Blob {
+                snapshot: digest,
                 error,
             })?;
-            let wire = probe::Reading::decode(bytes.as_slice())
-                .map_err(|_| InventoryReadError::NotAReading { digest: *digest })?;
-            let reading = soul_reading(&wire).map_err(|error| InventoryReadError::Reading {
-                digest: *digest,
-                error,
-            })?;
-            readings.insert(*digest, reading);
+            let snapshot =
+                codec
+                    .decode(&bytes)
+                    .map_err(|error| InventoryReadError::NotASnapshot {
+                        snapshot: digest,
+                        error,
+                    })?;
+            snapshots.insert(digest, snapshot);
         }
-        Inventory::derive(&self.projection, profile, &readings).map_err(InventoryReadError::Derive)
+        Inventory::derive(&self.projection, profile, &snapshots).map_err(InventoryReadError::Derive)
     }
 
     /// The next commit of these facts, and the projection it would leave.
@@ -328,20 +371,15 @@ pub fn format_commit(c: &Commit) -> String {
             FactBody::ProfileRenamed { display_name } => format!("ProfileRenamed {display_name:?}"),
             FactBody::ProfileRetired => "ProfileRetired".to_owned(),
             FactBody::ProfileRestored => "ProfileRestored".to_owned(),
-            FactBody::SnapshotAcquired(a) => format!(
-                "SnapshotAcquired {} {:?} {:?} via {:?}/{:?}, probe {} v{}.{}{}",
-                hex(&a.digest.0),
-                a.scope,
-                a.coverage,
-                a.channel,
-                a.source,
-                a.probe_build_id,
-                a.probe_version.major,
-                a.probe_version.minor,
-                set(a.observed_account.is_some())
+            FactBody::SnapshotImported(i) => format!(
+                "SnapshotImported {} from {} {:?} {:?}",
+                hex(&i.snapshot.0),
+                hex(&i.original.0),
+                i.source,
+                i.sections.as_map()
             ),
-            FactBody::SnapshotRetracted { digest, reason } => {
-                format!("SnapshotRetracted {} {reason:?}", hex(&digest.0))
+            FactBody::SnapshotRetracted { snapshot, reason } => {
+                format!("SnapshotRetracted {} {reason:?}", hex(&snapshot.0))
             }
             FactBody::SoulMarked { soul, mark } => {
                 format!("SoulMarked {} {mark:?}", soul.as_str())
@@ -367,6 +405,11 @@ mod tests {
     use crate::wire::Code as _;
 
     use yata_core::fact::{GameSoulId, Mark};
+    use yata_core::import::ir::{
+        Provenance, RolledSub, SchemaVersion, Section, SetName, SoulRecord, Souls, SourceFormat,
+        SourceId, Valued,
+    };
+    use yata_core::soul::SoulAttribute;
 
     use super::*;
 
@@ -401,32 +444,44 @@ mod tests {
         }
     }
 
-    fn reading() -> probe::Reading {
-        let established = || probe::Mapping {
-            evidence: Some(probe::mapping::Evidence::Established(probe::Established {
-                basis: "test".into(),
-            })),
-        };
-        probe::Reading {
-            coverage: probe::Coverage::Complete.into(),
-            records: Some(probe::reading::Records::Souls(probe::SoulRecords {
-                souls: vec![],
-                recognition: None,
-                mappings: Some(probe::SoulMappings {
-                    soul_id: Some(established()),
-                    ..probe::SoulMappings::default()
-                }),
-            })),
-            ..probe::Reading::default()
-        }
-    }
+    const ORIGINAL: &[u8] = b"{\"format\":\"test\"}";
 
-    fn provenance() -> Provenance {
-        Provenance {
-            channel: Channel::DesktopMemory,
-            source: Source::ExportFile,
-            probe_build_id: "t".into(),
-            probe_version: ProbeVersion { major: 1, minor: 0 },
+    fn snapshot() -> YataSnapshot {
+        YataSnapshot {
+            schema: SchemaVersion::CURRENT,
+            provenance: Provenance {
+                format: SourceFormat::YataSnapshot(SchemaVersion::CURRENT),
+                original: blob::digest_of(ORIGINAL),
+            },
+            captured_at: None,
+            souls: Section::Present {
+                completeness: Completeness::Complete,
+                value: Souls {
+                    souls: vec![SoulRecord {
+                        id: SourceId::new("a").expect("an id"),
+                        set: SetName::new("破势").expect("a name"),
+                        slot: 2,
+                        star: 6,
+                        level: 15,
+                        main: Valued {
+                            attribute: SoulAttribute::Spd,
+                            value: 57.0,
+                        },
+                        rolled: vec![RolledSub {
+                            valued: Valued {
+                                attribute: SoulAttribute::Crit,
+                                value: 3.0,
+                            },
+                            rolls: Some(1),
+                        }],
+                        innate: None,
+                    }],
+                },
+            },
+            shikigami: Section::Absent,
+            presets: Section::Absent,
+            assets: Section::Absent,
+            guild: Section::Absent,
         }
     }
 
@@ -448,9 +503,7 @@ mod tests {
         yata_store::Seq::new(n).expect("a seq")
     }
 
-    #[test]
-    fn a_failed_transaction_keeps_neither_the_blob_nor_the_projection() {
-        let dir = Scratch::new("rollback");
+    fn with_profile(dir: &Scratch) -> FactLog {
         let mut log = dir.log();
         log.command(
             Revision::EMPTY,
@@ -459,8 +512,77 @@ mod tests {
             Facts::one(created()),
         )
         .expect("commit");
+        log
+    }
+
+    #[test]
+    fn an_import_stores_both_blobs_and_its_sections() {
+        let dir = Scratch::new("import");
+        let mut log = with_profile(&dir);
+        let codec = CanonicalCodec;
+        let landed = log
+            .import(
+                P,
+                &snapshot(),
+                ORIGINAL,
+                &codec,
+                Origin::Job { job_id: 1 },
+                0,
+            )
+            .expect("imports");
+        assert_eq!(landed.seq, seq(2));
+        assert_eq!(
+            landed.sections.as_map(),
+            &BTreeMap::from([(SectionKind::Souls, Completeness::Complete)])
+        );
+        for digest in [landed.snapshot, blob::digest_of(ORIGINAL)] {
+            assert!(matches!(
+                log.store.apply(GetBlob {
+                    digest: store_digest(&digest)
+                }),
+                Ok(Some(_))
+            ));
+        }
+        assert_eq!(
+            log.held(P),
+            Some(BTreeMap::from([(
+                SectionKind::Souls,
+                Completeness::Complete
+            )]))
+        );
+        let inventory = log.inventory(P, &codec).expect("derives");
+        assert_eq!(
+            inventory.souls().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            vec!["a"]
+        );
+    }
+
+    #[test]
+    fn an_import_must_carry_its_own_file_and_a_section() {
+        let dir = Scratch::new("import-refused");
+        let mut log = with_profile(&dir);
+        let codec = CanonicalCodec;
+        assert!(matches!(
+            log.import(P, &snapshot(), b"other", &codec, Origin::Maintenance, 0),
+            Err(ImportError::OriginalMismatch { .. })
+        ));
+        let nothing = YataSnapshot {
+            souls: Section::Absent,
+            ..snapshot()
+        };
+        assert_eq!(
+            log.import(P, &nothing, ORIGINAL, &codec, Origin::Maintenance, 0),
+            Err(ImportError::NoSections)
+        );
+        assert_eq!(read_commits(&mut log.store).map(|c| c.len()), Ok(1));
+    }
+
+    #[test]
+    fn a_failed_transaction_keeps_neither_the_blob_nor_the_projection() {
+        let dir = Scratch::new("rollback");
+        let mut log = with_profile(&dir);
         // A commit lands behind the projection's back, so the next append's seq is taken: the
-        // blob is written inside the transaction and the append's guard then fails.
+        // blobs are written inside the transaction and the append's guard then fails.
         let behind = encode_commit(&Commit {
             seq: seq(2),
             recorded_at_ms: 0,
@@ -481,13 +603,23 @@ mod tests {
             })
             .expect("append");
         let before = log.projection().clone();
+        let codec = CanonicalCodec;
         let e = log
-            .ingest(P, &reading(), provenance(), Origin::Job { job_id: 1 }, 0)
+            .import(
+                P,
+                &snapshot(),
+                ORIGINAL,
+                &codec,
+                Origin::Job { job_id: 1 },
+                0,
+            )
             .expect_err("seq 2 is taken");
-        assert_eq!(crate::wire::ingest_failure(&e).code(), "store.failure");
+        assert_eq!(crate::wire::import_failure(&e).code(), "store.failure");
         assert_eq!(log.projection(), &before);
-        let digest = store_digest(&blob::digest_of(&blob_of(&reading())));
-        assert_eq!(log.store.apply(GetBlob { digest }), Ok(None));
+        for bytes in [codec.encode(&snapshot()), ORIGINAL.to_vec()] {
+            let digest = store_digest(&blob::digest_of(&bytes));
+            assert_eq!(log.store.apply(GetBlob { digest }), Ok(None));
+        }
         // The log on disk is still the two commits, and replaying it sees the mark.
         let reopened = FactLog::open(log.into_store()).expect("replays");
         assert_eq!(reopened.projection().revision(), Revision::at(seq(2)));

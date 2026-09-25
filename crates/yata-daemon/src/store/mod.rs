@@ -5,7 +5,7 @@
 //! outputs. It holds no SQL; [`executor`] runs it.
 //!
 //! - [`fact`]: the fact codec, `fact.proto` and the lift chain (ADR-0002).
-//! - [`blob`]: a reading's bytes at rest, named by their SHA-256.
+//! - [`blob`]: a snapshot's or a file's bytes at rest, named by their SHA-256.
 //! - [`FactLog`]: the log replayed into the projection; commits, imports, and inventories.
 
 pub mod blob;
@@ -18,8 +18,8 @@ use std::path::{Path, PathBuf};
 pub use executor::ExecError;
 use executor::{Executor, IfMissing};
 pub use log::{
-    CommandOutcome, CommitError, FactLog, IngestError, Ingested, InventoryReadError, LoadError,
-    Provenance, format_commit, read_commits,
+    CanonicalCodec, CommandOutcome, CommitError, FactLog, ImportError, Imported,
+    InventoryReadError, LoadError, SnapshotCodec, format_commit, read_commits,
 };
 use yata_store::{
     Check, Initialize, Inspect, Instruction, IntegrityCheck, MetaKey, QuickCheck, ReadMeta,
@@ -27,8 +27,9 @@ use yata_store::{
 };
 
 /// The store format this build writes and reads (`fact-format.md`, § Reading old facts). It
-/// moves only when the fact envelope or the table layout changes.
-pub const STORE_FORMAT_VERSION: u32 = 1;
+/// moves when the fact envelope, a fact kind or version, a fact enum's values, or the table
+/// layout changes (ADR-0032, rule 2).
+pub const STORE_FORMAT_VERSION: u32 = 2;
 
 /// SQLite's `SQLITE_NOTADB`: the file is not a database. SQLite reads the header lazily, so the
 /// first statement on the connection reports it.
@@ -54,6 +55,11 @@ pub enum OpenError {
     NewerFormat {
         found: u32,
         known: u32,
+    },
+    /// Written in a format no build reads any more: format 1, whose facts held the retired
+    /// reader's readings (ADR-0032, rule 3). The store is recreated. Nothing was written to it.
+    RetiredFormat {
+        found: u32,
     },
     /// The format version in `meta` is absent or unreadable.
     NoFormatVersion,
@@ -173,6 +179,9 @@ impl Store {
                 known: STORE_FORMAT_VERSION,
             });
         }
+        if found < STORE_FORMAT_VERSION {
+            return Err(OpenError::RetiredFormat { found });
+        }
         match self.apply(QuickCheck)? {
             Check::Ok => Ok(()),
             Check::Problems(problems) => Err(OpenError::Damaged { problems }),
@@ -185,4 +194,47 @@ pub fn random_store_id() -> Result<StoreId, getrandom::Error> {
     let mut id = [0u8; 16];
     getrandom::fill(&mut id)?;
     Ok(StoreId(id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A store initialized at `format`, through the store's own instructions.
+    fn initialized_at(path: &Path, format: u32) {
+        let mut store = Store::connect(path, IfMissing::Create).expect("connect");
+        assert_eq!(store.apply(Inspect), Ok(StoreKind::Empty));
+        store
+            .apply(Initialize {
+                store_id: StoreId([7; 16]),
+                store_format_version: format,
+            })
+            .expect("initialize");
+    }
+
+    #[test]
+    fn a_format_one_store_is_retired_and_a_newer_one_refused() {
+        let dir = std::env::temp_dir()
+            .join(format!("yata-unit-{}-format", std::process::id()))
+            .join("数据 目录");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let open = |format: u32| {
+            let path = dir.join(format!("store-{format}.sqlite3"));
+            initialized_at(&path, format);
+            Store::open(&path).err()
+        };
+        assert_eq!(open(1), Some(OpenError::RetiredFormat { found: 1 }));
+        assert_eq!(
+            open(STORE_FORMAT_VERSION + 1),
+            Some(OpenError::NewerFormat {
+                found: STORE_FORMAT_VERSION + 1,
+                known: STORE_FORMAT_VERSION
+            })
+        );
+        assert_eq!(open(STORE_FORMAT_VERSION), None);
+        if let Some(parent) = dir.parent() {
+            let _ = std::fs::remove_dir_all(parent);
+        }
+    }
 }

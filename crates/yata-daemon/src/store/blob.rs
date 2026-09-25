@@ -1,4 +1,4 @@
-//! The blob codec: a reading's bytes at rest (`fact-format.md`, § Blobs and content addressing).
+//! The blob codec: a snapshot's or an imported file's bytes at rest (`fact-format.md`, § Blobs and content addressing).
 //!
 //! A blob is named by the SHA-256 of its uncompressed bytes and stored compressed, behind a
 //! one-byte header naming the codec, so the codec can change without re-keying anything.
@@ -10,7 +10,7 @@ use sha2::{Digest as _, Sha256};
 use yata_core::fact::Digest;
 use yata_protocol::frame::MAX_FRAME_LEN;
 
-/// The largest reading a blob holds: a reading arrives in one frame.
+/// The largest blob: one frame's length, the most a single payload of the protocol carries.
 pub const MAX_BLOB_LEN: usize = MAX_FRAME_LEN as usize;
 
 /// The codec byte of a zstd-compressed blob, the initial codec.
@@ -32,12 +32,12 @@ pub enum BlobError {
     DigestMismatch,
 }
 
-/// The SHA-256 digest of a reading's bytes.
+/// The SHA-256 digest of a blob's bytes.
 pub fn digest_of(bytes: &[u8]) -> Digest {
     Digest(Sha256::digest(bytes).into())
 }
 
-/// A reading's digest and the bytes to store under it.
+/// A blob's digest and the bytes to store under it.
 pub fn seal(bytes: &[u8]) -> Result<(Digest, Vec<u8>), BlobError> {
     if bytes.len() > MAX_BLOB_LEN {
         return Err(BlobError::TooLarge);
@@ -49,7 +49,7 @@ pub fn seal(bytes: &[u8]) -> Result<(Digest, Vec<u8>), BlobError> {
     Ok((digest_of(bytes), stored))
 }
 
-/// The reading's bytes, checked against `digest`.
+/// The blob's bytes, checked against `digest`.
 pub fn open(digest: &Digest, stored: &[u8]) -> Result<Vec<u8>, BlobError> {
     let (&codec, body) = stored.split_first().ok_or(BlobError::Empty)?;
     if codec != CODEC_ZSTD {

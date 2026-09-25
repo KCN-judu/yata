@@ -6,13 +6,17 @@
 //! silently drops a fact produces a projection that looks valid and is not (`fact-format.md`,
 //! § Reading old facts). The daemon applies a commit here before writing it, so the rules that
 //! refuse a command are the rules that refuse a log.
+//!
+//! Imports are kept per profile, and read per section (ADR-0032, rule 6): an import that does not
+//! carry a section is not part of it, so importing a guild alone never changes the souls.
 
 use std::collections::BTreeMap;
 
 use super::model::{
-    Acquisition, Commit, Coverage, Digest, Fact, FactBody, GameAccountId, GameSoulId, Mark,
-    NoteText, ProfileId, Revision, Scope, Seq,
+    Commit, Digest, Fact, FactBody, GameAccountId, GameSoulId, Mark, NoteText, ProfileId, Revision,
+    Seq, SnapshotImport,
 };
+use crate::import::ir::{Completeness, SectionKind};
 
 /// Everything the log says, as of `revision`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -34,39 +38,64 @@ pub struct ProfileState {
     display_name: String,
     status: ProfileStatus,
     /// The account named when the profile was created, if any.
-    created_account: Option<GameAccountId>,
-    acquisitions: Vec<AcquisitionRecord>,
+    account: Option<GameAccountId>,
+    imports: Vec<ImportRecord>,
     marks: BTreeMap<GameSoulId, Mark>,
     notes: BTreeMap<GameSoulId, NoteText>,
 }
 
-/// Whether a later fact withdrew an acquisition.
+/// Whether a later fact withdrew an import.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AcquisitionStatus {
+pub enum ImportStatus {
     Current,
     Retracted,
 }
 
-/// One `SnapshotAcquired`, where it landed, and whether a later fact withdrew it.
+/// One `SnapshotImported`, where it landed, and whether a later fact withdrew it.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AcquisitionRecord {
+pub struct ImportRecord {
     pub seq: Seq,
-    pub acquisition: Acquisition,
-    pub status: AcquisitionStatus,
+    pub import: SnapshotImport,
+    pub status: ImportStatus,
 }
 
-/// The snapshots the inventory of one `(profile, scope)` is built from: the live complete one,
-/// and the partial ones after it, oldest first.
+/// The imports one `(profile, section)` is built from: the base, its latest complete import not
+/// withdrawn, and the partial or unstated ones after it, oldest first. With no base, every live
+/// import of the section is a layer.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct LiveSnapshots {
-    pub complete: Option<(Seq, Digest)>,
-    pub partials: Vec<(Seq, Digest)>,
+pub struct LiveSection {
+    pub base: Option<(Seq, Digest)>,
+    pub layers: Vec<Layer>,
 }
 
-impl LiveSnapshots {
-    /// Every digest the inventory reads, in the order it reads them.
-    pub fn digests(&self) -> impl Iterator<Item = &Digest> {
-        self.complete.iter().chain(&self.partials).map(|(_, d)| d)
+/// A live import laid over the base, with the completeness it states for the section: `Partial`
+/// or `Unstated`, never `Complete`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Layer {
+    pub seq: Seq,
+    pub snapshot: Digest,
+    pub completeness: Completeness,
+}
+
+impl LiveSection {
+    /// Every snapshot the section reads, in the order it reads them, with its completeness.
+    pub fn snapshots(&self) -> impl Iterator<Item = (Seq, Digest, Completeness)> + '_ {
+        self.base
+            .iter()
+            .map(|&(seq, d)| (seq, d, Completeness::Complete))
+            .chain(
+                self.layers
+                    .iter()
+                    .map(|l| (l.seq, l.snapshot, l.completeness)),
+            )
+    }
+
+    /// What the profile holds of the section, or `None` when no live import carries it.
+    pub fn held(&self) -> Option<Completeness> {
+        match self.base {
+            Some(_) => Some(Completeness::Complete),
+            None => self.layers.iter().map(|l| l.completeness).max(),
+        }
     }
 }
 
@@ -79,19 +108,12 @@ pub enum FoldError {
     UnknownProfile { seq: Seq, profile: ProfileId },
     /// A profile is created once.
     ProfileExists { seq: Seq, profile: ProfileId },
-    /// `import.profile_mismatch`: a reading of another account than the one the profile knows.
-    ProfileMismatch {
-        seq: Seq,
-        profile: ProfileId,
-        known: GameAccountId,
-        observed: GameAccountId,
-    },
-    /// A retraction names no acquisition of that blob in the profile that is not already
+    /// A retraction names no import of that snapshot in the profile that is not already
     /// withdrawn.
     RetractsNothing {
         seq: Seq,
         profile: ProfileId,
-        digest: Digest,
+        snapshot: Digest,
     },
 }
 
@@ -153,8 +175,8 @@ impl Projection {
                         ProfileState {
                             display_name: display_name.clone(),
                             status: ProfileStatus::Active,
-                            created_account: account.clone(),
-                            acquisitions: Vec::new(),
+                            account: account.clone(),
+                            imports: Vec::new(),
                             marks: BTreeMap::new(),
                             notes: BTreeMap::new(),
                         },
@@ -178,39 +200,26 @@ impl Projection {
                 state.status = ProfileStatus::Active;
                 Ok(())
             }
-            FactBody::SnapshotAcquired(acquisition) => {
-                if let (Some(known), Some(observed)) =
-                    (state.known_account(), &acquisition.observed_account)
-                    && known != observed
-                {
-                    return Err(FoldError::ProfileMismatch {
-                        seq,
-                        profile,
-                        known: known.clone(),
-                        observed: observed.clone(),
-                    });
-                }
-                state.acquisitions.push(AcquisitionRecord {
+            FactBody::SnapshotImported(import) => {
+                state.imports.push(ImportRecord {
                     seq,
-                    acquisition: acquisition.clone(),
-                    status: AcquisitionStatus::Current,
+                    import: import.clone(),
+                    status: ImportStatus::Current,
                 });
                 Ok(())
             }
-            FactBody::SnapshotRetracted { digest, .. } => {
+            FactBody::SnapshotRetracted { snapshot, .. } => {
                 let withdrawn = state
-                    .acquisitions
+                    .imports
                     .iter_mut()
-                    .filter(|r| {
-                        r.acquisition.digest == *digest && r.status == AcquisitionStatus::Current
-                    })
-                    .map(|r| r.status = AcquisitionStatus::Retracted)
+                    .filter(|r| r.import.snapshot == *snapshot && r.status == ImportStatus::Current)
+                    .map(|r| r.status = ImportStatus::Retracted)
                     .count();
                 if withdrawn == 0 {
                     return Err(FoldError::RetractsNothing {
                         seq,
                         profile,
-                        digest: *digest,
+                        snapshot: *snapshot,
                     });
                 }
                 Ok(())
@@ -242,21 +251,14 @@ impl ProfileState {
         self.status
     }
 
-    /// The account this profile's readings must belong to: the one named at creation, else the
-    /// one of its earliest acquisition that carries one and is not withdrawn. `None` until
-    /// either exists.
-    pub fn known_account(&self) -> Option<&GameAccountId> {
-        self.created_account.as_ref().or_else(|| {
-            self.acquisitions
-                .iter()
-                .filter(|r| r.status == AcquisitionStatus::Current)
-                .find_map(|r| r.acquisition.observed_account.as_ref())
-        })
+    /// The account named when the profile was created; `None` when none was.
+    pub fn account(&self) -> Option<&GameAccountId> {
+        self.account.as_ref()
     }
 
-    /// Every acquisition, in log order, withdrawn ones included.
-    pub fn acquisitions(&self) -> &[AcquisitionRecord] {
-        &self.acquisitions
+    /// Every import, in log order, withdrawn ones included.
+    pub fn imports(&self) -> &[ImportRecord] {
+        &self.imports
     }
 
     pub fn mark(&self, soul: &GameSoulId) -> Option<Mark> {
@@ -267,32 +269,51 @@ impl ProfileState {
         self.notes.get(soul)
     }
 
-    /// The live complete snapshot of `scope`, its latest complete acquisition not withdrawn, and
-    /// the partial ones after it. With no complete snapshot, every partial one not withdrawn.
-    pub fn live(&self, scope: Scope) -> LiveSnapshots {
-        let current: Vec<&AcquisitionRecord> = self
-            .acquisitions
+    /// The live imports of one section (ADR-0032, rule 6).
+    pub fn live(&self, kind: SectionKind) -> LiveSection {
+        let current: Vec<(Seq, Digest, Completeness)> = self
+            .imports
             .iter()
-            .filter(|r| r.status == AcquisitionStatus::Current && r.acquisition.scope == scope)
+            .filter(|r| r.status == ImportStatus::Current)
+            .filter_map(|r| {
+                r.import
+                    .sections
+                    .get(kind)
+                    .map(|c| (r.seq, r.import.snapshot, c))
+            })
             .collect();
         let base = current
             .iter()
-            .rposition(|r| r.acquisition.coverage == Coverage::Complete);
+            .rposition(|&(_, _, c)| c == Completeness::Complete);
         let after = base.map_or(0, |i| i + 1);
-        LiveSnapshots {
-            complete: base.map(|i| (current[i].seq, current[i].acquisition.digest)),
-            partials: current[after..]
+        LiveSection {
+            base: base.map(|i| (current[i].0, current[i].1)),
+            layers: current[after..]
                 .iter()
-                .map(|r| (r.seq, r.acquisition.digest))
+                .map(|&(seq, snapshot, completeness)| Layer {
+                    seq,
+                    snapshot,
+                    completeness,
+                })
                 .collect(),
         }
+    }
+
+    /// What the profile holds of each section: the input of
+    /// [`crate::import::capability::availability`]. A section no live import carries is absent.
+    pub fn held(&self) -> BTreeMap<SectionKind, Completeness> {
+        SectionKind::ALL
+            .into_iter()
+            .filter_map(|k| self.live(k).held().map(|c| (k, c)))
+            .collect()
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::fact::model::{Channel, Facts, Origin, ProbeVersion, Source};
+    use crate::fact::model::{Facts, Origin, Sections};
+    use crate::import::ir::{FormatTag, SourceFormat};
 
     pub(crate) const P: ProfileId = ProfileId([1; 16]);
     pub(crate) const Q: ProfileId = ProfileId([2; 16]);
@@ -320,32 +341,34 @@ pub(crate) mod tests {
         }
     }
 
-    pub(crate) fn acquired(
+    /// An import of snapshot `digest` holding `sections`.
+    pub(crate) fn imported(
         profile: ProfileId,
         digest: u8,
-        coverage: Coverage,
-        account: Option<&str>,
+        sections: &[(SectionKind, Completeness)],
     ) -> Fact {
         Fact {
             profile,
-            body: FactBody::SnapshotAcquired(Acquisition {
-                digest: Digest([digest; 32]),
-                scope: Scope::Souls,
-                coverage,
-                channel: Channel::DesktopMemory,
-                source: Source::ExportFile,
-                probe_build_id: "test".into(),
-                probe_version: ProbeVersion { major: 1, minor: 0 },
-                observed_account: account.map(|a| GameAccountId::new(a).expect("non-empty")),
+            body: FactBody::SnapshotImported(SnapshotImport {
+                snapshot: Digest([digest; 32]),
+                original: Digest([digest ^ 0xFF; 32]),
+                source: SourceFormat::Community(FormatTag::MumuSnapshotV1),
+                sections: Sections::new(sections.iter().copied().collect())
+                    .expect("at least one section"),
             }),
         }
     }
 
-    fn retracted(profile: ProfileId, digest: u8) -> Fact {
+    /// An import of snapshot `digest` holding the souls alone.
+    pub(crate) fn souls(profile: ProfileId, digest: u8, completeness: Completeness) -> Fact {
+        imported(profile, digest, &[(SectionKind::Souls, completeness)])
+    }
+
+    pub(crate) fn retracted(profile: ProfileId, digest: u8) -> Fact {
         Fact {
             profile,
             body: FactBody::SnapshotRetracted {
-                digest: Digest([digest; 32]),
+                snapshot: Digest([digest; 32]),
                 reason: String::new(),
             },
         }
@@ -365,11 +388,26 @@ pub(crate) mod tests {
         GameSoulId::new(s).expect("non-empty")
     }
 
+    fn d(n: u8) -> Digest {
+        Digest([n; 32])
+    }
+
+    fn layer(n: u64, digest: u8, completeness: Completeness) -> Layer {
+        Layer {
+            seq: seq(n),
+            snapshot: d(digest),
+            completeness,
+        }
+    }
+
+    use Completeness::{Complete, Partial, Unstated};
+    use SectionKind::{Guild, Shikigami, Souls};
+
     #[test]
     fn the_fold_is_a_function_of_the_log() {
         let log = vec![
             commit(1, vec![created(P, None)]),
-            commit(2, vec![acquired(P, 7, Coverage::Complete, Some("acct"))]),
+            commit(2, vec![souls(P, 7, Complete)]),
             commit(3, vec![marked(P, "a", Some(Mark::Keep))]),
         ];
         let once = fold(&log).expect("folds");
@@ -442,137 +480,140 @@ pub(crate) mod tests {
         let p = fold(&[
             commit(1, vec![created(P, Some("x")), created(Q, Some("y"))]),
             commit(2, vec![marked(P, "a", Some(Mark::Discard))]),
-            commit(3, vec![acquired(Q, 9, Coverage::Complete, Some("y"))]),
+            commit(3, vec![souls(Q, 9, Complete)]),
         ])
         .expect("folds");
         let (sp, sq) = (p.profile(P).expect("P"), p.profile(Q).expect("Q"));
         assert_eq!(sp.mark(&id("a")), Some(Mark::Discard));
         assert_eq!(sq.mark(&id("a")), None);
-        assert!(sp.acquisitions().is_empty());
-        assert_eq!(
-            sq.live(Scope::Souls).complete,
-            Some((seq(3), Digest([9; 32])))
-        );
+        assert!(sp.imports().is_empty());
+        assert_eq!(sp.held(), BTreeMap::new());
+        assert_eq!(sq.live(Souls).base, Some((seq(3), d(9))));
     }
 
     #[test]
-    fn a_reading_of_another_account_does_not_apply() {
-        let mismatch = |log: &[Commit]| matches!(fold(log), Err(FoldError::ProfileMismatch { seq: s, .. }) if s == seq(3));
-        // known from creation
-        assert!(mismatch(&[
-            commit(1, vec![created(P, Some("x"))]),
-            commit(2, vec![acquired(P, 1, Coverage::Complete, Some("x"))]),
-            commit(3, vec![acquired(P, 2, Coverage::Complete, Some("y"))]),
-        ]));
-        // learned from the first reading that carried one
-        assert!(mismatch(&[
-            commit(1, vec![created(P, None)]),
-            commit(2, vec![acquired(P, 1, Coverage::Complete, Some("x"))]),
-            commit(3, vec![acquired(P, 2, Coverage::Partial, Some("y"))]),
-        ]));
-        // a reading that did not read the account is not a mismatch
-        assert!(
-            fold(&[
-                commit(1, vec![created(P, Some("x"))]),
-                commit(2, vec![acquired(P, 1, Coverage::Complete, None)]),
-            ])
-            .is_ok()
-        );
-    }
-
-    #[test]
-    fn a_withdrawn_reading_no_longer_decides_the_account() {
-        let p = fold(&[
-            commit(1, vec![created(P, None)]),
-            commit(2, vec![acquired(P, 1, Coverage::Complete, Some("x"))]),
-            commit(3, vec![retracted(P, 1)]),
-            commit(4, vec![acquired(P, 2, Coverage::Complete, Some("y"))]),
-        ])
-        .expect("folds");
-        assert_eq!(
-            p.profile(P).and_then(ProfileState::known_account),
-            Some(&GameAccountId::new("y").expect("non-empty"))
-        );
-    }
-
-    #[test]
-    fn the_live_snapshot_is_the_latest_complete_one_not_withdrawn() {
+    fn the_base_is_the_latest_complete_import_not_withdrawn() {
         let log = vec![
             commit(1, vec![created(P, None)]),
-            commit(2, vec![acquired(P, 1, Coverage::Partial, None)]),
-            commit(3, vec![acquired(P, 2, Coverage::Complete, None)]),
-            commit(4, vec![acquired(P, 3, Coverage::Partial, None)]),
-            commit(5, vec![acquired(P, 4, Coverage::Complete, None)]),
-            commit(6, vec![acquired(P, 5, Coverage::Partial, None)]),
+            commit(2, vec![souls(P, 1, Partial)]),
+            commit(3, vec![souls(P, 2, Complete)]),
+            commit(4, vec![souls(P, 3, Unstated)]),
+            commit(5, vec![souls(P, 4, Complete)]),
+            commit(6, vec![souls(P, 5, Partial)]),
         ];
         let p = fold(&log).expect("folds");
         assert_eq!(
-            p.profile(P).map(|s| s.live(Scope::Souls)),
-            Some(LiveSnapshots {
-                complete: Some((seq(5), Digest([4; 32]))),
-                partials: vec![(seq(6), Digest([5; 32]))],
+            p.profile(P).map(|s| s.live(Souls)),
+            Some(LiveSection {
+                base: Some((seq(5), d(4))),
+                layers: vec![layer(6, 5, Partial)],
             })
         );
         let mut withdrawn = log;
         withdrawn.push(commit(7, vec![retracted(P, 4)]));
         let p = fold(&withdrawn).expect("folds");
         assert_eq!(
-            p.profile(P).map(|s| s.live(Scope::Souls)),
-            Some(LiveSnapshots {
-                complete: Some((seq(3), Digest([2; 32]))),
-                partials: vec![(seq(4), Digest([3; 32])), (seq(6), Digest([5; 32]))],
+            p.profile(P).map(|s| s.live(Souls)),
+            Some(LiveSection {
+                base: Some((seq(3), d(2))),
+                layers: vec![layer(4, 3, Unstated), layer(6, 5, Partial)],
             })
         );
     }
 
     #[test]
-    fn without_a_complete_snapshot_every_partial_one_is_live() {
+    fn without_a_complete_import_every_live_one_is_a_layer() {
         let p = fold(&[
             commit(1, vec![created(P, None)]),
-            commit(2, vec![acquired(P, 1, Coverage::Partial, None)]),
-            commit(3, vec![acquired(P, 2, Coverage::Partial, None)]),
+            commit(2, vec![souls(P, 1, Partial)]),
+            commit(3, vec![souls(P, 2, Unstated)]),
         ])
         .expect("folds");
+        let s = p.profile(P).expect("P");
         assert_eq!(
-            p.profile(P).map(|s| s.live(Scope::Souls)),
-            Some(LiveSnapshots {
-                complete: None,
-                partials: vec![(seq(2), Digest([1; 32])), (seq(3), Digest([2; 32]))],
-            })
+            s.live(Souls),
+            LiveSection {
+                base: None,
+                layers: vec![layer(2, 1, Partial), layer(3, 2, Unstated)],
+            }
         );
+        assert_eq!(s.held(), BTreeMap::from([(Souls, Partial)]));
+    }
+
+    #[test]
+    fn an_import_without_a_section_leaves_that_section_alone() {
+        let p = fold(&[
+            commit(1, vec![created(P, None)]),
+            commit(
+                2,
+                vec![imported(P, 1, &[(Souls, Complete), (Guild, Complete)])],
+            ),
+            commit(3, vec![imported(P, 2, &[(Guild, Complete)])]),
+            commit(4, vec![imported(P, 3, &[(Souls, Complete)])]),
+        ])
+        .expect("folds");
+        let s = p.profile(P).expect("P");
+        assert_eq!(s.live(Souls).base, Some((seq(4), d(3))));
+        assert_eq!(s.live(Guild).base, Some((seq(3), d(2))));
+        assert_eq!(s.live(Shikigami), LiveSection::default());
+        assert_eq!(
+            s.held(),
+            BTreeMap::from([(Souls, Complete), (Guild, Complete)])
+        );
+    }
+
+    #[test]
+    fn a_retraction_withdraws_every_section_of_its_snapshot() {
+        let p = fold(&[
+            commit(1, vec![created(P, None)]),
+            commit(
+                2,
+                vec![imported(P, 1, &[(Souls, Complete), (Guild, Partial)])],
+            ),
+            commit(3, vec![imported(P, 2, &[(Souls, Partial)])]),
+            commit(4, vec![retracted(P, 1)]),
+        ])
+        .expect("folds");
+        let s = p.profile(P).expect("P");
+        assert_eq!(
+            s.live(Souls),
+            LiveSection {
+                base: None,
+                layers: vec![layer(3, 2, Partial)],
+            }
+        );
+        assert_eq!(s.live(Guild), LiveSection::default());
+        assert_eq!(s.held(), BTreeMap::from([(Souls, Partial)]));
     }
 
     #[test]
     fn a_retraction_withdraws_only_what_came_before_it() {
         let p = fold(&[
             commit(1, vec![created(P, None)]),
-            commit(2, vec![acquired(P, 1, Coverage::Complete, None)]),
-            commit(3, vec![acquired(P, 1, Coverage::Complete, None)]),
+            commit(2, vec![souls(P, 1, Complete)]),
+            commit(3, vec![souls(P, 1, Complete)]),
             commit(4, vec![retracted(P, 1)]),
-            commit(5, vec![acquired(P, 1, Coverage::Complete, None)]),
+            commit(5, vec![souls(P, 1, Complete)]),
         ])
         .expect("folds");
         let s = p.profile(P).expect("P");
-        let withdrawn: Vec<AcquisitionStatus> = s.acquisitions().iter().map(|r| r.status).collect();
+        let statuses: Vec<ImportStatus> = s.imports().iter().map(|r| r.status).collect();
         assert_eq!(
-            withdrawn,
+            statuses,
             vec![
-                AcquisitionStatus::Retracted,
-                AcquisitionStatus::Retracted,
-                AcquisitionStatus::Current
+                ImportStatus::Retracted,
+                ImportStatus::Retracted,
+                ImportStatus::Current
             ]
         );
-        assert_eq!(
-            s.live(Scope::Souls).complete,
-            Some((seq(5), Digest([1; 32])))
-        );
+        assert_eq!(s.live(Souls).base, Some((seq(5), d(1))));
     }
 
     #[test]
     fn a_retraction_must_withdraw_something_in_its_own_profile() {
         let base = vec![
             commit(1, vec![created(P, None), created(Q, None)]),
-            commit(2, vec![acquired(P, 1, Coverage::Complete, None)]),
+            commit(2, vec![souls(P, 1, Complete)]),
         ];
         let mut other_profile = base.clone();
         other_profile.push(commit(3, vec![retracted(Q, 1)]));
@@ -587,6 +628,28 @@ pub(crate) mod tests {
             fold(&twice),
             Err(FoldError::RetractsNothing { seq: s, .. }) if s == seq(4)
         ));
+    }
+
+    #[test]
+    fn held_is_complete_over_a_base_and_the_strongest_layer_without_one() {
+        let over_base = LiveSection {
+            base: Some((seq(1), d(1))),
+            layers: vec![layer(2, 2, Unstated)],
+        };
+        assert_eq!(over_base.held(), Some(Complete));
+        let layers_only = LiveSection {
+            base: None,
+            layers: vec![layer(1, 1, Unstated), layer(2, 2, Partial)],
+        };
+        assert_eq!(layers_only.held(), Some(Partial));
+        assert_eq!(LiveSection::default().held(), None);
+        assert_eq!(
+            over_base
+                .snapshots()
+                .map(|(_, d, c)| (d, c))
+                .collect::<Vec<_>>(),
+            vec![(d(1), Complete), (d(2), Unstated)]
+        );
     }
 
     #[test]

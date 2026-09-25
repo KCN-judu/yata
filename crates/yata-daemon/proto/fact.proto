@@ -1,20 +1,21 @@
-// The fact schema: the durable encoding of the log's commits (ADR-0002, fact-format.md).
+// The fact schema: the durable encoding of the log's commits (ADR-0002, ADR-0032,
+// fact-format.md). Store format 2.
 //
 // Owned by the store module of yata-daemon; nothing outside the daemon reads facts, so no Dart
 // bindings are generated. This file has its own version line: a change to a wire schema never
 // forces a change here, and a change here never forces a protocol bump.
 //
-// Evolution rules (ADR-0002, made strict):
+// Evolution rules (ADR-0002, ADR-0032):
 // - A tag number is never reused; a removed field's number and name go into `reserved`.
-// - Adding a field does not bump a kind's version. Its default must be a correct reading of
-//   every older payload, and the payload message says what the default means.
+// - A fact's kind and version are its `body` case, written once. A new kind, a new version of
+//   one, or a new enum value moves the store format, so a build only ever reads cases and values
+//   it knows: an unset `oneof` or an unknown enum value is a malformed commit.
 // - A kind's version is bumped only when meaning changes, with a lift step in the daemon.
-// - Enum values are never renumbered or reused. An unknown enum value on load is a load error,
-//   and every enum's zero value is unused so that an absent value is never read as a real one.
+// - Every enum's zero value is unused, so that an absent value is never read as a real one.
 
 syntax = "proto3";
 
-package yata.fact.v1;
+package yata.fact.v2;
 
 // One commit of the log. The row key of the log table is `seq` as well, and the two must agree.
 message Commit {
@@ -36,91 +37,92 @@ message Origin {
 
 message Maintenance {}
 
-// The envelope. `payload` is the message named by `kind`, at `version`: each kind's version 1 is
-// the message of the kind's name, and a later version is the message with its `V<n>` suffix.
+// The envelope: what the fact is about, and the fact, typed by its case (PRP-0006, option A).
 message Fact {
-  // The 16-byte ProfileId.
-  bytes profile = 1;
-  FactKind kind = 2;
-  uint32 version = 3;
-  bytes payload = 4;
+  // 2 is kept for the store subject of `BlobsPruned`, decided with compaction (ADR-0032).
+  reserved 2;
+  oneof subject {
+    // The 16-byte ProfileId.
+    bytes profile = 1;
+  }
+  oneof body {
+    ProfileCreated profile_created_v1 = 10;
+    ProfileRenamed profile_renamed_v1 = 11;
+    ProfileRetired profile_retired_v1 = 12;
+    ProfileRestored profile_restored_v1 = 13;
+    SnapshotImported snapshot_imported_v1 = 14;
+    SnapshotRetracted snapshot_retracted_v1 = 15;
+    SoulMarked soul_marked_v1 = 16;
+    SoulNoted soul_noted_v1 = 17;
+  }
 }
 
-// The kinds implemented so far. The rest of fact-format.md's catalogue is added, with new
-// numbers, when each is implemented.
-enum FactKind {
-  FACT_KIND_UNSPECIFIED = 0;
-  FACT_KIND_PROFILE_CREATED = 1;
-  FACT_KIND_PROFILE_RENAMED = 2;
-  FACT_KIND_PROFILE_RETIRED = 3;
-  FACT_KIND_PROFILE_RESTORED = 4;
-  FACT_KIND_SNAPSHOT_ACQUIRED = 5;
-  FACT_KIND_SNAPSHOT_RETRACTED = 6;
-  FACT_KIND_SOUL_MARKED = 7;
-  FACT_KIND_SOUL_NOTED = 8;
-}
-
-// Version 1.
 message ProfileCreated {
   string display_name = 1;
   // Absent when the profile was created without knowing its account.
-  optional string observed_account_id = 2;
+  optional string account_id = 2;
 }
 
-// Version 1.
 message ProfileRenamed {
   string display_name = 1;
 }
 
-// Version 1.
 message ProfileRetired {}
 
-// Version 1.
 message ProfileRestored {}
 
-enum Scope {
-  SCOPE_UNSPECIFIED = 0;
-  SCOPE_SOULS = 1;
+// One imported file landed (ADR-0032, rule 4).
+message SnapshotImported {
+  // SHA-256 of the IR's canonical binary encoding: a blob.
+  bytes snapshot = 1;
+  // SHA-256 of the file as imported: a blob.
+  bytes original = 2;
+  SourceFormat source = 3;
+  // At least one; each kind once.
+  repeated SectionEntry sections = 4;
 }
 
-enum Coverage {
-  COVERAGE_UNSPECIFIED = 0;
-  COVERAGE_COMPLETE = 1;
-  COVERAGE_PARTIAL = 2;
+message SourceFormat {
+  oneof format {
+    SchemaVersion yata_snapshot = 1;
+    FormatTag community = 2;
+  }
 }
 
-enum Channel {
-  // 2 was CHANNEL_MUMU_ADB, removed with the MuMu channel (ADR-0030).
-  reserved 2;
-  reserved "CHANNEL_MUMU_ADB";
-  CHANNEL_UNSPECIFIED = 0;
-  CHANNEL_DESKTOP_MEMORY = 1;
+message SchemaVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
 }
 
-enum Source {
-  SOURCE_UNSPECIFIED = 0;
-  SOURCE_LIVE = 1;
-  SOURCE_EXPORT_FILE = 2;
+enum FormatTag {
+  FORMAT_TAG_UNSPECIFIED = 0;
+  FORMAT_TAG_MUMU_SNAPSHOT_V1 = 1;
 }
 
-// Version 1.
-message SnapshotAcquired {
-  // SHA-256 of the blob's uncompressed bytes.
-  bytes digest = 1;
-  Scope scope = 2;
-  Coverage coverage = 3;
-  Channel channel = 4;
-  Source source = 5;
-  string probe_build_id = 6;
-  uint32 probe_protocol_major = 7;
-  uint32 probe_protocol_minor = 8;
-  // Absent when the probe did not read the account.
-  optional string observed_account_id = 9;
+message SectionEntry {
+  SectionKind kind = 1;
+  Completeness completeness = 2;
 }
 
-// Version 1.
+enum SectionKind {
+  SECTION_KIND_UNSPECIFIED = 0;
+  SECTION_KIND_SOULS = 1;
+  SECTION_KIND_SHIKIGAMI = 2;
+  SECTION_KIND_PRESETS = 3;
+  SECTION_KIND_ASSETS = 4;
+  SECTION_KIND_GUILD = 5;
+}
+
+enum Completeness {
+  COMPLETENESS_UNSPECIFIED = 0;
+  COMPLETENESS_COMPLETE = 1;
+  COMPLETENESS_PARTIAL = 2;
+  COMPLETENESS_UNSTATED = 3;
+}
+
+// Every current import of the snapshot in the profile is withdrawn, all its sections.
 message SnapshotRetracted {
-  bytes digest = 1;
+  bytes snapshot = 1;
   // Informational; the fold never reads it.
   string reason = 2;
 }
@@ -134,21 +136,13 @@ enum Mark {
   MARK_STRENGTHEN = 4;
 }
 
-// Version 1.
 message SoulMarked {
   string soul_id = 1;
   Mark mark = 2;
 }
 
-// Version 1, read only: lifted to version 2 on load, where the empty text becomes `cleared`.
+// A note is a text or a clearing, never an empty text.
 message SoulNoted {
-  string soul_id = 1;
-  // Empty cleared the note.
-  string text = 2;
-}
-
-// Version 2: a note is a text or a clearing, never an empty text.
-message SoulNotedV2 {
   string soul_id = 1;
   oneof note {
     // Never empty.

@@ -1,22 +1,28 @@
-//! The fact log against a real SQLite file: readings imported as blobs and facts, the inventory
-//! derived from them, and the whole projection rebuilt from the log alone (ADR-0002).
+//! The fact log against a real SQLite file: snapshots imported as blobs and section facts, the
+//! inventory and the held sections derived from them, and the whole projection rebuilt from the
+//! log alone (ADR-0002, ADR-0032).
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use prost::Message;
 use yata_core::fact::{
-    Channel, Fact, FactBody, Facts, GameAccountId, GameSoulId, Inventory, Mark, NotEstablished,
-    NoteText, Origin, ProbeVersion, ProfileId, Revision, Seq, SoulDefectKind, Source,
+    Fact, FactBody, Facts, GameSoulId, Inventory, Mark, NoteText, Origin, ProfileId, Revision,
 };
-use yata_core::import::observation::SoulField;
-use yata_daemon::probe::convert::blob_of;
+use yata_core::import::capability::{Availability, Capability, availability};
+use yata_core::import::ir::{
+    Completeness, Guild, Provenance, RolledSub, SchemaVersion, Section, SectionKind, SetName,
+    ShikigamiRecord, ShikigamiRoster, SoulRecord, Souls, SourceFormat, SourceId, SpeciesNumber,
+    Valued, YataSnapshot,
+};
+use yata_core::soul::SoulAttribute;
 use yata_daemon::store::blob::digest_of;
 use yata_daemon::store::{
-    CommandOutcome, CommitError, FactLog, IngestError, Provenance, Store, read_commits,
+    CanonicalCodec, CommandOutcome, FactLog, Imported, SnapshotCodec, Store, read_commits,
 };
-use yata_daemon::wire::{self, Code as _};
-use yata_protocol::probe;
 use yata_store::{GetBlob, ReplaceCache, StoreId};
+
+use Completeness::{Complete, Partial, Unstated};
+use SectionKind::{Guild as GuildKind, Shikigami, Souls as SoulsKind};
 
 const P: ProfileId = ProfileId([1; 16]);
 const Q: ProfileId = ProfileId([2; 16]);
@@ -44,7 +50,24 @@ impl Scratch {
     fn log(&self) -> FactLog {
         let store = Store::create_or_open(&self.0.join("store.sqlite3"), || StoreId([7; 16]))
             .expect("store");
-        FactLog::open(store).expect("log")
+        let mut log = FactLog::open(store).expect("log");
+        if log.projection().revision() == Revision::EMPTY {
+            let created = |profile| Fact {
+                profile,
+                body: FactBody::ProfileCreated {
+                    display_name: "main".into(),
+                    account: None,
+                },
+            };
+            log.command(
+                Revision::EMPTY,
+                Origin::Maintenance,
+                0,
+                Facts::new(vec![created(P), created(Q)]).expect("facts"),
+            )
+            .expect("profiles");
+        }
+        log
     }
 }
 
@@ -56,112 +79,126 @@ impl Drop for Scratch {
     }
 }
 
-fn soul(id: &str, level: u32) -> probe::SoulRecord {
-    probe::SoulRecord {
-        soul_id: Some(id.into()),
-        suit_code: Some(30),
-        star: Some(6),
-        slot: Some(2),
-        level: Some(level),
-        main: Some(probe::AttributeValue {
-            attribute_code: 7,
-            value: 57.0,
-        }),
-        subs: Some(probe::SubAttributeValues { items: vec![] }),
-        innate: Some(probe::InnateReading {
-            state: Some(probe::innate_reading::State::None(probe::NoInnate {})),
-        }),
-        locked: Some(false),
-        discarded: Some(false),
-        observed: None,
-    }
-}
-
-fn established_mapping() -> probe::Mapping {
-    probe::Mapping {
-        evidence: Some(probe::mapping::Evidence::Established(probe::Established {
-            basis: "test".into(),
-        })),
-    }
-}
-
-fn inherited_mapping() -> probe::Mapping {
-    probe::Mapping {
-        evidence: Some(probe::mapping::Evidence::Inherited(probe::Inherited {})),
-    }
-}
-
-/// A mapping for every typed field of a soul record, all established.
-fn established() -> probe::SoulMappings {
-    let m = || Some(established_mapping());
-    probe::SoulMappings {
-        soul_id: m(),
-        suit_code: m(),
-        star: m(),
-        slot: m(),
-        level: m(),
-        main: m(),
-        subs: m(),
-        innate: m(),
-        locked: m(),
-        discarded: m(),
-    }
-}
-
-/// The soul records of a reading, which the tests below edit in place.
 #[allow(
-    clippy::panic,
+    clippy::expect_used,
     reason = "test helper: a failure here is the test failing"
 )]
-fn records(r: &mut probe::Reading) -> &mut probe::SoulRecords {
-    let Some(probe::reading::Records::Souls(souls)) = &mut r.records else {
-        panic!("a soul reading")
-    };
-    souls
-}
-
-fn reading(
-    account: &str,
-    coverage: probe::Coverage,
-    souls: Vec<probe::SoulRecord>,
-) -> probe::Reading {
-    probe::Reading {
-        coverage: coverage.into(),
-        observed_account_id: Some(account.into()),
-        records: Some(probe::reading::Records::Souls(probe::SoulRecords {
-            souls,
-            recognition: Some(established_mapping()),
-            mappings: Some(established()),
-        })),
-        ..probe::Reading::default()
+fn soul(id: &str, level: i64) -> SoulRecord {
+    SoulRecord {
+        id: SourceId::new(id).expect("an id"),
+        set: SetName::new("破势").expect("a name"),
+        slot: 2,
+        star: 6,
+        level,
+        main: Valued {
+            attribute: SoulAttribute::Spd,
+            value: 57.0,
+        },
+        rolled: vec![RolledSub {
+            valued: Valued {
+                attribute: SoulAttribute::Crit,
+                value: 3.0,
+            },
+            rolls: Some(1),
+        }],
+        innate: None,
     }
 }
 
-fn complete(account: &str, souls: Vec<probe::SoulRecord>) -> probe::Reading {
-    reading(account, probe::Coverage::Complete, souls)
-}
-
-fn provenance() -> Provenance {
-    Provenance {
-        channel: Channel::DesktopMemory,
-        source: Source::ExportFile,
-        probe_build_id: "test".into(),
-        probe_version: ProbeVersion { major: 1, minor: 0 },
+#[allow(
+    clippy::expect_used,
+    reason = "test helper: a failure here is the test failing"
+)]
+fn shikigami(id: &str) -> ShikigamiRecord {
+    ShikigamiRecord {
+        id: SourceId::new(id).expect("an id"),
+        species: SpeciesNumber(301),
+        level: 40,
+        star: 6,
+        evolved: true,
+        locked: false,
     }
 }
 
-fn fact(profile: ProfileId, body: FactBody) -> Fact {
-    Fact { profile, body }
+fn present<T>(completeness: Completeness, value: T) -> Section<T> {
+    Section::Present {
+        completeness,
+        value,
+    }
 }
 
-fn created(profile: ProfileId) -> Fact {
-    fact(
-        profile,
-        FactBody::ProfileCreated {
-            display_name: "main".into(),
-            account: None,
+fn souls(completeness: Completeness, records: Vec<SoulRecord>) -> Section<Souls> {
+    present(completeness, Souls { souls: records })
+}
+
+fn guild(completeness: Completeness) -> Section<Guild> {
+    present(
+        completeness,
+        Guild {
+            level: 10,
+            member_count: 30,
         },
     )
+}
+
+/// The bytes of the file a snapshot was read from: any bytes, named so each snapshot has its own.
+fn original(name: &str) -> Vec<u8> {
+    format!("file {name}").into_bytes()
+}
+
+/// A snapshot read from the file `name`, with every section absent.
+fn file(name: &str) -> YataSnapshot {
+    YataSnapshot {
+        schema: SchemaVersion::CURRENT,
+        provenance: Provenance {
+            format: SourceFormat::YataSnapshot(SchemaVersion::CURRENT),
+            original: digest_of(&original(name)),
+        },
+        captured_at: None,
+        souls: Section::Absent,
+        shikigami: Section::Absent,
+        presets: Section::Absent,
+        assets: Section::Absent,
+        guild: Section::Absent,
+    }
+}
+
+#[allow(
+    clippy::expect_used,
+    reason = "test helper: a failure here is the test failing"
+)]
+fn import(log: &mut FactLog, profile: ProfileId, name: &str, snapshot: &YataSnapshot) -> Imported {
+    log.import(
+        profile,
+        snapshot,
+        &original(name),
+        &CanonicalCodec,
+        Origin::Job { job_id: 1 },
+        0,
+    )
+    .expect("imports")
+}
+
+#[allow(
+    clippy::expect_used,
+    reason = "test helper: a failure here is the test failing"
+)]
+fn inventory(log: &mut FactLog, profile: ProfileId) -> Inventory {
+    log.inventory(profile, &CanonicalCodec).expect("derives")
+}
+
+fn levels(inv: &Inventory) -> Vec<(String, u32)> {
+    inv.souls()
+        .map(|s| (s.id.as_str().to_owned(), u32::from(s.soul.level.get())))
+        .collect()
+}
+
+#[allow(
+    clippy::expect_used,
+    reason = "test helper: a failure here is the test failing"
+)]
+fn held(log: &FactLog, profile: ProfileId) -> BTreeMap<SectionKind, Completeness> {
+    log.held(profile).expect("a profile")
 }
 
 #[allow(
@@ -172,116 +209,267 @@ fn id(s: &str) -> GameSoulId {
     GameSoulId::new(s).expect("non-empty")
 }
 
-fn mark(profile: ProfileId, soul: &str, mark: Option<Mark>) -> Fact {
-    fact(
-        profile,
-        FactBody::SoulMarked {
-            soul: id(soul),
-            mark,
-        },
-    )
-}
-
-#[allow(
-    clippy::expect_used,
-    reason = "test helper: a failure here is the test failing"
-)]
-fn ingest(log: &mut FactLog, profile: ProfileId, result: &probe::Reading) -> Seq {
-    log.ingest(profile, result, provenance(), Origin::Job { job_id: 1 }, 0)
-        .expect("ingests")
-        .seq
-}
-
-fn souls(inv: &Inventory) -> Vec<(String, u32)> {
-    inv.souls()
-        .map(|s| (s.id().as_str().to_owned(), s.soul.level.0))
-        .collect()
-}
-
-#[allow(
-    clippy::expect_used,
-    reason = "test helper: a failure here is the test failing"
-)]
-fn seq(n: u64) -> Seq {
-    Seq::new(n).expect("a seq")
-}
-
-/// A command formed against the current revision.
-#[allow(
-    clippy::expect_used,
-    reason = "test helper: a failure here is the test failing"
-)]
-fn commit(
-    log: &mut FactLog,
-    origin: Origin,
-    at: i64,
-    facts: Vec<Fact>,
-) -> Result<CommandOutcome, CommitError> {
-    let base = log.projection().revision();
-    log.command(
-        base,
-        origin,
-        at,
-        Facts::new(facts).expect("at least one fact"),
-    )
-}
-
-/// Two profiles, three readings, a retraction, marks and a note: every kind of fact.
-#[allow(
-    clippy::expect_used,
-    reason = "test helper: a failure here is the test failing"
-)]
-fn populate(log: &mut FactLog) {
-    let at = |s| Origin::Command { request_id: s };
-    commit(log, at(1), 1_000, vec![created(P), created(Q)]).expect("profiles");
-    ingest(log, P, &complete("p", vec![soul("a", 12), soul("b", 3)]));
-    ingest(
-        log,
-        P,
-        &reading("p", probe::Coverage::Partial, vec![soul("b", 6)]),
+#[test]
+fn souls_alone_give_the_inventory_and_nothing_else() {
+    let dir = Scratch::new("souls-only");
+    let mut log = dir.log();
+    let s = YataSnapshot {
+        souls: souls(Complete, vec![soul("a", 12), soul("b", 3)]),
+        ..file("1")
+    };
+    import(&mut log, P, "1", &s);
+    assert_eq!(
+        levels(&inventory(&mut log, P)),
+        vec![("a".into(), 12), ("b".into(), 3)]
     );
-    let wrong = complete("p", vec![soul("z", 0)]);
-    ingest(log, P, &wrong);
-    commit(
-        log,
-        at(2),
-        2_000,
-        vec![fact(
-            P,
-            FactBody::SnapshotRetracted {
-                digest: digest_of(&blob_of(&wrong)),
-                reason: "test".into(),
+    let held = held(&log, P);
+    assert_eq!(held, BTreeMap::from([(SoulsKind, Complete)]));
+    assert_eq!(
+        availability(&held, Capability::Inventory),
+        Availability::Available {
+            completeness: Complete
+        }
+    );
+    assert!(matches!(
+        availability(&held, Capability::ShikigamiCollection),
+        Availability::Unavailable { .. }
+    ));
+}
+
+#[test]
+fn souls_and_shikigami_give_both_capabilities() {
+    let dir = Scratch::new("souls-shikigami");
+    let mut log = dir.log();
+    let s = YataSnapshot {
+        souls: souls(Complete, vec![soul("a", 15)]),
+        shikigami: present(
+            Partial,
+            ShikigamiRoster {
+                instances: vec![shikigami("s1")],
             },
-        )],
-    )
-    .expect("retract");
-    commit(
-        log,
-        at(3),
-        3_000,
-        vec![
-            mark(P, "a", Some(Mark::Keep)),
-            fact(
-                P,
-                FactBody::SoulNoted {
-                    soul: id("b"),
-                    note: NoteText::new("双速"),
-                },
-            ),
-        ],
-    )
-    .expect("decisions");
-    ingest(log, Q, &complete("q", vec![soul("a", 15)]));
+        ),
+        ..file("1")
+    };
+    import(&mut log, P, "1", &s);
+    let held = held(&log, P);
+    assert_eq!(
+        held,
+        BTreeMap::from([(SoulsKind, Complete), (Shikigami, Partial)])
+    );
+    assert_eq!(
+        availability(&held, Capability::ShikigamiCollection),
+        Availability::Available {
+            completeness: Partial
+        }
+    );
+    assert_eq!(levels(&inventory(&mut log, P)), vec![("a".into(), 15)]);
+}
+
+#[test]
+fn a_guild_alone_holds_the_guild_and_no_souls() {
+    let dir = Scratch::new("guild-only");
+    let mut log = dir.log();
+    import(
+        &mut log,
+        P,
+        "1",
+        &YataSnapshot {
+            guild: guild(Complete),
+            ..file("1")
+        },
+    );
+    assert_eq!(held(&log, P), BTreeMap::from([(GuildKind, Complete)]));
+    assert!(inventory(&mut log, P).is_empty());
+    assert!(matches!(
+        availability(&held(&log, P), Capability::Inventory),
+        Availability::Unavailable { .. }
+    ));
+}
+
+#[test]
+fn a_present_guild_is_held_and_an_absent_one_is_not() {
+    let dir = Scratch::new("guild-present-absent");
+    let mut log = dir.log();
+    let with = YataSnapshot {
+        souls: souls(Complete, vec![]),
+        guild: guild(Unstated),
+        ..file("1")
+    };
+    let without = YataSnapshot {
+        souls: souls(Complete, vec![]),
+        ..file("2")
+    };
+    import(&mut log, P, "1", &with);
+    import(&mut log, Q, "2", &without);
+    assert_eq!(
+        held(&log, P),
+        BTreeMap::from([(SoulsKind, Complete), (GuildKind, Unstated)])
+    );
+    assert_eq!(held(&log, Q), BTreeMap::from([(SoulsKind, Complete)]));
+}
+
+#[test]
+fn a_partial_import_updates_souls_and_removes_none() {
+    let dir = Scratch::new("partial");
+    let mut log = dir.log();
+    let full = YataSnapshot {
+        souls: souls(Complete, vec![soul("a", 12), soul("b", 3)]),
+        ..file("1")
+    };
+    let partial = YataSnapshot {
+        souls: souls(Partial, vec![soul("b", 6), soul("c", 0)]),
+        ..file("2")
+    };
+    import(&mut log, P, "1", &full);
+    import(&mut log, P, "2", &partial);
+    assert_eq!(
+        levels(&inventory(&mut log, P)),
+        vec![("a".into(), 12), ("b".into(), 6), ("c".into(), 0)]
+    );
+    assert_eq!(held(&log, P), BTreeMap::from([(SoulsKind, Complete)]));
+}
+
+#[test]
+fn an_import_without_the_guild_keeps_the_guild() {
+    let dir = Scratch::new("keeps-guild");
+    let mut log = dir.log();
+    let both = YataSnapshot {
+        souls: souls(Complete, vec![soul("a", 12)]),
+        guild: guild(Complete),
+        ..file("1")
+    };
+    let souls_only = YataSnapshot {
+        souls: souls(Complete, vec![soul("b", 15)]),
+        ..file("2")
+    };
+    let first = import(&mut log, P, "1", &both);
+    import(&mut log, P, "2", &souls_only);
+    let state = log.projection().profile(P).expect("P");
+    assert_eq!(
+        state.live(GuildKind).base,
+        Some((first.seq, first.snapshot))
+    );
+    assert_eq!(
+        held(&log, P),
+        BTreeMap::from([(SoulsKind, Complete), (GuildKind, Complete)])
+    );
+    assert_eq!(levels(&inventory(&mut log, P)), vec![("b".into(), 15)]);
+}
+
+#[test]
+fn importing_the_same_snapshot_again_changes_nothing_but_the_log() {
+    let dir = Scratch::new("repeat");
+    let mut log = dir.log();
+    let s = YataSnapshot {
+        souls: souls(Complete, vec![soul("a", 12)]),
+        guild: guild(Partial),
+        ..file("1")
+    };
+    let first = import(&mut log, P, "1", &s);
+    let (inv, held_once) = (inventory(&mut log, P), held(&log, P));
+    let second = import(&mut log, P, "1", &s);
+    assert_eq!(first.snapshot, second.snapshot);
+    assert_eq!(levels(&inventory(&mut log, P)), levels(&inv));
+    assert_eq!(held(&log, P), held_once);
+    // Two observations, one blob of each kind.
+    let mut store = log.into_store();
+    assert_eq!(read_commits(&mut store).map(|c| c.len()), Ok(3));
+    for digest in [first.snapshot, digest_of(&original("1"))] {
+        assert!(matches!(
+            store.apply(GetBlob {
+                digest: yata_store::Digest(digest.0)
+            }),
+            Ok(Some(_))
+        ));
+    }
+}
+
+#[test]
+fn a_retraction_withdraws_every_section_of_its_snapshot() {
+    let dir = Scratch::new("retract");
+    let mut log = dir.log();
+    let kept = YataSnapshot {
+        souls: souls(Complete, vec![soul("a", 12)]),
+        ..file("1")
+    };
+    let wrong = YataSnapshot {
+        souls: souls(Complete, vec![soul("z", 0)]),
+        guild: guild(Complete),
+        ..file("2")
+    };
+    import(&mut log, P, "1", &kept);
+    let landed = import(&mut log, P, "2", &wrong);
+    let revision = log.projection().revision();
+    let retract = Facts::one(Fact {
+        profile: P,
+        body: FactBody::SnapshotRetracted {
+            snapshot: landed.snapshot,
+            reason: "another account".into(),
+        },
+    });
+    assert!(matches!(
+        log.command(revision, Origin::Command { request_id: 9 }, 0, retract),
+        Ok(CommandOutcome::Applied { .. })
+    ));
+    assert_eq!(levels(&inventory(&mut log, P)), vec![("a".into(), 12)]);
+    assert_eq!(held(&log, P), BTreeMap::from([(SoulsKind, Complete)]));
 }
 
 #[test]
 fn the_projection_rebuilds_from_the_log_alone() {
     let dir = Scratch::new("rebuild");
     let mut log = dir.log();
-    populate(&mut log);
+    import(
+        &mut log,
+        P,
+        "1",
+        &YataSnapshot {
+            souls: souls(Complete, vec![soul("a", 12), soul("b", 3)]),
+            guild: guild(Complete),
+            ..file("1")
+        },
+    );
+    import(
+        &mut log,
+        P,
+        "2",
+        &YataSnapshot {
+            souls: souls(Partial, vec![soul("b", 6)]),
+            ..file("2")
+        },
+    );
+    import(
+        &mut log,
+        Q,
+        "3",
+        &YataSnapshot {
+            souls: souls(Complete, vec![soul("a", 15)]),
+            ..file("3")
+        },
+    );
+    let revision = log.projection().revision();
+    let decisions = Facts::new(vec![
+        Fact {
+            profile: P,
+            body: FactBody::SoulMarked {
+                soul: id("a"),
+                mark: Some(Mark::Keep),
+            },
+        },
+        Fact {
+            profile: P,
+            body: FactBody::SoulNoted {
+                soul: id("b"),
+                note: NoteText::new("双速"),
+            },
+        },
+    ])
+    .expect("facts");
+    log.command(revision, Origin::Command { request_id: 3 }, 0, decisions)
+        .expect("decisions");
     let projection = log.projection().clone();
-    let (p, q) = (log.inventory(P).expect("P"), log.inventory(Q).expect("Q"));
-    assert_eq!(souls(&p), vec![("a".into(), 12), ("b".into(), 6)]);
+    let (p, q) = (inventory(&mut log, P), inventory(&mut log, Q));
+    assert_eq!(levels(&p), vec![("a".into(), 12), ("b".into(), 6)]);
     assert_eq!(p.get(&id("a")).and_then(|s| s.mark), Some(Mark::Keep));
     assert_eq!(
         p.get(&id("b")).and_then(|s| s.note.clone()),
@@ -306,304 +494,26 @@ fn the_projection_rebuilds_from_the_log_alone() {
 
     let mut rebuilt = dir.log();
     assert_eq!(rebuilt.projection(), &projection);
-    assert_eq!(rebuilt.inventory(P), Ok(p));
-    assert_eq!(rebuilt.inventory(Q), Ok(q));
+    assert_eq!(rebuilt.held(P), Some(held_of(&projection, P)));
+    assert_eq!(inventory(&mut rebuilt, P), p);
+    assert_eq!(inventory(&mut rebuilt, Q), q);
+}
+
+fn held_of(
+    p: &yata_core::fact::Projection,
+    profile: ProfileId,
+) -> BTreeMap<SectionKind, Completeness> {
+    p.profile(profile).map(|s| s.held()).unwrap_or_default()
 }
 
 #[test]
-fn the_log_copied_into_another_store_folds_to_the_same_state() {
-    let (a, b) = (Scratch::new("copy-a"), Scratch::new("copy-b"));
-    let mut original = a.log();
-    populate(&mut original);
-    let expected = original.projection().clone();
-    let mut source = original.into_store();
-    let commits = read_commits(&mut source).expect("reads");
-
-    // Replay the same facts through a second log, commit by commit, with blobs copied by digest.
-    let mut copy = b.log();
-    for c in commits {
-        for f in c.facts.as_slice() {
-            if let FactBody::SnapshotAcquired(acq) = &f.body {
-                let stored = source
-                    .apply(GetBlob {
-                        digest: yata_store::Digest(acq.digest.0),
-                    })
-                    .expect("reads")
-                    .expect("blob present");
-                let bytes =
-                    yata_daemon::store::blob::open(&acq.digest, &stored).expect("blob opens");
-                let result = probe::Reading::decode(bytes.as_slice()).expect("a reading");
-                copy.ingest(
-                    f.profile,
-                    &result,
-                    Provenance {
-                        channel: acq.channel,
-                        source: acq.source,
-                        probe_build_id: acq.probe_build_id.clone(),
-                        probe_version: acq.probe_version,
-                    },
-                    c.origin,
-                    c.recorded_at_ms,
-                )
-                .expect("ingests");
-            }
-        }
-        let others: Vec<Fact> = c
-            .facts
-            .into_vec()
-            .into_iter()
-            .filter(|f| !matches!(f.body, FactBody::SnapshotAcquired(_)))
-            .collect();
-        if !others.is_empty() {
-            commit(&mut copy, c.origin, c.recorded_at_ms, others).expect("commits");
-        }
-    }
-    assert_eq!(copy.projection(), &expected);
-}
-
-#[test]
-fn a_repeated_import_is_a_second_observation_of_one_blob() {
-    let dir = Scratch::new("repeat");
-    let mut log = dir.log();
-    commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    let bytes = complete("p", vec![soul("a", 15)]);
-    let first = log
-        .ingest(P, &bytes, provenance(), Origin::Job { job_id: 1 }, 0)
-        .expect("first");
-    let after_first = log.inventory(P).expect("inventory");
-    let second = log
-        .ingest(P, &bytes, provenance(), Origin::Job { job_id: 2 }, 0)
-        .expect("second");
-    assert_eq!((first.seq, second.seq), (seq(2), seq(3)));
-    assert_eq!(first.digest, second.digest);
-    let state = log.projection().profile(P).expect("P");
-    assert_eq!(state.acquisitions().len(), 2);
-    let again = log.inventory(P).expect("inventory");
-    assert_eq!(souls(&again), souls(&after_first));
-    assert_eq!(again.get(&id("a")).map(|s| s.observed_at), Some(seq(3)));
-}
-
-#[test]
-fn a_newer_reading_updates_removes_and_restores_souls() {
-    let dir = Scratch::new("newer");
-    let mut log = dir.log();
-    commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    ingest(
-        &mut log,
-        P,
-        &complete("p", vec![soul("a", 12), soul("b", 0)]),
-    );
-    commit(
-        &mut log,
-        Origin::Maintenance,
-        0,
-        vec![mark(P, "b", Some(Mark::Discard))],
-    )
-    .expect("mark");
-    ingest(&mut log, P, &complete("p", vec![soul("a", 15)]));
-    let inv = log.inventory(P).expect("inventory");
-    assert_eq!(souls(&inv), vec![("a".into(), 15)]);
-    ingest(
-        &mut log,
-        P,
-        &complete("p", vec![soul("a", 15), soul("b", 0)]),
-    );
-    let inv = log.inventory(P).expect("inventory");
-    assert_eq!(inv.get(&id("b")).and_then(|s| s.mark), Some(Mark::Discard));
-}
-
-#[test]
-fn profiles_are_isolated_and_a_reading_never_crosses_accounts() {
-    let dir = Scratch::new("profiles");
-    let mut log = dir.log();
-    commit(
-        &mut log,
-        Origin::Maintenance,
-        0,
-        vec![created(P), created(Q)],
-    )
-    .expect("profiles");
-    ingest(&mut log, P, &complete("p", vec![soul("a", 15)]));
-    ingest(
-        &mut log,
-        Q,
-        &complete("q", vec![soul("a", 3), soul("c", 0)]),
-    );
-    commit(
-        &mut log,
-        Origin::Maintenance,
-        0,
-        vec![mark(Q, "a", Some(Mark::Strengthen))],
-    )
-    .expect("mark");
-    let p = log.inventory(P).expect("P");
-    assert_eq!(souls(&p), vec![("a".into(), 15)]);
-    assert_eq!(p.get(&id("a")).and_then(|s| s.mark), None);
-
-    let revision = log.projection().revision();
-    let e = log
-        .ingest(
-            P,
-            &complete("q", vec![]),
-            provenance(),
-            Origin::Job { job_id: 9 },
-            0,
-        )
-        .expect_err("another account");
-    assert_eq!(wire::ingest_failure(&e).code(), "import.profile_mismatch");
-    assert_eq!(log.projection().revision(), revision);
-    assert_eq!(log.inventory(P), Ok(p));
-    assert_eq!(
-        log.projection()
-            .profile(P)
-            .and_then(|s| s.known_account())
-            .map(GameAccountId::as_str),
-        Some("p")
-    );
-}
-
-#[test]
-fn a_fact_that_changes_nothing_is_not_written() {
-    let dir = Scratch::new("noop");
-    let mut log = dir.log();
-    commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    let keep = || vec![mark(P, "a", Some(Mark::Keep))];
-    assert_eq!(
-        commit(&mut log, Origin::Maintenance, 0, keep()),
-        Ok(CommandOutcome::Applied {
-            revision: Revision::at(seq(2))
-        })
-    );
-    assert_eq!(
-        commit(&mut log, Origin::Maintenance, 0, keep()),
-        Ok(CommandOutcome::Unchanged {
-            revision: Revision::at(seq(2))
-        })
-    );
-    assert_eq!(
-        commit(
-            &mut log,
-            Origin::Maintenance,
-            0,
-            vec![mark(P, "a", None), mark(P, "a", Some(Mark::Keep))]
-        ),
-        Ok(CommandOutcome::Unchanged {
-            revision: Revision::at(seq(2))
-        })
-    );
-    assert_eq!(log.projection().revision(), Revision::at(seq(2)));
-    let mut store = log.into_store();
-    assert_eq!(read_commits(&mut store).map(|c| c.len()), Ok(2));
-}
-
-#[test]
-fn an_impossible_reading_is_refused_and_writes_nothing() {
-    let dir = Scratch::new("impossible");
-    let mut log = dir.log();
-    commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    let twice = complete("p", vec![soul("a", 15), soul("a", 12)]);
-    let e = log
-        .ingest(P, &twice, provenance(), Origin::Job { job_id: 1 }, 0)
-        .expect_err("duplicate soul");
-    assert_eq!(wire::ingest_failure(&e).code(), "import.duplicate_soul");
-    let unknown = complete("p", vec![soul("a", 15)]);
-    assert!(matches!(
-        log.ingest(Q, &unknown, provenance(), Origin::Job { job_id: 1 }, 0),
-        Err(IngestError::Commit(CommitError::Refused(_)))
-    ));
-    assert_eq!(log.projection().revision(), Revision::at(seq(1)));
-    let mut store = log.into_store();
-    for bytes in [&twice, &unknown] {
-        let digest = yata_store::Digest(digest_of(&blob_of(bytes)).0);
-        assert_eq!(store.apply(GetBlob { digest }), Ok(None));
-    }
-}
-
-#[test]
-fn a_record_that_cannot_be_a_soul_is_kept_reported_and_left_out() {
-    let dir = Scratch::new("defect");
-    let mut log = dir.log();
-    commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    let mut bad = soul("b", 15);
-    bad.star = Some(0);
-    let landed = log
-        .ingest(
-            P,
-            &complete("p", vec![soul("a", 15), bad]),
-            provenance(),
-            Origin::Job { job_id: 1 },
-            0,
-        )
-        .expect("ingests");
-    assert_eq!(landed.defects.len(), 1);
-    assert_eq!(landed.defects[0].kind, SoulDefectKind::Star(0));
-    let inv = log.inventory(P).expect("inventory");
-    assert_eq!(souls(&inv), vec![("a".into(), 15)]);
-    let reported: Vec<_> = inv.defects().iter().map(|d| (&d.soul, d.kind)).collect();
-    let landed: Vec<_> = landed.defects.iter().map(|d| (&d.soul, d.kind)).collect();
-    assert_eq!(reported, landed);
-}
-
-#[test]
-fn a_reading_without_an_established_soul_id_is_refused_and_writes_nothing() {
-    let dir = Scratch::new("unestablished");
-    let mut log = dir.log();
-    commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    // A soul id the reader states only as inherited.
-    let only_id = probe::SoulRecord {
-        soul_id: Some("a".into()),
-        ..probe::SoulRecord::default()
+fn the_canonical_codec_gives_one_snapshot_one_digest() {
+    let s = YataSnapshot {
+        souls: souls(Complete, vec![soul("a", 12)]),
+        ..file("1")
     };
-    let mut inherited = complete("p", vec![only_id]);
-    records(&mut inherited).mappings = Some(probe::SoulMappings {
-        soul_id: Some(inherited_mapping()),
-        ..probe::SoulMappings::default()
-    });
-    let e = log
-        .ingest(P, &inherited, provenance(), Origin::Job { job_id: 1 }, 0)
-        .expect_err("unestablished");
-    assert_eq!(
-        wire::ingest_failure(&e).code(),
-        "import.unestablished_identity"
-    );
-    // What the reader sends today: records with no typed field, and nothing mapped.
-    let mut today = complete("p", vec![probe::SoulRecord::default()]);
-    records(&mut today).mappings = Some(probe::SoulMappings::default());
-    let e = log
-        .ingest(P, &today, provenance(), Origin::Job { job_id: 2 }, 0)
-        .expect_err("unmapped");
-    assert_eq!(
-        wire::ingest_failure(&e).code(),
-        "import.unestablished_identity"
-    );
-    // Values on fields the reading does not map contradict it.
-    let mut stray = complete("p", vec![soul("a", 15)]);
-    records(&mut stray).mappings = Some(probe::SoulMappings::default());
-    let e = log
-        .ingest(P, &stray, provenance(), Origin::Job { job_id: 3 }, 0)
-        .expect_err("contradictory");
-    assert_eq!(wire::ingest_failure(&e).code(), "import.malformed_reading");
-    assert_eq!(log.projection().revision(), Revision::at(seq(1)));
-}
-
-#[test]
-fn a_record_whose_row_fields_are_not_established_is_reported_not_a_row() {
-    let dir = Scratch::new("inherited-fields");
-    let mut log = dir.log();
-    commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    let mut r = complete("p", vec![soul("a", 15)]);
-    if let Some(m) = &mut records(&mut r).mappings {
-        m.suit_code = Some(inherited_mapping());
-    }
-    let landed = log
-        .ingest(P, &r, provenance(), Origin::Job { job_id: 1 }, 0)
-        .expect("ingests");
-    assert_eq!(
-        landed.defects[0].kind,
-        SoulDefectKind::Unestablished {
-            field: SoulField::SuitCode,
-            evidence: NotEstablished::Inherited
-        }
-    );
-    assert!(log.inventory(P).expect("inventory").is_empty());
+    let codec = CanonicalCodec;
+    let bytes = codec.encode(&s);
+    assert_eq!(codec.encode(&s.clone()), bytes);
+    assert_eq!(codec.decode(&bytes), Ok(s));
 }

@@ -47,8 +47,6 @@ commands:
   scheme build-discard <header-code> <plans.txt> [<qr.png>]
                                           a discard code of every plan in a plan file
 
-{PROBE}
-
 A <code> is a PNG image holding one QR code, or a text file holding the Base64 text.
 A <header-code> is a <code>, or `const` for the constant header segment (ADR-0022).
 A plan file has one plan per line: name | souls (all, or soul bits) | solved filter bits.";
@@ -107,12 +105,8 @@ fn main() -> ExitCode {
         ["scheme", "build-discard", _, _, _] => {
             build(path(2), path(3), Some(path(4)), SchemeKind::Discard)
         }
-        ["probe", ..] => yata_daemon::probe::cli::run(&args[1..]),
         _ => {
-            eprintln!(
-                "{}",
-                USAGE.replace("{PROBE}", yata_daemon::probe::cli::USAGE)
-            );
+            eprintln!("{USAGE}");
             ExitCode::from(2)
         }
     }

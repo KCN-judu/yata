@@ -1,6 +1,9 @@
 //! The fact catalogue of `fact-format.md`, § Fact kinds, for the kinds implemented so far.
 
+use std::collections::BTreeMap;
 use std::num::NonZeroU64;
+
+use crate::import::ir::{Completeness, SectionKind, SourceFormat, YataSnapshot};
 
 /// A SHA-256 digest: the identity of a blob (`fact-format.md`, § Blobs and content addressing).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -67,12 +70,12 @@ pub enum IdError {
     Empty,
 }
 
-/// The game's identifier for one soul, as the probe read it. The store never invents one; soul
-/// identity is `(profile, game soul id)`.
+/// The game's identifier for one soul, as an imported snapshot states it. The store never invents
+/// one; soul identity is `(profile, game soul id)`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GameSoulId(String);
 
-/// The game's identifier for an account, as the probe read it.
+/// The game's identifier for an account, as the user named it when creating a profile.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GameAccountId(String);
 
@@ -104,41 +107,6 @@ impl GameSoulId {
     }
 }
 
-/// What a reading covers. Scopes are added as the probe gains them (`GameAssets` is designed and
-/// waits on the probe).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Scope {
-    Souls,
-}
-
-/// Whether a snapshot covers its whole scope. A complete snapshot supersedes every earlier one of
-/// the same `(profile, scope)`; a partial one supersedes nothing (`fact-format.md`, § Acquisition).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Coverage {
-    Complete,
-    Partial,
-}
-
-/// How the reading reached the game (ADR-0006).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Channel {
-    DesktopMemory,
-}
-
-/// Whether the reading arrived from a running probe or from its export file (ADR-0008).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Source {
-    Live,
-    ExportFile,
-}
-
-/// The probe protocol version the reading was made under.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ProbeVersion {
-    pub major: u32,
-    pub minor: u32,
-}
-
 /// A user's mark on a soul. A `SoulMarked` fact carries `Option<Mark>`, and `None` clears it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Mark {
@@ -147,19 +115,42 @@ pub enum Mark {
     Strengthen,
 }
 
-/// The payload of `SnapshotAcquired`: one read from the game landed. The reading's bytes are the
-/// blob named by `digest`; everything else is provenance.
+/// The sections one import holds, each with its completeness (ADR-0032, rule 4): at least one,
+/// and each kind once.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Sections(BTreeMap<SectionKind, Completeness>);
+
+impl Sections {
+    /// `None` for no sections: an import of nothing is not an import.
+    pub fn new(sections: BTreeMap<SectionKind, Completeness>) -> Option<Sections> {
+        (!sections.is_empty()).then_some(Sections(sections))
+    }
+
+    /// The sections a snapshot holds; `None` when it holds none.
+    pub fn of(snapshot: &YataSnapshot) -> Option<Sections> {
+        Sections::new(snapshot.sections().into_iter().collect())
+    }
+
+    /// The completeness this import states for `kind`, or `None` when it does not carry it.
+    pub fn get(&self, kind: SectionKind) -> Option<Completeness> {
+        self.0.get(&kind).copied()
+    }
+
+    pub fn as_map(&self) -> &BTreeMap<SectionKind, Completeness> {
+        &self.0
+    }
+}
+
+/// The payload of `SnapshotImported`: one imported file landed (ADR-0032, rule 4). The snapshot's
+/// canonical encoding and the file as imported are blobs; the rest is what the fold reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Acquisition {
-    pub digest: Digest,
-    pub scope: Scope,
-    pub coverage: Coverage,
-    pub channel: Channel,
-    pub source: Source,
-    pub probe_build_id: String,
-    pub probe_version: ProbeVersion,
-    /// The account the reading belongs to; `None` when the probe did not read it.
-    pub observed_account: Option<GameAccountId>,
+pub struct SnapshotImport {
+    /// The blob of the IR's canonical binary encoding.
+    pub snapshot: Digest,
+    /// The blob of the file as imported.
+    pub original: Digest,
+    pub source: SourceFormat,
+    pub sections: Sections,
 }
 
 /// A note's text: never empty. Clearing a note is its own case, `None`, not an empty text.
@@ -199,10 +190,10 @@ pub enum FactBody {
     /// Hidden from the UI; its facts remain.
     ProfileRetired,
     ProfileRestored,
-    SnapshotAcquired(Acquisition),
-    /// Every earlier acquisition of this blob in this profile is withdrawn.
+    SnapshotImported(SnapshotImport),
+    /// Every earlier import of this snapshot in this profile is withdrawn, all its sections.
     SnapshotRetracted {
-        digest: Digest,
+        snapshot: Digest,
         /// Informational; the fold never reads it.
         reason: String,
     },
@@ -276,6 +267,19 @@ mod tests {
                 .and_then(Revision::next),
             None
         );
+    }
+
+    #[test]
+    fn an_import_holds_at_least_one_section() {
+        use crate::import::ir::{Completeness, SectionKind};
+        assert_eq!(Sections::new(BTreeMap::new()), None);
+        let one = Sections::new(BTreeMap::from([(
+            SectionKind::Guild,
+            Completeness::Unstated,
+        )]))
+        .expect("one section");
+        assert_eq!(one.get(SectionKind::Guild), Some(Completeness::Unstated));
+        assert_eq!(one.get(SectionKind::Souls), None);
     }
 
     #[test]

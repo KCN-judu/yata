@@ -6,7 +6,7 @@
 //! [`crate::query::convert`], whose attribute and slot mappings this module reuses, so each enum
 //! is mapped in one place.
 
-use yata_core::fact::{AdmissionError, FoldError, ProfileId, Revision, Seq};
+use yata_core::fact::{ProfileId, Revision, Seq};
 use yata_core::scheme::code::{DiscardScheme, SchemeCode, StrengtheningPlan};
 use yata_core::scheme::selection::{
     LevelBand, SetBit, SetChoice, SoulSelection, SubAttributeMode, SubCount,
@@ -17,7 +17,7 @@ use yata_protocol::core as pb;
 use crate::qr::QrMatrix;
 use crate::query::convert::{wire_attribute, wire_slot};
 use crate::store::fact::FactError;
-use crate::store::{CommitError, IngestError, LoadError, OpenError};
+use crate::store::{CommitError, ImportError, LoadError, OpenError};
 
 /// The stable dotted code of a failure (`core-protocol.md`, "Errors"): the failure oneof's field
 /// name with its first `_` read as `.`. Implemented for the three failure sets by generated code.
@@ -80,6 +80,10 @@ pub fn open_failure(e: &OpenError) -> pb::error::Kind {
         OpenError::NewerFormat { .. } => Kind::StoreNewerFormat(pb::StoreNewerFormat {
             problem: problem(e),
         }),
+        // No code names a retired format yet; the problem says which and why (ADR-0032).
+        OpenError::RetiredFormat { .. } => Kind::StoreFailure(pb::StoreFailure {
+            problem: problem(e),
+        }),
         OpenError::NoFormatVersion => Kind::StoreNoFormatVersion(pb::StoreNoFormatVersion {}),
         OpenError::Damaged { problems } => Kind::StoreDamaged(pb::StoreDamaged {
             problems: problems.clone(),
@@ -90,13 +94,11 @@ pub fn open_failure(e: &OpenError) -> pb::error::Kind {
     }
 }
 
-/// Why a stored commit did not decode (`store.newer_format`, `store.malformed_commit`).
+/// Why a stored commit did not decode (`store.malformed_commit`). A newer format is refused when
+/// the store is opened, before any commit is read (ADR-0032, rule 2).
 pub fn fact_failure(e: &FactError) -> pb::error::Kind {
     use pb::error::Kind;
     match e {
-        FactError::NewerFormat { .. } => Kind::StoreNewerFormat(pb::StoreNewerFormat {
-            problem: problem(e),
-        }),
         FactError::TooLarge { .. }
         | FactError::Malformed { .. }
         | FactError::SeqMismatch { .. } => Kind::StoreMalformedCommit(pb::StoreMalformedCommit {
@@ -123,11 +125,6 @@ pub fn load_failure(e: &LoadError) -> pb::error::Kind {
 pub fn commit_failure(e: &CommitError) -> pb::error::Kind {
     use pb::error::Kind;
     match e {
-        CommitError::Refused(f @ FoldError::ProfileMismatch { .. }) => {
-            Kind::ImportProfileMismatch(pb::ImportProfileMismatch {
-                problem: problem(f),
-            })
-        }
         CommitError::Refused(f) => Kind::CommandRefused(pb::CommandRefused {
             problem: problem(f),
         }),
@@ -140,42 +137,20 @@ pub fn commit_failure(e: &CommitError) -> pb::error::Kind {
     }
 }
 
-/// Why the fact log refused a reading. The core names the failure; its code is the wire's.
-pub fn admission_failure(e: &AdmissionError) -> pb::error::Kind {
+/// Why a snapshot could not be imported. The codes still carry the reader's word, "reading";
+/// they name the same failures of an imported snapshot.
+pub fn import_failure(e: &ImportError) -> pb::error::Kind {
     use pb::error::Kind;
     match e {
-        AdmissionError::UnestablishedIdentity { evidence } => {
-            Kind::ImportUnestablishedIdentity(pb::ImportUnestablishedIdentity {
-                evidence: problem(evidence),
-            })
-        }
-        AdmissionError::DuplicateSoul { soul } => {
-            Kind::ImportDuplicateSoul(pb::ImportDuplicateSoul {
-                soul_id: soul.as_str().to_owned(),
-            })
-        }
-        AdmissionError::MissingSoulId { .. }
-        | AdmissionError::EmptySoulId { .. }
-        | AdmissionError::EmptyAccount => {
-            Kind::ImportMalformedReading(pb::ImportMalformedReading {
-                problem: problem(e),
-            })
-        }
-    }
-}
-
-/// Why a reading could not be imported.
-pub fn ingest_failure(e: &IngestError) -> pb::error::Kind {
-    use pb::error::Kind;
-    match e {
-        IngestError::Convert(f) => Kind::ImportMalformedReading(pb::ImportMalformedReading {
+        ImportError::NoSections
+        | ImportError::OriginalMismatch { .. }
+        | ImportError::Refused(_) => Kind::ImportMalformedReading(pb::ImportMalformedReading {
+            problem: problem(e),
+        }),
+        ImportError::Blob(f) => Kind::ImportReadingTooLarge(pb::ImportReadingTooLarge {
             problem: problem(f),
         }),
-        IngestError::Refused(f) => admission_failure(f),
-        IngestError::Blob(f) => Kind::ImportReadingTooLarge(pb::ImportReadingTooLarge {
-            problem: problem(f),
-        }),
-        IngestError::Commit(f) => commit_failure(f),
+        ImportError::Commit(f) => commit_failure(f),
     }
 }
 
