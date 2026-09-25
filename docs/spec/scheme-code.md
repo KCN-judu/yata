@@ -84,7 +84,7 @@ the game's.
 SoulSelection {
   sets             : SetChoice
   slots            : { SoulSlot }
-  stars            : { Star }                             // 1★ to 6★
+    stars            : { Star }                             // 1★ to 6★ (soul-mechanics.md)
   main_attributes  : { SoulAttribute }
   sub_attributes   : SoulAttribute → SubAttributeMode    // absent key = Ignore
   levels           : { LevelBand }
@@ -92,7 +92,10 @@ SoulSelection {
   sub_counts       : { SubCount }                         // 数量: how many sub-attributes
 }
 
-SetChoice        = AnySet | Sets(NonEmpty{ SoulSet }) | OnlyUnmapped
+SetChoice        = AnySet | Sets(NonEmpty{ SetBit })
+SetBit           = Mapped(SchemeSet) | Unmapped(UnmappedSoulBit)
+SchemeSet        = { s : SoulSet | soul_bit(s) defined }        // a set a scheme can choose
+UnmappedSoulBit  = { b : u16 | 70 ≤ b < 2040 }                  // beyond the mapped sets
 SubAttributeMode = Ignore | Include | Exclude
 LevelBand        = L0to2 | L3to5 | L6to8 | L9to11 | L12to14 | L15
 InnateAttribute  = AtkPercent | DefPercent | HpPercent | EffectHit | EffectRes | Crit
@@ -103,9 +106,12 @@ SubCount         = FewerThanTwo | Two | Three | Four
 restriction, so all souls (the maintainer, 2026-09-25). That is `AnySet`,
 written as a soul mask with no bit set, whatever the mask's length: an empty
 mask and a mask of zero bytes are the same choice. At the bit level it is
-`SoulChoice::All`; the other choice holds at least one soul. A soul mask whose
-set bits all lie beyond the mapped sets is `OnlyUnmapped`: souls are chosen, but
-none the model maps, so it picks no mapped soul.
+`SoulChoice::All`; the other choice holds at least one soul.
+
+**Every set soul bit is a chosen soul.** A bit the table maps is `Mapped`, its
+set; a bit beyond the mapped sets is `Unmapped`, a soul the model cannot name,
+kept in the selection and written back as read. So a mask of unmapped bits only
+chooses souls, and is never all souls.
 
 **`AnySet` and `Sets(every set)` are different values.** The game's
 strengthening editor has a distinct "all souls" choice that is not the same as
@@ -139,39 +145,41 @@ above) is preserved, never modelled.
 
 ### Preserved
 
-`Preserved` is what a record held that the selection does not: its soul mask and
-filter as read, whose unmapped bits (soul bits 70 and above, filter bits 61 and
-above) and field lengths the codec writes back. Two preserved values are equal
-when they hold the same unmapped bits. It is opaque to every layer but the
-codec. One fact about it is exposed:
+`Preserved` is what a record held that the selection does not: the soul mask's
+length, and the filter as read, whose unmapped bits (61 and above) and length
+the codec writes back. Every soul bit, mapped or not, is the selection's. Two
+preserved values are equal when they hold the same unmapped filter bits. It is
+opaque to every layer but the codec. One fact about it is exposed:
 
-- `has_unknown_conditions: bool` — whether any unmapped bit is set, i.e. whether
-  the scheme selects on something the model cannot see
-- nothing else; the UI never renders preserved content
+```text
+has_unknown_filter : Preserved -> bool          // a filter bit outside every solved group is set
+has_unknown_conditions(entry) = has_unmapped_sets(entry.selection) ∨ has_unknown_filter(entry.preserved)
+```
 
-**Writing a selection over a record** sets every mapped bit to the selection's
-value and touches nothing else: unmapped bits stay, a field keeps its length,
-and grows only for a set bit beyond its end. So a record decoded and written
-back with no edit is the same bytes, and an edit to one group changes only that
-group's bits. A selection with nothing preserved is trimmed to its highest set
-bit, as the game writes one.
+The UI never renders preserved content.
+
+**Writing a selection over a record** sets every soul bit and every mapped
+filter bit to the selection's value and touches nothing else: unmapped filter
+bits stay, a field keeps its length, and grows only for a set bit beyond its
+end. So a record decoded and written back with no edit is the same bytes, and an
+edit to one group changes only that group's bits. A selection with nothing
+preserved is trimmed to its highest set bit, as the game writes one.
 
 **Records the model refuses.** A record with both ○ and ✕ set for one attribute
 has no selection: the editor cannot show it. A discard record that chooses all
 souls is refused by the layout (above). A name the game refuses on import is
-refused where a `SchemeName` is made, on decode as on build. On encode, an
-unmapped suit code, `AnySet` over preserved soul bits beyond the mapped sets
-(writing it would drop them), and `OnlyUnmapped` with no such bit preserved (it
-would read back as `AnySet`) are errors. Stars, an empty `Sets`, and an empty
-discard code cannot be written at all: their types do not hold them.
+refused where a `SchemeName` is made, on decode as on build. Every selection can
+be written: an unmapped suit code, a star outside 1–6, an empty `Sets`, and an
+empty discard code are not values of their types.
 
 ## Evaluation
 
 ```text
 matches : (SoulSelection, Soul) -> Verdict
 
-Verdict  = Matches | DoesNotMatch | Undetermined(NonEmpty{ OpenRule })
-OpenRule = Innate | UnknownConditions
+Verdict      = Matches | DoesNotMatch | Undetermined(NonEmpty{ OpenRule })
+OpenRule     = Innate | UnknownSet | UnknownFilter
+GroupOutcome = Pass | Fail | Open(OpenRule)
 ```
 
 A total, pure function in `yata-core::scheme::evaluate` (ADR-0001), and the only
@@ -187,17 +195,58 @@ that difference, and a caller would show a guess as the game's selection.
 
 Groups combine by AND: a soul is picked only when every group picks it. So one
 group that rules a soul out makes the verdict `DoesNotMatch`, whatever an open
-rule would say. The per-group rules:
+rule would say:
 
-| Group                                         | A soul passes when                                               | Mark |
-| --------------------------------------------- | ---------------------------------------------------------------- | ---- |
-| any group with nothing chosen                 | always: an empty group is no constraint                          | ◎    |
-| `sets`                                        | `AnySet`, or its set is in the chosen sets; never `OnlyUnmapped` | ✓    |
-| `slots`, `stars`, `main_attributes`, `levels` | its value is in the chosen set; a level above 15 is in no band   | ✓    |
-| `sub_attributes`, `Include`                   | it has every included attribute                                  | ✓    |
-| `sub_attributes`, `Exclude`                   | it has none of the excluded attributes                           | ◎    |
-| `sub_counts`                                  | its number of sub-attributes, all of them, is chosen             | ✓    |
-| `innate`, something chosen                    | it has no innate attribute, or its innate attribute is chosen    | ✓    |
+```text
+ ∃g. g(sel, s) = Fail
+──────────────────────────────────────────────────────────────── (V-Fail)
+ matches(sel, s) = DoesNotMatch
+
+ ∀g. g(sel, s) ≠ Fail     R = { r | ∃g. g(sel, s) = Open(r) }     R ≠ ∅
+──────────────────────────────────────────────────────────────── (V-Open)
+ matches(sel, s) = Undetermined(R)
+
+ ∀g. g(sel, s) = Pass
+──────────────────────────────────────────────────────────────── (V-Pass)
+ matches(sel, s) = Matches
+```
+
+类型 is the one group whose unknown bits widen it, since its bits combine by OR:
+
+```text
+ sets = AnySet
+──────────────────────────────────────────────────────────────── (T-Any)
+ types(sets, s) = Pass
+
+ Mapped(set(s)) ∈ B
+──────────────────────────────────────────────────────────────── (T-In)
+ types(Sets(B), s) = Pass
+
+ soul_bit(set(s)) defined     Mapped(set(s)) ∉ B
+──────────────────────────────────────────────────────────────── (T-Out)
+ types(Sets(B), s) = Fail
+
+ soul_bit(set(s)) undefined     ∃b. Unmapped(b) ∈ B
+──────────────────────────────────────────────────────────────── (T-Unmapped)
+ types(Sets(B), s) = Open(UnknownSet)
+
+ soul_bit(set(s)) undefined     ∀x ∈ B. x = Mapped(_)
+──────────────────────────────────────────────────────────────── (T-Unlisted)
+ types(Sets(B), s) = Fail
+```
+
+A soul whose set has a bit is decided by that bit: an unmapped bit is another
+set. The per-group rules:
+
+| Group                                         | A soul passes when                                                                                          | Mark |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ---- |
+| any group with nothing chosen                 | always: an empty group is no constraint                                                                     | ◎    |
+| `sets`                                        | T-Any, T-In, T-Out, T-Unmapped, T-Unlisted (above)                                                          | ✓    |
+| `slots`, `stars`, `main_attributes`, `levels` | its value is in the chosen set; every level is in one band                                                  | ✓    |
+| `sub_attributes`, `Include`                   | it has every included attribute                                                                             | ✓    |
+| `sub_attributes`, `Exclude`                   | it has none of the excluded attributes                                                                      | ◎    |
+| `sub_counts`                                  | its number of sub-attributes, all of them, is chosen                                                        | ✓    |
+| `innate`, something chosen                    | ordinary; or its innate attribute is chosen; `Fail` if its own set is chosen, `Open(Innate)` if not (below) | ✓    |
 
 `SubCount::of` places a soul's number of sub-attributes by the editor's labels:
 0 or 1 is 不足2条, then 2条, 3条, 4条; more than four is in no choice.
@@ -251,12 +300,17 @@ way.
 
 An empty 固有属性 is no constraint, like any empty group.
 
-**A scheme with unknown conditions is never exact.** When
-`has_unknown_conditions` is true, a plan's or discard scheme's verdict is never
-`Matches`: what would be `Matches` is `Undetermined(UnknownConditions)`. A
-decided `DoesNotMatch` stands, since an unknown condition can only narrow the
-selection further. Every result derived from such a scheme carries that fact,
-and the UI says so; it is never presented as the game's own selection.
+**A scheme with an unknown filter bit is never exact.** When a plan's or discard
+scheme's `has_unknown_filter` is true, what would be `Matches` is
+`Undetermined(UnknownFilter)`, and an open verdict gains `UnknownFilter`
+(T-Filter). A decided `DoesNotMatch` stands: an unknown filter bit is taken to
+narrow the selection only. That is an **assumption**, not observed: such a bit
+may belong to a group whose bits combine by OR, and then it would widen (TBD;
+the experiment is a plan that sets bit 61 over a control, applied to one pool).
+Unknown soul bits are not an assumption: they widen 类型 by T-Unmapped. Every
+result derived from such a scheme carries its open rules, and the UI says so; it
+is never presented as the game's own selection. The core protocol carries both
+unknown rules as one, `OPEN_RULE_UNKNOWN_CONDITIONS`.
 
 ## Codec
 

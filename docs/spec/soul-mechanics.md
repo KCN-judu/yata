@@ -73,11 +73,20 @@ never a value to score.
  ⊢ ⟨k, σ, ℓ, m, S, c⟩ ok
 ```
 
-**Some premises hold by type.** In `yata-core` a star is a `Star`, one to six,
-and every value, main or sub, is a `StoredValue`, finite and not negative;
-`c(a)` is a `RollCount`, and `hits(a)` a `HitCount`, at least one. A decoder
-refuses a number outside them before W-Soul runs, so `1 ≤ σ ≤ 6` and `c(a) ≥ 0`
-are never violations, and no rule meets a NaN or a negative value.
+**Some premises hold by type.**
+
+```text
+Star        = { σ : u8 | 1 ≤ σ ≤ 6 }
+Level       = { ℓ : u8 | 0 ≤ ℓ ≤ 15 }
+StoredValue = { x : f64 | finite(x) ∧ x ≥ 0 }
+RollCount   = c(a) : u8
+HitCount    = { h | h = 1 + c(a) }            -- at least one
+```
+
+In `yata-core` a soul's star, level, and values have these types, and a decoder
+refuses a number outside them before W-Soul runs. So `1 ≤ σ ≤ 6`, `0 ≤ ℓ ≤ 15`,
+and `c(a) ≥ 0` are never violations, and no rule meets a NaN or a negative
+value.
 
 **No rule relates `m` to `dom S`.** A sub-attribute may be the same attribute as
 the main attribute. A Slot 2 soul with main `Spd` and `Spd ∈ dom S` is
