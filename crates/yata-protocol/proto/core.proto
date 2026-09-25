@@ -703,6 +703,7 @@ message Error {
     ImportUnsupportedSourceValue import_unsupported_source_value = 55;
     ImportInconsistentReference import_inconsistent_reference = 56;
     ImportAdmissionRefused import_admission_refused = 57;
+    ImportAccountMismatch import_account_mismatch = 58;
 
     CommandRefused command_refused = 70;
     CommandTooLarge command_too_large = 71;
@@ -866,6 +867,11 @@ message ImportInconsistentReference {
 }
 // The domain refused what the snapshot holds.
 message ImportAdmissionRefused {
+  string problem = 1;
+}
+// The file states an account other than the one the profile is bound to. The accounts are
+// account data, so they are in `problem` alone, never in fields of their own.
+message ImportAccountMismatch {
   string problem = 1;
 }
 

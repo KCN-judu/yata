@@ -5012,6 +5012,7 @@ enum Error_Kind {
   importUnsupportedSourceValue,
   importInconsistentReference,
   importAdmissionRefused,
+  importAccountMismatch,
   commandRefused,
   commandTooLarge,
   storeFailure,
@@ -5067,6 +5068,7 @@ class Error extends $pb.GeneratedMessage {
     ImportUnsupportedSourceValue? importUnsupportedSourceValue,
     ImportInconsistentReference? importInconsistentReference,
     ImportAdmissionRefused? importAdmissionRefused,
+    ImportAccountMismatch? importAccountMismatch,
     CommandRefused? commandRefused,
     CommandTooLarge? commandTooLarge,
     StoreFailure? storeFailure,
@@ -5144,6 +5146,8 @@ class Error extends $pb.GeneratedMessage {
       result.importInconsistentReference = importInconsistentReference;
     if (importAdmissionRefused != null)
       result.importAdmissionRefused = importAdmissionRefused;
+    if (importAccountMismatch != null)
+      result.importAccountMismatch = importAccountMismatch;
     if (commandRefused != null) result.commandRefused = commandRefused;
     if (commandTooLarge != null) result.commandTooLarge = commandTooLarge;
     if (storeFailure != null) result.storeFailure = storeFailure;
@@ -5212,6 +5216,7 @@ class Error extends $pb.GeneratedMessage {
     55: Error_Kind.importUnsupportedSourceValue,
     56: Error_Kind.importInconsistentReference,
     57: Error_Kind.importAdmissionRefused,
+    58: Error_Kind.importAccountMismatch,
     70: Error_Kind.commandRefused,
     71: Error_Kind.commandTooLarge,
     80: Error_Kind.storeFailure,
@@ -5268,6 +5273,7 @@ class Error extends $pb.GeneratedMessage {
       55,
       56,
       57,
+      58,
       70,
       71,
       80,
@@ -5367,6 +5373,9 @@ class Error extends $pb.GeneratedMessage {
     ..aOM<ImportAdmissionRefused>(
         57, _omitFieldNames ? '' : 'importAdmissionRefused',
         subBuilder: ImportAdmissionRefused.$_createMessage)
+    ..aOM<ImportAccountMismatch>(
+        58, _omitFieldNames ? '' : 'importAccountMismatch',
+        subBuilder: ImportAccountMismatch.$_createMessage)
     ..aOM<CommandRefused>(70, _omitFieldNames ? '' : 'commandRefused',
         subBuilder: CommandRefused.$_createMessage)
     ..aOM<CommandTooLarge>(71, _omitFieldNames ? '' : 'commandTooLarge',
@@ -5459,6 +5468,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(55)
   @$pb.TagNumber(56)
   @$pb.TagNumber(57)
+  @$pb.TagNumber(58)
   @$pb.TagNumber(70)
   @$pb.TagNumber(71)
   @$pb.TagNumber(80)
@@ -5509,6 +5519,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(55)
   @$pb.TagNumber(56)
   @$pb.TagNumber(57)
+  @$pb.TagNumber(58)
   @$pb.TagNumber(70)
   @$pb.TagNumber(71)
   @$pb.TagNumber(80)
@@ -5907,194 +5918,206 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(57)
   ImportAdmissionRefused ensureImportAdmissionRefused() => $_ensure(32);
 
+  @$pb.TagNumber(58)
+  ImportAccountMismatch get importAccountMismatch => $_getN(33);
+  @$pb.TagNumber(58)
+  set importAccountMismatch(ImportAccountMismatch value) =>
+      $_setField(58, value);
+  @$pb.TagNumber(58)
+  $core.bool hasImportAccountMismatch() => $_has(33);
+  @$pb.TagNumber(58)
+  void clearImportAccountMismatch() => $_clearField(58);
+  @$pb.TagNumber(58)
+  ImportAccountMismatch ensureImportAccountMismatch() => $_ensure(33);
+
   @$pb.TagNumber(70)
-  CommandRefused get commandRefused => $_getN(33);
+  CommandRefused get commandRefused => $_getN(34);
   @$pb.TagNumber(70)
   set commandRefused(CommandRefused value) => $_setField(70, value);
   @$pb.TagNumber(70)
-  $core.bool hasCommandRefused() => $_has(33);
+  $core.bool hasCommandRefused() => $_has(34);
   @$pb.TagNumber(70)
   void clearCommandRefused() => $_clearField(70);
   @$pb.TagNumber(70)
-  CommandRefused ensureCommandRefused() => $_ensure(33);
+  CommandRefused ensureCommandRefused() => $_ensure(34);
 
   @$pb.TagNumber(71)
-  CommandTooLarge get commandTooLarge => $_getN(34);
+  CommandTooLarge get commandTooLarge => $_getN(35);
   @$pb.TagNumber(71)
   set commandTooLarge(CommandTooLarge value) => $_setField(71, value);
   @$pb.TagNumber(71)
-  $core.bool hasCommandTooLarge() => $_has(34);
+  $core.bool hasCommandTooLarge() => $_has(35);
   @$pb.TagNumber(71)
   void clearCommandTooLarge() => $_clearField(71);
   @$pb.TagNumber(71)
-  CommandTooLarge ensureCommandTooLarge() => $_ensure(34);
+  CommandTooLarge ensureCommandTooLarge() => $_ensure(35);
 
   @$pb.TagNumber(80)
-  StoreFailure get storeFailure => $_getN(35);
+  StoreFailure get storeFailure => $_getN(36);
   @$pb.TagNumber(80)
   set storeFailure(StoreFailure value) => $_setField(80, value);
   @$pb.TagNumber(80)
-  $core.bool hasStoreFailure() => $_has(35);
+  $core.bool hasStoreFailure() => $_has(36);
   @$pb.TagNumber(80)
   void clearStoreFailure() => $_clearField(80);
   @$pb.TagNumber(80)
-  StoreFailure ensureStoreFailure() => $_ensure(35);
+  StoreFailure ensureStoreFailure() => $_ensure(36);
 
   @$pb.TagNumber(81)
-  StoreInvalidLog get storeInvalidLog => $_getN(36);
+  StoreInvalidLog get storeInvalidLog => $_getN(37);
   @$pb.TagNumber(81)
   set storeInvalidLog(StoreInvalidLog value) => $_setField(81, value);
   @$pb.TagNumber(81)
-  $core.bool hasStoreInvalidLog() => $_has(36);
+  $core.bool hasStoreInvalidLog() => $_has(37);
   @$pb.TagNumber(81)
   void clearStoreInvalidLog() => $_clearField(81);
   @$pb.TagNumber(81)
-  StoreInvalidLog ensureStoreInvalidLog() => $_ensure(36);
+  StoreInvalidLog ensureStoreInvalidLog() => $_ensure(37);
 
   @$pb.TagNumber(82)
-  StoreNewerFormat get storeNewerFormat => $_getN(37);
+  StoreNewerFormat get storeNewerFormat => $_getN(38);
   @$pb.TagNumber(82)
   set storeNewerFormat(StoreNewerFormat value) => $_setField(82, value);
   @$pb.TagNumber(82)
-  $core.bool hasStoreNewerFormat() => $_has(37);
+  $core.bool hasStoreNewerFormat() => $_has(38);
   @$pb.TagNumber(82)
   void clearStoreNewerFormat() => $_clearField(82);
   @$pb.TagNumber(82)
-  StoreNewerFormat ensureStoreNewerFormat() => $_ensure(37);
+  StoreNewerFormat ensureStoreNewerFormat() => $_ensure(38);
 
   @$pb.TagNumber(83)
-  StoreMalformedCommit get storeMalformedCommit => $_getN(38);
+  StoreMalformedCommit get storeMalformedCommit => $_getN(39);
   @$pb.TagNumber(83)
   set storeMalformedCommit(StoreMalformedCommit value) => $_setField(83, value);
   @$pb.TagNumber(83)
-  $core.bool hasStoreMalformedCommit() => $_has(38);
+  $core.bool hasStoreMalformedCommit() => $_has(39);
   @$pb.TagNumber(83)
   void clearStoreMalformedCommit() => $_clearField(83);
   @$pb.TagNumber(83)
-  StoreMalformedCommit ensureStoreMalformedCommit() => $_ensure(38);
+  StoreMalformedCommit ensureStoreMalformedCommit() => $_ensure(39);
 
   @$pb.TagNumber(84)
-  StoreMissing get storeMissing => $_getN(39);
+  StoreMissing get storeMissing => $_getN(40);
   @$pb.TagNumber(84)
   set storeMissing(StoreMissing value) => $_setField(84, value);
   @$pb.TagNumber(84)
-  $core.bool hasStoreMissing() => $_has(39);
+  $core.bool hasStoreMissing() => $_has(40);
   @$pb.TagNumber(84)
   void clearStoreMissing() => $_clearField(84);
   @$pb.TagNumber(84)
-  StoreMissing ensureStoreMissing() => $_ensure(39);
+  StoreMissing ensureStoreMissing() => $_ensure(40);
 
   @$pb.TagNumber(85)
-  StoreNotADatabase get storeNotADatabase => $_getN(40);
+  StoreNotADatabase get storeNotADatabase => $_getN(41);
   @$pb.TagNumber(85)
   set storeNotADatabase(StoreNotADatabase value) => $_setField(85, value);
   @$pb.TagNumber(85)
-  $core.bool hasStoreNotADatabase() => $_has(40);
+  $core.bool hasStoreNotADatabase() => $_has(41);
   @$pb.TagNumber(85)
   void clearStoreNotADatabase() => $_clearField(85);
   @$pb.TagNumber(85)
-  StoreNotADatabase ensureStoreNotADatabase() => $_ensure(40);
+  StoreNotADatabase ensureStoreNotADatabase() => $_ensure(41);
 
   @$pb.TagNumber(86)
-  StoreForeign get storeForeign => $_getN(41);
+  StoreForeign get storeForeign => $_getN(42);
   @$pb.TagNumber(86)
   set storeForeign(StoreForeign value) => $_setField(86, value);
   @$pb.TagNumber(86)
-  $core.bool hasStoreForeign() => $_has(41);
+  $core.bool hasStoreForeign() => $_has(42);
   @$pb.TagNumber(86)
   void clearStoreForeign() => $_clearField(86);
   @$pb.TagNumber(86)
-  StoreForeign ensureStoreForeign() => $_ensure(41);
+  StoreForeign ensureStoreForeign() => $_ensure(42);
 
   @$pb.TagNumber(87)
-  StoreNoFormatVersion get storeNoFormatVersion => $_getN(42);
+  StoreNoFormatVersion get storeNoFormatVersion => $_getN(43);
   @$pb.TagNumber(87)
   set storeNoFormatVersion(StoreNoFormatVersion value) => $_setField(87, value);
   @$pb.TagNumber(87)
-  $core.bool hasStoreNoFormatVersion() => $_has(42);
+  $core.bool hasStoreNoFormatVersion() => $_has(43);
   @$pb.TagNumber(87)
   void clearStoreNoFormatVersion() => $_clearField(87);
   @$pb.TagNumber(87)
-  StoreNoFormatVersion ensureStoreNoFormatVersion() => $_ensure(42);
+  StoreNoFormatVersion ensureStoreNoFormatVersion() => $_ensure(43);
 
   @$pb.TagNumber(88)
-  StoreDamaged get storeDamaged => $_getN(43);
+  StoreDamaged get storeDamaged => $_getN(44);
   @$pb.TagNumber(88)
   set storeDamaged(StoreDamaged value) => $_setField(88, value);
   @$pb.TagNumber(88)
-  $core.bool hasStoreDamaged() => $_has(43);
+  $core.bool hasStoreDamaged() => $_has(44);
   @$pb.TagNumber(88)
   void clearStoreDamaged() => $_clearField(88);
   @$pb.TagNumber(88)
-  StoreDamaged ensureStoreDamaged() => $_ensure(43);
+  StoreDamaged ensureStoreDamaged() => $_ensure(44);
 
   @$pb.TagNumber(89)
-  StoreUninitialized get storeUninitialized => $_getN(44);
+  StoreUninitialized get storeUninitialized => $_getN(45);
   @$pb.TagNumber(89)
   set storeUninitialized(StoreUninitialized value) => $_setField(89, value);
   @$pb.TagNumber(89)
-  $core.bool hasStoreUninitialized() => $_has(44);
+  $core.bool hasStoreUninitialized() => $_has(45);
   @$pb.TagNumber(89)
   void clearStoreUninitialized() => $_clearField(89);
   @$pb.TagNumber(89)
-  StoreUninitialized ensureStoreUninitialized() => $_ensure(44);
+  StoreUninitialized ensureStoreUninitialized() => $_ensure(45);
 
   @$pb.TagNumber(90)
-  StoreRetiredFormat get storeRetiredFormat => $_getN(45);
+  StoreRetiredFormat get storeRetiredFormat => $_getN(46);
   @$pb.TagNumber(90)
   set storeRetiredFormat(StoreRetiredFormat value) => $_setField(90, value);
   @$pb.TagNumber(90)
-  $core.bool hasStoreRetiredFormat() => $_has(45);
+  $core.bool hasStoreRetiredFormat() => $_has(46);
   @$pb.TagNumber(90)
   void clearStoreRetiredFormat() => $_clearField(90);
   @$pb.TagNumber(90)
-  StoreRetiredFormat ensureStoreRetiredFormat() => $_ensure(45);
+  StoreRetiredFormat ensureStoreRetiredFormat() => $_ensure(46);
 
   @$pb.TagNumber(100)
-  InternalPanic get internalPanic => $_getN(46);
+  InternalPanic get internalPanic => $_getN(47);
   @$pb.TagNumber(100)
   set internalPanic(InternalPanic value) => $_setField(100, value);
   @$pb.TagNumber(100)
-  $core.bool hasInternalPanic() => $_has(46);
+  $core.bool hasInternalPanic() => $_has(47);
   @$pb.TagNumber(100)
   void clearInternalPanic() => $_clearField(100);
   @$pb.TagNumber(100)
-  InternalPanic ensureInternalPanic() => $_ensure(46);
+  InternalPanic ensureInternalPanic() => $_ensure(47);
 
   @$pb.TagNumber(101)
-  InternalQrTooLong get internalQrTooLong => $_getN(47);
+  InternalQrTooLong get internalQrTooLong => $_getN(48);
   @$pb.TagNumber(101)
   set internalQrTooLong(InternalQrTooLong value) => $_setField(101, value);
   @$pb.TagNumber(101)
-  $core.bool hasInternalQrTooLong() => $_has(47);
+  $core.bool hasInternalQrTooLong() => $_has(48);
   @$pb.TagNumber(101)
   void clearInternalQrTooLong() => $_clearField(101);
   @$pb.TagNumber(101)
-  InternalQrTooLong ensureInternalQrTooLong() => $_ensure(47);
+  InternalQrTooLong ensureInternalQrTooLong() => $_ensure(48);
 
   @$pb.TagNumber(102)
-  InternalResponseTooLarge get internalResponseTooLarge => $_getN(48);
+  InternalResponseTooLarge get internalResponseTooLarge => $_getN(49);
   @$pb.TagNumber(102)
   set internalResponseTooLarge(InternalResponseTooLarge value) =>
       $_setField(102, value);
   @$pb.TagNumber(102)
-  $core.bool hasInternalResponseTooLarge() => $_has(48);
+  $core.bool hasInternalResponseTooLarge() => $_has(49);
   @$pb.TagNumber(102)
   void clearInternalResponseTooLarge() => $_clearField(102);
   @$pb.TagNumber(102)
-  InternalResponseTooLarge ensureInternalResponseTooLarge() => $_ensure(48);
+  InternalResponseTooLarge ensureInternalResponseTooLarge() => $_ensure(49);
 
   @$pb.TagNumber(103)
-  InternalPageWithoutSoul get internalPageWithoutSoul => $_getN(49);
+  InternalPageWithoutSoul get internalPageWithoutSoul => $_getN(50);
   @$pb.TagNumber(103)
   set internalPageWithoutSoul(InternalPageWithoutSoul value) =>
       $_setField(103, value);
   @$pb.TagNumber(103)
-  $core.bool hasInternalPageWithoutSoul() => $_has(49);
+  $core.bool hasInternalPageWithoutSoul() => $_has(50);
   @$pb.TagNumber(103)
   void clearInternalPageWithoutSoul() => $_clearField(103);
   @$pb.TagNumber(103)
-  InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(49);
+  InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(50);
 }
 
 enum SessionFailed_Kind {
@@ -8321,6 +8344,67 @@ class ImportAdmissionRefused extends $pb.GeneratedMessage {
       $pb.GeneratedMessage.$_defaultFor<ImportAdmissionRefused>(
           ImportAdmissionRefused.$_createMessage);
   static ImportAdmissionRefused? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+/// The file states an account other than the one the profile is bound to. The accounts are
+/// account data, so they are in `problem` alone, never in fields of their own.
+class ImportAccountMismatch extends $pb.GeneratedMessage {
+  factory ImportAccountMismatch({
+    $core.String? problem,
+  }) {
+    final result = ImportAccountMismatch._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportAccountMismatch._();
+
+  factory ImportAccountMismatch.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportAccountMismatch()..mergeFromBuffer(data, registry);
+  factory ImportAccountMismatch.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportAccountMismatch()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportAccountMismatch',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportAccountMismatch.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportAccountMismatch clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportAccountMismatch copyWith(
+          void Function(ImportAccountMismatch) updates) =>
+      super.copyWith((message) => updates(message as ImportAccountMismatch))
+          as ImportAccountMismatch;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportAccountMismatch() / ImportAccountMismatch.new instead')
+  static ImportAccountMismatch create() => ImportAccountMismatch._();
+  static $pb.GeneratedMessage $_createMessage() => ImportAccountMismatch._();
+  @$core.override
+  ImportAccountMismatch createEmptyInstance() => ImportAccountMismatch._();
+  @$core.pragma('dart2js:noInline')
+  static ImportAccountMismatch getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportAccountMismatch>(
+          ImportAccountMismatch.$_createMessage);
+  static ImportAccountMismatch? _defaultInstance;
 
   @$pb.TagNumber(1)
   $core.String get problem => $_getSZ(0);

@@ -2377,6 +2377,15 @@ const Error$json = {
       '10': 'importAdmissionRefused'
     },
     {
+      '1': 'import_account_mismatch',
+      '3': 58,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.ImportAccountMismatch',
+      '9': 0,
+      '10': 'importAccountMismatch'
+    },
+    {
       '1': 'command_refused',
       '3': 70,
       '4': 1,
@@ -2604,35 +2613,36 @@ final $typed_data.Uint8List errorDescriptor = $convert.base64Decode(
     'ZW5jZRg4IAEoCzIpLnlhdGEuY29yZS52MS5JbXBvcnRJbmNvbnNpc3RlbnRSZWZlcmVuY2VIAF'
     'IbaW1wb3J0SW5jb25zaXN0ZW50UmVmZXJlbmNlEmAKGGltcG9ydF9hZG1pc3Npb25fcmVmdXNl'
     'ZBg5IAEoCzIkLnlhdGEuY29yZS52MS5JbXBvcnRBZG1pc3Npb25SZWZ1c2VkSABSFmltcG9ydE'
-    'FkbWlzc2lvblJlZnVzZWQSRwoPY29tbWFuZF9yZWZ1c2VkGEYgASgLMhwueWF0YS5jb3JlLnYx'
-    'LkNvbW1hbmRSZWZ1c2VkSABSDmNvbW1hbmRSZWZ1c2VkEksKEWNvbW1hbmRfdG9vX2xhcmdlGE'
-    'cgASgLMh0ueWF0YS5jb3JlLnYxLkNvbW1hbmRUb29MYXJnZUgAUg9jb21tYW5kVG9vTGFyZ2US'
-    'QQoNc3RvcmVfZmFpbHVyZRhQIAEoCzIaLnlhdGEuY29yZS52MS5TdG9yZUZhaWx1cmVIAFIMc3'
-    'RvcmVGYWlsdXJlEksKEXN0b3JlX2ludmFsaWRfbG9nGFEgASgLMh0ueWF0YS5jb3JlLnYxLlN0'
-    'b3JlSW52YWxpZExvZ0gAUg9zdG9yZUludmFsaWRMb2cSTgoSc3RvcmVfbmV3ZXJfZm9ybWF0GF'
-    'IgASgLMh4ueWF0YS5jb3JlLnYxLlN0b3JlTmV3ZXJGb3JtYXRIAFIQc3RvcmVOZXdlckZvcm1h'
-    'dBJaChZzdG9yZV9tYWxmb3JtZWRfY29tbWl0GFMgASgLMiIueWF0YS5jb3JlLnYxLlN0b3JlTW'
-    'FsZm9ybWVkQ29tbWl0SABSFHN0b3JlTWFsZm9ybWVkQ29tbWl0EkEKDXN0b3JlX21pc3NpbmcY'
-    'VCABKAsyGi55YXRhLmNvcmUudjEuU3RvcmVNaXNzaW5nSABSDHN0b3JlTWlzc2luZxJSChRzdG'
-    '9yZV9ub3RfYV9kYXRhYmFzZRhVIAEoCzIfLnlhdGEuY29yZS52MS5TdG9yZU5vdEFEYXRhYmFz'
-    'ZUgAUhFzdG9yZU5vdEFEYXRhYmFzZRJBCg1zdG9yZV9mb3JlaWduGFYgASgLMhoueWF0YS5jb3'
-    'JlLnYxLlN0b3JlRm9yZWlnbkgAUgxzdG9yZUZvcmVpZ24SWwoXc3RvcmVfbm9fZm9ybWF0X3Zl'
-    'cnNpb24YVyABKAsyIi55YXRhLmNvcmUudjEuU3RvcmVOb0Zvcm1hdFZlcnNpb25IAFIUc3Rvcm'
-    'VOb0Zvcm1hdFZlcnNpb24SQQoNc3RvcmVfZGFtYWdlZBhYIAEoCzIaLnlhdGEuY29yZS52MS5T'
-    'dG9yZURhbWFnZWRIAFIMc3RvcmVEYW1hZ2VkElMKE3N0b3JlX3VuaW5pdGlhbGl6ZWQYWSABKA'
-    'syIC55YXRhLmNvcmUudjEuU3RvcmVVbmluaXRpYWxpemVkSABSEnN0b3JlVW5pbml0aWFsaXpl'
-    'ZBJUChRzdG9yZV9yZXRpcmVkX2Zvcm1hdBhaIAEoCzIgLnlhdGEuY29yZS52MS5TdG9yZVJldG'
-    'lyZWRGb3JtYXRIAFISc3RvcmVSZXRpcmVkRm9ybWF0EkQKDmludGVybmFsX3BhbmljGGQgASgL'
-    'MhsueWF0YS5jb3JlLnYxLkludGVybmFsUGFuaWNIAFINaW50ZXJuYWxQYW5pYxJSChRpbnRlcm'
-    '5hbF9xcl90b29fbG9uZxhlIAEoCzIfLnlhdGEuY29yZS52MS5JbnRlcm5hbFFyVG9vTG9uZ0gA'
-    'UhFpbnRlcm5hbFFyVG9vTG9uZxJnChtpbnRlcm5hbF9yZXNwb25zZV90b29fbGFyZ2UYZiABKA'
-    'syJi55YXRhLmNvcmUudjEuSW50ZXJuYWxSZXNwb25zZVRvb0xhcmdlSABSGGludGVybmFsUmVz'
-    'cG9uc2VUb29MYXJnZRJkChppbnRlcm5hbF9wYWdlX3dpdGhvdXRfc291bBhnIAEoCzIlLnlhdG'
-    'EuY29yZS52MS5JbnRlcm5hbFBhZ2VXaXRob3V0U291bEgAUhdpbnRlcm5hbFBhZ2VXaXRob3V0'
-    'U291bEIGCgRraW5kSgQIARACSgQIAxAESgQIPBBBUgRjb2RlUgdkZXRhaWxzUhdpbXBvcnRfcH'
-    'JvZmlsZV9taXNtYXRjaFIYaW1wb3J0X21hbGZvcm1lZF9yZWFkaW5nUhhpbXBvcnRfcmVhZGlu'
-    'Z190b29fbGFyZ2VSHWltcG9ydF91bmVzdGFibGlzaGVkX2lkZW50aXR5UhVpbXBvcnRfZHVwbG'
-    'ljYXRlX3NvdWw=');
+    'FkbWlzc2lvblJlZnVzZWQSXQoXaW1wb3J0X2FjY291bnRfbWlzbWF0Y2gYOiABKAsyIy55YXRh'
+    'LmNvcmUudjEuSW1wb3J0QWNjb3VudE1pc21hdGNoSABSFWltcG9ydEFjY291bnRNaXNtYXRjaB'
+    'JHCg9jb21tYW5kX3JlZnVzZWQYRiABKAsyHC55YXRhLmNvcmUudjEuQ29tbWFuZFJlZnVzZWRI'
+    'AFIOY29tbWFuZFJlZnVzZWQSSwoRY29tbWFuZF90b29fbGFyZ2UYRyABKAsyHS55YXRhLmNvcm'
+    'UudjEuQ29tbWFuZFRvb0xhcmdlSABSD2NvbW1hbmRUb29MYXJnZRJBCg1zdG9yZV9mYWlsdXJl'
+    'GFAgASgLMhoueWF0YS5jb3JlLnYxLlN0b3JlRmFpbHVyZUgAUgxzdG9yZUZhaWx1cmUSSwoRc3'
+    'RvcmVfaW52YWxpZF9sb2cYUSABKAsyHS55YXRhLmNvcmUudjEuU3RvcmVJbnZhbGlkTG9nSABS'
+    'D3N0b3JlSW52YWxpZExvZxJOChJzdG9yZV9uZXdlcl9mb3JtYXQYUiABKAsyHi55YXRhLmNvcm'
+    'UudjEuU3RvcmVOZXdlckZvcm1hdEgAUhBzdG9yZU5ld2VyRm9ybWF0EloKFnN0b3JlX21hbGZv'
+    'cm1lZF9jb21taXQYUyABKAsyIi55YXRhLmNvcmUudjEuU3RvcmVNYWxmb3JtZWRDb21taXRIAF'
+    'IUc3RvcmVNYWxmb3JtZWRDb21taXQSQQoNc3RvcmVfbWlzc2luZxhUIAEoCzIaLnlhdGEuY29y'
+    'ZS52MS5TdG9yZU1pc3NpbmdIAFIMc3RvcmVNaXNzaW5nElIKFHN0b3JlX25vdF9hX2RhdGFiYX'
+    'NlGFUgASgLMh8ueWF0YS5jb3JlLnYxLlN0b3JlTm90QURhdGFiYXNlSABSEXN0b3JlTm90QURh'
+    'dGFiYXNlEkEKDXN0b3JlX2ZvcmVpZ24YViABKAsyGi55YXRhLmNvcmUudjEuU3RvcmVGb3JlaW'
+    'duSABSDHN0b3JlRm9yZWlnbhJbChdzdG9yZV9ub19mb3JtYXRfdmVyc2lvbhhXIAEoCzIiLnlh'
+    'dGEuY29yZS52MS5TdG9yZU5vRm9ybWF0VmVyc2lvbkgAUhRzdG9yZU5vRm9ybWF0VmVyc2lvbh'
+    'JBCg1zdG9yZV9kYW1hZ2VkGFggASgLMhoueWF0YS5jb3JlLnYxLlN0b3JlRGFtYWdlZEgAUgxz'
+    'dG9yZURhbWFnZWQSUwoTc3RvcmVfdW5pbml0aWFsaXplZBhZIAEoCzIgLnlhdGEuY29yZS52MS'
+    '5TdG9yZVVuaW5pdGlhbGl6ZWRIAFISc3RvcmVVbmluaXRpYWxpemVkElQKFHN0b3JlX3JldGly'
+    'ZWRfZm9ybWF0GFogASgLMiAueWF0YS5jb3JlLnYxLlN0b3JlUmV0aXJlZEZvcm1hdEgAUhJzdG'
+    '9yZVJldGlyZWRGb3JtYXQSRAoOaW50ZXJuYWxfcGFuaWMYZCABKAsyGy55YXRhLmNvcmUudjEu'
+    'SW50ZXJuYWxQYW5pY0gAUg1pbnRlcm5hbFBhbmljElIKFGludGVybmFsX3FyX3Rvb19sb25nGG'
+    'UgASgLMh8ueWF0YS5jb3JlLnYxLkludGVybmFsUXJUb29Mb25nSABSEWludGVybmFsUXJUb29M'
+    'b25nEmcKG2ludGVybmFsX3Jlc3BvbnNlX3Rvb19sYXJnZRhmIAEoCzImLnlhdGEuY29yZS52MS'
+    '5JbnRlcm5hbFJlc3BvbnNlVG9vTGFyZ2VIAFIYaW50ZXJuYWxSZXNwb25zZVRvb0xhcmdlEmQK'
+    'GmludGVybmFsX3BhZ2Vfd2l0aG91dF9zb3VsGGcgASgLMiUueWF0YS5jb3JlLnYxLkludGVybm'
+    'FsUGFnZVdpdGhvdXRTb3VsSABSF2ludGVybmFsUGFnZVdpdGhvdXRTb3VsQgYKBGtpbmRKBAgB'
+    'EAJKBAgDEARKBAg8EEFSBGNvZGVSB2RldGFpbHNSF2ltcG9ydF9wcm9maWxlX21pc21hdGNoUh'
+    'hpbXBvcnRfbWFsZm9ybWVkX3JlYWRpbmdSGGltcG9ydF9yZWFkaW5nX3Rvb19sYXJnZVIdaW1w'
+    'b3J0X3VuZXN0YWJsaXNoZWRfaWRlbnRpdHlSFWltcG9ydF9kdXBsaWNhdGVfc291bA==');
 
 @$core.Deprecated('Use sessionFailedDescriptor instead')
 const SessionFailed$json = {
@@ -3198,6 +3208,19 @@ const ImportAdmissionRefused$json = {
 final $typed_data.Uint8List importAdmissionRefusedDescriptor =
     $convert.base64Decode(
         'ChZJbXBvcnRBZG1pc3Npb25SZWZ1c2VkEhgKB3Byb2JsZW0YASABKAlSB3Byb2JsZW0=');
+
+@$core.Deprecated('Use importAccountMismatchDescriptor instead')
+const ImportAccountMismatch$json = {
+  '1': 'ImportAccountMismatch',
+  '2': [
+    {'1': 'problem', '3': 1, '4': 1, '5': 9, '10': 'problem'},
+  ],
+};
+
+/// Descriptor for `ImportAccountMismatch`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importAccountMismatchDescriptor =
+    $convert.base64Decode(
+        'ChVJbXBvcnRBY2NvdW50TWlzbWF0Y2gSGAoHcHJvYmxlbRgBIAEoCVIHcHJvYmxlbQ==');
 
 @$core.Deprecated('Use commandRefusedDescriptor instead')
 const CommandRefused$json = {

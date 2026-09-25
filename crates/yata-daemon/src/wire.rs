@@ -637,6 +637,8 @@ mod tests {
             retired,
             pb::error::Kind::StoreRetiredFormat(pb::StoreRetiredFormat { found: 1 })
         );
+        let account = pb::error::Kind::ImportAccountMismatch(pb::ImportAccountMismatch::default());
+        assert_eq!(account.code(), "import.account_mismatch");
     }
 
     #[test]

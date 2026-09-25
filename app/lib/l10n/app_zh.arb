@@ -108,6 +108,8 @@
   "remedyImportInconsistentReference": "请检查文件是否完整，然后重新导入。",
   "causeImportAdmissionRefused": "文件中的数据不符合游戏规则，无法导入。",
   "remedyImportAdmissionRefused": "请检查文件内容；如果确认无误，请带上错误代码反馈。",
+  "causeImportAccountMismatch": "这个文件属于另一个游戏账号，与当前档案的账号不同。",
+  "remedyImportAccountMismatch": "请切换到这个账号的档案后再导入。",
   "causeCommandRefused": "核心程序拒绝了这次修改。",
   "remedyCommandRefused": "请刷新后再试一次。",
   "causeCommandTooLarge": "这次修改的数据过多。",

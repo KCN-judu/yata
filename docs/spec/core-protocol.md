@@ -351,6 +351,7 @@ The codes of `Error` today:
 | `import.unsupported_source_value` | a file-level value the format does not define                                      |
 | `import.inconsistent_reference`   | a record names another that the snapshot does not hold                             |
 | `import.admission_refused`        | the domain refused what the snapshot holds                                         |
+| `import.account_mismatch`         | the file states an account other than the one the profile is bound to              |
 | `command.*`                       | the fact log refused a command ([fact-format.md](fact-format.md))                  |
 | `store.*`                         | the store could not be opened, read, or written ([fact-format.md](fact-format.md)) |
 | `internal.panic`                  | a query's evaluation panicked                                                      |

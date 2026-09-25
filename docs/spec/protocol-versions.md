@@ -41,9 +41,10 @@ the session's query given its own call, `SessionQuery`; then, the same day, the
 reader's `import.*` codes replaced by the import failure taxonomy of ADR-0031
 (tags 50 to 57; 60 to 64 retired); then, the same day, each profile's
 capabilities, derived from the sections it holds (`Profile.capabilities`, tag
-3), and `store.retired_format` (tag 90) for a store in a format no build reads.
-Version 1 stays reserved until commands and jobs are in the file; until then a
-tag may still change.
+3), and `store.retired_format` (tag 90) for a store in a format no build reads;
+then, on 2026-09-26, `import.account_mismatch` (tag 58) for a file of another
+account than the profile's. Version 1 stays reserved until commands and jobs are
+in the file; until then a tag may still change.
 
 | Version | Status   | Date       | What it introduced                                                                                                        | Refused below |
 | ------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |
@@ -94,13 +95,13 @@ A code is renamed only when its name was actively misleading. A code is a
 `oneof` case, so a rename changes the field's name and keeps its tag: both the
 old and the new name decode, and only the new one is emitted.
 
-| Channel | Old code                                 | New code | Date       | Why renamed                                                          |
-| ------- | ---------------------------------------- | -------- | ---------- | -------------------------------------------------------------------- |
-| core    | `import.profile_mismatch` (tag 60)       | removed  | 2026-09-25 | the reader's; a refused write is `command.refused`                   |
-| core    | `import.malformed_reading` (tag 61)      | removed  | 2026-09-25 | the reader's (ADR-0030); a file is typed by ADR-0031's taxonomy      |
-| core    | `import.reading_too_large` (tag 62)      | removed  | 2026-09-25 | the reader's (ADR-0030)                                              |
-| core    | `import.unestablished_identity` (tag 63) | removed  | 2026-09-25 | the reader's (ADR-0030)                                              |
-| core    | `import.duplicate_soul` (tag 64)         | removed  | 2026-09-25 | the reader's; an id twice in a file is `import.normalization_failed` |
+| Channel | Old code                                 | New code | Date       | Why renamed                                                                                                                                            |
+| ------- | ---------------------------------------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| core    | `import.profile_mismatch` (tag 60)       | removed  | 2026-09-25 | the reader's; a refused write is `command.refused`, and a file of another account is the new `import.account_mismatch` (tag 58), not this code renamed |
+| core    | `import.malformed_reading` (tag 61)      | removed  | 2026-09-25 | the reader's (ADR-0030); a file is typed by ADR-0031's taxonomy                                                                                        |
+| core    | `import.reading_too_large` (tag 62)      | removed  | 2026-09-25 | the reader's (ADR-0030)                                                                                                                                |
+| core    | `import.unestablished_identity` (tag 63) | removed  | 2026-09-25 | the reader's (ADR-0030)                                                                                                                                |
+| core    | `import.duplicate_soul` (tag 64)         | removed  | 2026-09-25 | the reader's; an id twice in a file is `import.normalization_failed`                                                                                   |
 
 **Codes are not versioned, only aliased.** A client built against an older
 schema keeps working across a rename, which is the property that makes a rename

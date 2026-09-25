@@ -118,6 +118,10 @@ Explanation _request(AppLocalizations l, pb.Error_Kind kind) => switch (kind) {
     l.causeImportAdmissionRefused,
     l.remedyImportAdmissionRefused,
   ),
+  pb.Error_Kind.importAccountMismatch => Explanation(
+    l.causeImportAccountMismatch,
+    l.remedyImportAccountMismatch,
+  ),
   pb.Error_Kind.commandRefused => Explanation(l.causeCommandRefused, l.remedyCommandRefused),
   pb.Error_Kind.commandTooLarge => Explanation(l.causeCommandTooLarge, l.remedyCommandTooLarge),
   pb.Error_Kind.storeFailure => Explanation(l.causeStoreFailure, l.remedyStoreFailure),
