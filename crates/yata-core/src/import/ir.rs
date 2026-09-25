@@ -114,6 +114,9 @@ pub struct YataSnapshot {
     pub provenance: Provenance,
     /// As the source states it; informational.
     pub captured_at: Option<String>,
+    /// The account the file says it belongs to, when it says. The fact log checks it against the
+    /// profile an import goes to; nothing else reads it.
+    pub account: Option<AccountRef>,
     pub souls: Section<Souls>,
     pub shikigami: Section<ShikigamiRoster>,
     pub presets: Section<GamePresets>,
@@ -172,6 +175,21 @@ pub struct SourceId(String);
 impl SourceId {
     pub fn new(id: &str) -> Result<SourceId, TextError> {
         text(id, MAX_ID_CHARS).map(SourceId)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The account a file states, as its format writes it: non-empty, at most [`MAX_ID_CHARS`]
+/// characters.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct AccountRef(String);
+
+impl AccountRef {
+    pub fn new(id: &str) -> Result<AccountRef, TextError> {
+        text(id, MAX_ID_CHARS).map(AccountRef)
     }
 
     pub fn as_str(&self) -> &str {
@@ -354,7 +372,8 @@ pub struct Guild {
 /// The IR's limits (`spec/snapshot-ir.md`, "Limits"). A format module checks them before it
 /// allocates; [`check`] checks them again on any snapshot.
 pub mod limits {
-    pub const FILE_BYTES: u64 = 64 * 1024 * 1024;
+    /// The fact log keeps the file as a blob, whose limit is 16 MiB.
+    pub const FILE_BYTES: u64 = 16 * 1024 * 1024;
     pub const SOULS: usize = 20_000;
     pub const SUBS_PER_SOUL: usize = 8;
     pub const SHIKIGAMI: usize = 20_000;

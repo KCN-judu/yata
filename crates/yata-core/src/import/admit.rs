@@ -12,8 +12,8 @@ use crate::soul::{
 };
 
 use super::ir::{
-    Assets, GamePreset, Guild, IrError, Label, Provenance, RolledSub, Section, ShikigamiRecord,
-    SoulRecord, SourceId, YataSnapshot, check,
+    AccountRef, Assets, GamePreset, Guild, IrError, Label, Provenance, RolledSub, Section,
+    ShikigamiRecord, SoulRecord, SourceId, YataSnapshot, check,
 };
 
 /// A record left out, by its position in its section, with the reason.
@@ -106,6 +106,7 @@ pub struct AdmittedPreset {
 pub struct AdmittedSnapshot {
     pub provenance: Provenance,
     pub captured_at: Option<String>,
+    pub account: Option<AccountRef>,
     pub souls: Section<Admitted<(GameSoulId, Soul), SoulAdmissionError>>,
     pub shikigami: Section<Admitted<(SourceId, ShikigamiInstance), ShikigamiAdmissionError>>,
     pub presets: Section<Admitted<AdmittedPreset, PresetAdmissionError>>,
@@ -260,6 +261,7 @@ pub fn admit(s: &YataSnapshot) -> Result<AdmittedSnapshot, IrError> {
     Ok(AdmittedSnapshot {
         provenance: s.provenance,
         captured_at: s.captured_at.clone(),
+        account: s.account.clone(),
         souls: map(&s.souls, |v| {
             split(&v.souls, |r| Some(r.id.clone()), admit_soul)
         }),

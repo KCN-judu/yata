@@ -155,6 +155,7 @@ fn file(name: &str) -> YataSnapshot {
             original: digest_of(&original(name)),
         },
         captured_at: None,
+        account: None,
         souls: Section::Absent,
         shikigami: Section::Absent,
         presets: Section::Absent,

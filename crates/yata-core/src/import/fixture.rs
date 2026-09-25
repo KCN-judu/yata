@@ -52,6 +52,7 @@ pub fn empty() -> YataSnapshot {
             original: Digest([7; 32]),
         },
         captured_at: None,
+        account: None,
         souls: Section::Absent,
         shikigami: Section::Absent,
         presets: Section::Absent,

@@ -454,6 +454,7 @@ mod tests {
                 original: blob::digest_of(ORIGINAL),
             },
             captured_at: None,
+            account: None,
             souls: Section::Present {
                 completeness: Completeness::Complete,
                 value: Souls {

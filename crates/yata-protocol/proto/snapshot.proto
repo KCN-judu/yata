@@ -28,6 +28,8 @@ message YataSnapshot {
   PresetsSection presets = 6;
   AssetsSection assets = 7;
   GuildSection guild = 8;
+  // The account the file says it belongs to, when it says; checked against the profile.
+  optional string account = 9;
 }
 
 enum Completeness {

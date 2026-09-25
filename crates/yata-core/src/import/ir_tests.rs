@@ -35,6 +35,7 @@ fn a_text_is_non_empty_and_bounded() {
         })
     );
     assert!(SetName::new(&"魂".repeat(256)).is_ok());
+    assert_eq!(AccountRef::new(""), Err(TextError::Empty));
 }
 
 #[test]

@@ -11,10 +11,10 @@
 use prost::Message;
 use yata_core::fact::Digest;
 use yata_core::import::ir::{
-    Assets, Completeness, Currency, FormatTag, GamePreset, GamePresets, Guild, Label, Provenance,
-    RealmCardKind, RealmCardRecord, RolledSub, SchemaVersion, Section, SectionKind, SetName,
-    ShikigamiRecord, ShikigamiRoster, SoulRecord, Souls, SourceFormat, SourceId, SpeciesNumber,
-    Valued, YataSnapshot,
+    AccountRef, Assets, Completeness, Currency, FormatTag, GamePreset, GamePresets, Guild, Label,
+    Provenance, RealmCardKind, RealmCardRecord, RolledSub, SchemaVersion, Section, SectionKind,
+    SetName, ShikigamiRecord, ShikigamiRoster, SoulRecord, Souls, SourceFormat, SourceId,
+    SpeciesNumber, Valued, YataSnapshot,
 };
 use yata_core::soul::SoulAttribute;
 use yata_protocol::snapshot as pb;
@@ -144,6 +144,7 @@ pub fn to_proto(s: &YataSnapshot) -> pb::YataSnapshot {
             original: s.provenance.original.0.to_vec(),
         }),
         captured_at: s.captured_at.clone(),
+        account: s.account.as_ref().map(|a| a.as_str().to_owned()),
         souls: s.souls.present().map(|(k, v)| pb::SoulsSection {
             completeness: c(&k),
             souls: v.souls.iter().map(soul).collect(),
@@ -419,6 +420,12 @@ pub fn from_proto(
             .map_err(|_| SnapshotDecodeError::BadDigest {
                 len: prov.original.len(),
             })?;
+    let account = p
+        .account
+        .as_deref()
+        .map(AccountRef::new)
+        .transpose()
+        .map_err(|_| SnapshotDecodeError::Unspecified { field: "account" })?;
     let mut d = Vec::new();
     let souls = section(
         p.souls.as_ref(),
@@ -488,6 +495,7 @@ pub fn from_proto(
                 original: Digest(original),
             },
             captured_at: p.captured_at.clone(),
+            account,
             souls,
             shikigami,
             presets,

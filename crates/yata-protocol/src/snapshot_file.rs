@@ -9,7 +9,7 @@
 use crate::snapshot::{self, SchemaVersion, YataSnapshot};
 
 /// The largest file read: the IR's file limit (`snapshot-ir.md`, "Limits").
-pub const MAX_FILE_BYTES: usize = 64 * 1024 * 1024;
+pub const MAX_FILE_BYTES: usize = 16 * 1024 * 1024;
 
 /// The top-level key that holds the schema version, and recognises the file.
 pub const HEADER_KEY: &str = "yataSnapshot";

@@ -257,6 +257,8 @@ pub(super) fn normalize(
                 original,
             },
             captured_at: Some(captured_at),
+            // What in the file identifies the account is not established (import-format.md).
+            account: None,
             souls,
             shikigami,
             presets,

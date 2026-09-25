@@ -65,9 +65,9 @@ The IR's schema (ADR-0031). Schema: `docs/spec/snapshot-ir.md`. Schema file:
 `crates/yata-protocol/proto/snapshot.proto`. Its version moves only when the
 IR's meaning moves, never with scoring parameters.
 
-| Version | Status  | Date       | What it introduced                                                                                                               | Refused below |
-| ------- | ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------- |
-| 1.0     | current | 2026-09-25 | the header, provenance, and five sections — souls, Shikigami, game presets, assets, guild — each absent or with its completeness | —             |
+| Version | Status  | Date       | What it introduced                                                                                                                                     | Refused below |
+| ------- | ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------- |
+| 1.0     | current | 2026-09-25 | the header, provenance, the optional account, and five sections — souls, Shikigami, game presets, assets, guild — each absent or with its completeness | —             |
 
 **Compatibility rule.** Same as the core channel: the same major is read, any
 minor; a higher major is refused. A newer minor's unknown field or section is

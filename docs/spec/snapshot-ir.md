@@ -26,6 +26,7 @@ YataSnapshot {
   schema      : SchemaVersion             -- this page's version, not a scoring version
   provenance  : Provenance
   captured_at : Option<Text>              -- as the source states it; informational
+  account     : Option<AccountRef>        -- the account the file says it belongs to
   souls       : Section<Souls>
   shikigami   : Section<ShikigamiRoster>
   presets     : Section<GamePresets>
@@ -270,7 +271,8 @@ Checked before allocation, and a file over any of them is refused whole:
 | a text (id, name, label) | 256 chars |
 
 The game showed a soul capacity of 6 000 (the maintainer's screenshot,
-2026-09-25); the limits leave room above every count seen.
+2026-09-25); the limits leave room above every count seen. The file limit is the
+fact log's blob limit, since the file is kept as a blob.
 
 ## Related
 

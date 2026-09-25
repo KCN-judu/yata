@@ -202,3 +202,22 @@ fn a_yata_soul_left_out_that_a_preset_names_refuses_the_file() {
         ))
     ));
 }
+
+#[test]
+fn an_account_survives_the_stored_and_the_file_form() {
+    let s = YataSnapshot {
+        account: Some(yata_core::import::ir::AccountRef::new("acct-1").expect("an account")),
+        ..mumu().snapshot
+    };
+    assert_eq!(decode_snapshot(&encode_snapshot(&s)), Ok(s.clone()));
+    let text = yata_protocol::snapshot_file::to_json(&to_proto(&s)).expect("writable");
+    let again = read(text.as_bytes()).expect("normalized");
+    assert_eq!(again.snapshot.account, s.account);
+    let empty = text.replace("\"account\": \"acct-1\"", "\"account\": \"\"");
+    assert_eq!(
+        read(empty.as_bytes()),
+        Err(ImportError::Decode(SnapshotDecodeError::Unspecified {
+            field: "account"
+        }))
+    );
+}

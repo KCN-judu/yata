@@ -169,6 +169,9 @@ currency name is not in the tables, or whose sub-attribute entry carries
 domain (a set name, a position, a roll count) are admission's
 ([snapshot-ir.md](snapshot-ir.md), "Admission").
 
+**Account.** The file names a player (`player`), but which of its values
+identifies the account is not established, so the adapter states no account.
+
 **Identity.** Soul and hero ids are 24 hexadecimal digits. That the same soul
 keeps its id across two files of one account is expected and not yet shown by a
 second sample.
