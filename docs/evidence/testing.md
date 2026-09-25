@@ -162,20 +162,21 @@ Integration tests in `crates/yata-daemon/tests/probe_session.rs` run the live
 session against a scripted reader over in-memory pipes, then replay what it
 recorded.
 
-| Claim in [probe-protocol.md](../spec/probe-protocol.md)                          | Test                                                                                    |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| a framed request gets its progress and one result; the recording replays to them | `a_framed_request_gets_its_progress_and_one_result`                                     |
-| a cancel is sent once and the request still gets one answer                      | `a_cancel_is_sent_once_and_the_request_still_gets_one_answer`                           |
-| a session-level failure ends the handshake and is a whole capture                | `a_session_level_failure_ends_the_handshake`                                            |
-| a failure without its error, or with no code, is undecodable                     | `a_failure_without_its_error_or_code_is_undecodable`                                    |
-| a failure whose subject disagrees with its code's kind is undecodable            | `a_failure_whose_subject_disagrees_with_its_code_is_undecodable`                        |
-| a malformed frame, and a frame that is not a message, end the session            | `a_malformed_frame_ends_the_session`, `a_frame_that_is_not_a_message_is_undecodable`    |
-| a second answer to one request breaks the discipline                             | `a_reader_that_answers_twice_breaks_the_discipline`                                     |
-| a reader of another major version is refused                                     | `a_reader_of_another_major_version_is_refused`                                          |
-| a reader that dies inside a frame leaves a truncated capture                     | `a_reader_that_dies_mid_frame_leaves_a_truncated_capture`                               |
-| a capture ending with a request open is broken; a request id of 0 is a breach    | `a_capture_that_ends_with_a_request_open_is_broken`, `a_request_id_of_zero_is_a_breach` |
-| a reading has the same readings and blob by recording and by export              | `a_reading_arrives_the_same_by_recording_and_by_export`                                 |
-| a recording with no acknowledgement has no provenance, so no export              | `a_recording_with_no_acknowledgement_has_no_provenance_to_export`                       |
+| Claim in [probe-protocol.md](../spec/probe-protocol.md)                              | Test                                                                                    |
+| ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| a framed request gets its progress and one result; the recording replays to them     | `a_framed_request_gets_its_progress_and_one_result`                                     |
+| a cancel is sent once and the request still gets one answer                          | `a_cancel_is_sent_once_and_the_request_still_gets_one_answer`                           |
+| a session-level failure ends the handshake and is a whole capture                    | `a_session_level_failure_ends_the_handshake`                                            |
+| a failure without its error, or with no code, is undecodable                         | `a_failure_without_its_error_or_code_is_undecodable`                                    |
+| a failure whose subject disagrees with its code's kind is undecodable                | `a_failure_whose_subject_disagrees_with_its_code_is_undecodable`                        |
+| a log message without its level is undecodable; an export with no reading is refused | `a_log_without_its_level_is_undecodable`, `an_export_with_no_reading_is_refused`        |
+| a malformed frame, and a frame that is not a message, end the session                | `a_malformed_frame_ends_the_session`, `a_frame_that_is_not_a_message_is_undecodable`    |
+| a second answer to one request breaks the discipline                                 | `a_reader_that_answers_twice_breaks_the_discipline`                                     |
+| a reader of another major version is refused                                         | `a_reader_of_another_major_version_is_refused`                                          |
+| a reader that dies inside a frame leaves a truncated capture                         | `a_reader_that_dies_mid_frame_leaves_a_truncated_capture`                               |
+| a capture ending with a request open is broken; a request id of 0 is a breach        | `a_capture_that_ends_with_a_request_open_is_broken`, `a_request_id_of_zero_is_a_breach` |
+| a reading has the same readings and blob by recording and by export                  | `a_reading_arrives_the_same_by_recording_and_by_export`                                 |
+| a recording with no acknowledgement has no provenance, so no export                  | `a_recording_with_no_acknowledgement_has_no_provenance_to_export`                       |
 
 `crates/yata-daemon/tests/probe_fixtures.rs` replays
 `tests/fixtures/synthetic-souls.frames`, a recording the reader's own session

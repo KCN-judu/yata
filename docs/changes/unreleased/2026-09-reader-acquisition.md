@@ -34,6 +34,8 @@
   an error code, a channel — rather than defaulting it, and refuses what a
   reading contradicts: a value on a field it does not map, an empty account or
   soul id, a failure whose subject disagrees with its code.
+- `Log` carries a level and a message and no code; an unspecified level is
+  refused. An export holds at least one reading.
 - Both peers read failures through one vocabulary in `yata-protocol::failure`: a
   session failure, with a total exit, or a request failure. The daemon elevates
   only on a session failure that asks for it.

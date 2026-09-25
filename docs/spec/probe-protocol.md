@@ -64,27 +64,46 @@ in its own data directory; an elevated reader has no stderr the daemon can read.
 This includes panic output: a reader that panics still owes the daemon a
 well-formed `Failed` message before it exits.
 
-**Elevation is detected, not assumed.** The daemon starts the reader unelevated
-first. A reader that cannot open the game process sends `Failed` with
-`probe.elevation_required` and exits with code 5; the daemon then restarts it
-through UAC, at most once per session. A declined prompt becomes
-`import.elevation_declined` for the UI, which points to the export file. Before
-the elevated start the daemon checks the reader file's SHA-256 against the
-expected one (R7); until the release manifest exists (ADR-0011) the expected
-hash is given by whoever starts the read, and without one elevation is refused
-(`import.elevation_unverified`), never attempted unchecked.
+**Elevation is detected, not assumed.** One read goes through these states:
 
-The reader exits only when the daemon closes the pipe or sends `Shutdown`. Its
-exit codes:
+```text
+type Attempt = Unelevated | Elevated                      -- at most one Elevated per read
+type Outcome = Read(Reading)
+             | Failed(SessionFailure | RequestFailure)   -- other than elevation
+             | Declined                                  -- import.elevation_declined
+             | Unverified                                -- import.elevation_unverified
+             | HashMismatch { found: Sha256 }            -- the reader file is not the expected one
 
-| Code | Meaning                                                                      |
-| ---- | ---------------------------------------------------------------------------- |
-| 0    | clean shutdown, requested by the daemon                                      |
-| 1    | could not attach: the game was not found, or the process could not be opened |
-| 2    | the engine was recognised but no read strategy matched it                    |
-| 3    | protocol error: the daemon sent a frame the probe could not decode           |
-| 4    | internal failure, with the reason in the reader's log file                   |
-| 5    | elevation required: the game process is elevated and the reader is not       |
+ run(Unelevated) = SessionFailed(ElevationRequired)   no expected hash
+──────────────────────────────────────────────────────────────── (E-Unverified)
+ read = Unverified
+
+ run(Unelevated) = SessionFailed(ElevationRequired)   sha256(reader) = expected
+──────────────────────────────────────────────────────────────── (E-Elevate)
+ read = run(Elevated)            -- its own ElevationRequired is a Failed, never a second prompt
+
+ run(Unelevated) = SessionFailed(ElevationRequired)   sha256(reader) ≠ expected
+──────────────────────────────────────────────────────────────── (E-Mismatch)
+ read = HashMismatch { found: sha256(reader) }
+```
+
+Only a session failure with `probe.elevation_required` leads to elevation; a
+request's failure never does. A declined UAC prompt is `Declined`, which the UI
+turns into a pointer to the export file. Until the release manifest exists
+(ADR-0011) the expected hash is given by whoever starts the read (R7).
+
+The reader exits cleanly (0) only when the daemon closes the pipe or sends
+`Shutdown`. Every other exit follows from the session failure that ended it,
+`SessionCode::exit` in "Error codes":
+
+```text
+type Exit = Clean              -- 0
+          | NotAttached        -- 1: not found, ambiguous, refused, exited
+          | NoStrategy         -- 2: an unsupported environment or an unknown layout
+          | Protocol           -- 3: the peer's version, or a frame or discipline breach
+          | Internal           -- 4: the reason is in the reader's log file
+          | ElevationRequired  -- 5
+```
 
 ## Message kinds
 
@@ -102,17 +121,18 @@ is self-describing before its payload is parsed.
 
 ### Probe to daemon
 
-| Kind           | Purpose                                                                 |
-| -------------- | ----------------------------------------------------------------------- |
-| `HandshakeAck` | the negotiated version, the engine actually found, the probe's build id |
-| `ReadResult`   | the typed records read for one scope, for a request id (ADR-0008)       |
-| `Progress`     | how far a request has got, for a request id                             |
-| `Failed`       | an error for a request id, or a session-level failure                   |
-| `Log`          | a diagnostic the daemon may surface; never a state change               |
+| Kind           | Purpose                                                               |
+| -------------- | --------------------------------------------------------------------- |
+| `HandshakeAck` | the version, the engine found, the build id, the channel, the process |
+| `ReadResult`   | the typed records read for one scope, for a request id (ADR-0008)     |
+| `Progress`     | how far a request has got, for a request id                           |
+| `Failed`       | an error for a request id, or a session-level failure                 |
+| `Log`          | a diagnostic the daemon may surface; never a state change             |
 
 `Log` is not a substitute for the reader's log file. It exists for the one case
-the file cannot serve: a message the _user_ should eventually see, which the
-daemon may translate and surface.
+the file cannot serve: a message the _user_ should eventually see. It carries a
+level (`info` or `warning`; unspecified is refused) and a message, and no code:
+a code the daemon translates needs a closed set, and none exists yet.
 
 ## Choosing the process
 
@@ -144,17 +164,30 @@ game establishes them.
 
 ## Request discipline
 
-A request id is chosen by the daemon, unique within the session, never reused:
-each id is above every earlier one. **Exactly one `ReadResult` or `Failed`
-response per request** — `Progress` may be emitted any number of times before
-it, and never after it. Both peers run the same state machine for this
-(`yata-protocol::discipline`): the daemon over the reader's answers, the reader
-over the daemon's requests and cancels.
+**Exactly one `ReadResult` or `Failed` response per request.** Both peers run
+the same state machine (`yata-protocol::discipline`): the daemon over the
+reader's answers, the reader over the daemon's requests and cancels.
 
-A `Cancel` for a request id the probe has already answered is accepted and
-ignored; a `Cancel` for an unknown id is a protocol error. The daemon may cancel
-at any time, including before the probe has started; a request cancelled before
-it begins produces no `ReadResult` and one `Failed` with code `probe.cancelled`.
+```text
+type RequestId = { n: u64 | n ≥ 1 }            -- 0 is never an id
+type State     = Open | Answered               -- per id; "highest" is the largest id issued
+
+ id > highest              ReadRequest id   ⟹ id Open, highest := id
+ id ≤ highest              ReadRequest id   ⟹ breach Reused
+ id Open                   Progress id      ⟹ id Open
+ id Open                   ReadResult id | Failed{request_id = id}   ⟹ id Answered
+ id Open                   Cancel id        ⟹ id Open; the reader stops at its next checkpoint
+ id Answered               Cancel id        ⟹ ignored: the answer and the cancel crossed
+ id Answered               anything else    ⟹ breach AfterTerminal
+ id > highest              anything but ReadRequest ⟹ breach Unknown
+```
+
+Ids only grow, so "never reused" needs one number, not a set. A breach is
+`probe.protocol_error`. The daemon may cancel at any time, including before the
+reader has started; a request cancelled before it begins gets one `Failed` with
+`probe.cancelled` and no `ReadResult`. A request cancelled while it runs gets
+exactly one answer too: the `Failed`, or its `ReadResult` if the read finished
+before the checkpoint. A `ReadResult` answers the scope its request named.
 
 Cancellation is cooperative and checkpoints are engine-specific. The probe stops
 at its next checkpoint, so a cancel during a long region read returns a `Failed`
@@ -339,7 +372,7 @@ needs no daemon (ADR-0008). The file is the proto3 JSON mapping of a
 ProbeExport {
   protocol_version, probe_build_id, engine,
   channel     : DesktopMemory | MumuAdb,
-  readings    : [Reading],
+  readings    : NonEmpty [Reading],
   captured_at : optional, RFC 3339, UTC
   target      : TargetProcess
 }
@@ -422,9 +455,27 @@ version mismatch is a schema problem in this repository; a build id change with
 the same protocol version means the probe's behaviour moved and the recording is
 from a different probe than the one running.
 
-A probe whose protocol major version is older than the daemon's oldest supported
-version is refused at handshake with `probe.protocol_unsupported`. The probe
-never silently degrades to an older schema.
+The probe channel accepts one major version:
+
+```text
+compat : (peer: ProtocolVersion, own: ProtocolVersion) -> Accept | Refuse
+  peer.major = own.major  ⟹ Accept     -- any minor
+  otherwise               ⟹ Refuse     -- probe.protocol_unsupported
+A handshake, acknowledgement, or export without a version is not a version:
+probe.protocol_error on the pipe, a refused file on import.
+```
+
+Neither side silently degrades to an older schema. The core channel's rule,
+which also accepts an older major with a warning, is in
+[core-protocol.md](core-protocol.md).
+
+Because the export file is proto3 JSON, the public names of the schema are its
+field names, message names, **and enum value names**; none is renamed within a
+major version. A newer minor version may add a field, an enum value, a message,
+or a `oneof` case. A build reading a newer minor file skips unknown fields,
+reads an unknown enum value as unspecified and an unknown `oneof` case as unset,
+and both are then refused where a value is required: as malformed input, which
+does not yet say that the file is newer.
 
 ## What this page does not define
 

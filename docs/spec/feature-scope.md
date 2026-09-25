@@ -22,8 +22,9 @@ The application scores every soul in the user's inventory using two passes
 (ADR-0003):
 
 - **Pass 1 (quality):** target-independent. Answers whether a soul is good in
-  itself, with no holder in mind. Produces a `QualityScore` with depth, breadth,
-  slot-fit, and roll-headroom. See `scoring.md`.
+  itself, with no holder in mind. Produces a `QualityScore` with its total, the
+  best-fit archetype, depth, breadth, slot fit, and growth. See
+  `quality-model.md`.
 - **Pass 2 (affinity/matching):** target-relative. Given a set of Shikigami need
   profiles, produces per-soul affinity scores, candidate loadout assignments,
   and the delta against what the account currently has equipped. The inversion
@@ -59,7 +60,12 @@ A third channel is an ADR decision, not a feature addition.
 Both channels run on Windows only. The application also runs on macOS, where the
 inventory comes from an **export file**: the probe writes its reading as JSON,
 and the application imports it on either platform (ADR-0008). The same file is a
-portable backup and a documented format other tools can read.
+portable backup and a documented format other tools can read. Every reading has
+one of three sources:
+
+```text
+type InventorySource = Channel(DesktopMemory | MumuAdb) | ExportFile
+```
 
 ### GameProfile — multi-profile support
 
@@ -92,10 +98,14 @@ is deferred (below). Added 2026-09-23 (PRP-0002).
 
 ### Head/tail analysis
 
-Speed-head detection: a soul on Slot 2 with SPD as its main attribute is a speed
-head. The scoring pass's `slot_fit` field surfaces this directly. The feature
-answers which souls in the inventory are speed heads and how they rank by
-quality and affinity for speed- dependent needs.
+Speed-head detection is a predicate on the soul, not a field of a score:
+
+```text
+speed_head(s)  ⟸  slot(s) = Slot2  ∧  main(s) = Spd
+```
+
+The feature answers which souls in the inventory are speed heads and how they
+rank by quality and by affinity for speed-dependent needs.
 
 ### Discard and strengthen recommendations
 

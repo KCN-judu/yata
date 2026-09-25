@@ -57,9 +57,16 @@ _Check:_ the device command strings are constants in one module with tests, and
 the startup cleanup has a test.
 
 **R4 — No command is built from untrusted text.** Text read from the emulator or
-the game enters a shell command only after validation. A PID must be digits
-only. A package name must match `[A-Za-z0-9._]+`. Anything else refuses the
-read. _Check:_ unit tests with hostile inputs.
+the game is parsed into a typed value, and commands are built only from typed
+values, never from the text:
+
+```text
+parse_pid          : text -> Result<Pid, Refused>          Pid = NonZeroU32; ASCII digits, ≤ u32::MAX
+parse_package_name : text -> Result<PackageName, Refused>  [A-Za-z0-9._]+, non-empty
+parse_pipe_name    : text -> Result<PipeName, Refused>     "\\.\pipe\yata-reader-" then 32 × [0-9a-f]
+```
+
+Anything else refuses the read. _Check:_ unit tests with hostile inputs.
 
 ## Code provenance
 

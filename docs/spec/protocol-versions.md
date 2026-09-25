@@ -26,8 +26,8 @@ code that has been renamed keeps its entry.
 | **superseded** | the schema exists, is still accepted on the wire, and is not what new code builds against |
 | **retired**    | the version is refused at handshake; kept here so an old recording can still be explained |
 
-A version is **reserved** now because both schemas are still specification. The
-first schema file to land turns its row **current**.
+A version is **reserved** until a schema file lands and both sides build against
+it; then its row turns **current**.
 
 ## Core protocol — daemon ↔ Flutter
 
@@ -97,9 +97,14 @@ old and the new name decode, and only the new one is emitted.
 
 **Codes are not versioned, only aliased.** A client built against an older
 schema keeps working across a rename, which is the property that makes a rename
-affordable at all. A code that is _removed_ — rather than renamed — stays in
-this table with an empty new-code cell, so a client that receives it can still
-say what it was.
+affordable at all. Each row is one of two cases:
+
+```text
+type Alias = Renamed { old: Code, new: Code } | Removed { old: Code }
+```
+
+A removed code stays in the table as `Removed`, written `removed` in the
+new-code column, so a client that receives it can still say what it was.
 
 ## What is not here
 

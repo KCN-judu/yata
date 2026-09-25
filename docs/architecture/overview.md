@@ -11,7 +11,7 @@ them, and which crate owns what. This page is the entry point for "where does
 this belong"; the format of each boundary's payloads lives in the spec pages it
 links.
 
-Everything here is _designed_. Nothing is _implemented_ — see
+This page states the design. What of it is implemented and tested is in
 `../project/status.md`.
 
 ## The shape
@@ -112,12 +112,12 @@ Dependency direction rules (ADR-0005 invariants):
 The rule is ADR-0001's, applied to four layers instead of two: **semantic truth
 flows up; presentation never flows down and redefines it.**
 
-| Layer                      | Owns                                                                                                                                                                      | Never does                                                                                                                      |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **Flutter app** (ADR-0012) | presentation, interaction, layout, ephemeral view state, optimistic rendering                                                                                             | decode a payload, map a set id, compute or interpolate a score, decide a slot, decide what fits a Shikigami, validate an import |
-| **`yata-protocol`**        | the frame codec and the generated message types                                                                                                                           | any branch that changes a value; any domain rule; any dependency on the core                                                    |
-| **`yata-daemon`**          | the protocol session, use cases, domain ↔ message conversion, the store, effect injection, process spawn, progress, error mapping, the request-id and revision discipline | domain arithmetic or any semantic judgment (it calls `yata-core`)                                                               |
-| **pure crates**            | every decode and scoring judgment, the fold, the matching                                                                                                                 | I/O, clock, randomness, logging, event emission, panics for expected failure                                                    |
+| Layer                      | Owns                                                                                                                                                                                                                  | Never does                                                                                                                      |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Flutter app** (ADR-0012) | presentation, interaction, layout, ephemeral view state, optimistic rendering                                                                                                                                         | decode a payload, map a set id, compute or interpolate a score, decide a slot, decide what fits a Shikigami, validate an import |
+| **`yata-protocol`**        | the frame codec and the generated message types                                                                                                                                                                       | any branch that changes a value; any domain rule; any dependency on the core                                                    |
+| **`yata-daemon`**          | the protocol session, use cases, domain ↔ message conversion, the store, effect injection, process spawn, progress, error mapping, the revision discipline; it runs the request-id discipline `yata-protocol` defines | domain arithmetic or any semantic judgment (it calls `yata-core`)                                                               |
+| **pure crates**            | every decode and scoring judgment, the fold, the matching                                                                                                                                                             | I/O, clock, randomness, logging, event emission, panics for expected failure                                                    |
 
 ## The two passes
 
@@ -162,17 +162,18 @@ comparable rather than merely different.
 ## Derived results are not stored
 
 Nothing derived is durable. `QualityScore`, `AffinityScore`, and
-`MatchingResult` are computed on demand and held in a memo keyed by
-`(projection revision, parameter set version)`. The legacy application persisted
-four independent derived caches and maintained four invalidation schemes; all
-four are replaced by that key.
+`MatchingResult` are computed on demand and held in a memo keyed by the
+projection revision and the parameter set's identity, `(id, version)`: two
+parameter sets with the same version number are different sets. The legacy
+application persisted four independent derived caches and maintained four
+invalidation schemes; all four are replaced by that key.
 
 The consequences are deliberate: a parameter change is a cache miss, not a
 migration; changing the definition of a need profile re-scores the whole
 inventory at the cost of one recomputation; and there is never a stored number
 whose provenance is a version of the rules that no longer exists. The only
-durable derived thing is the user's _decisions_ — locks, discards, equips, notes
-— and those are facts like any other (ADR-0002).
+durable derived thing is the user's _decisions_ — marks and notes (`SoulMarked`,
+`SoulNoted`) — and those are facts like any other (ADR-0002).
 
 ## Data exchange paths
 
@@ -246,7 +247,7 @@ this workspace.
                                                    yata-daemon  (spawns, pumps)
                   ② pipes ▲   │                                   ▲
                           └───┘                                   │
-                  spawn + stdin/stdout ───────────────────────────┘
+                  spawn + named pipe ─────────────────────────────┘
 ```
 
 | Concern                                                                | Where it lives                                                  | Why there                                                                                                              |
@@ -288,7 +289,7 @@ thing that will still be testable after the game patches.
 | the exact weights and need profiles for each Shikigami                            | a parameter set, `spec/scoring.md` + a data file, versioned |
 | where need profiles come from (derived from the game's damage model vs. authored) | `../spec/scoring.md`, provenance-tagged per profile         |
 | the matching algorithm and its complexity bound                                   | `../spec/scoring.md`                                        |
-| the tag numbers of either schema                                                  | the two schema files, neither of which exists yet           |
+| the tag numbers of either schema                                                  | the two schema files in `crates/yata-protocol/proto/`       |
 
 ## Related
 
