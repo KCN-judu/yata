@@ -177,22 +177,41 @@ Failed {
 ```
 
 The code is a closed enum, so a peer cannot send a code the other does not know
-without the other seeing it as unspecified, which is refused. Each code has a
-stable dotted name (`ProbeErrorCode::name`), `probe.`-prefixed, which is what
-logs, this page, and the daemon's error details write. The namespace is disjoint
-from the core channel's on purpose: `probe.not_attached` and
-`command.stale_revision` cannot be confused by a reader or a log filter, even
-though both are `Error`-shaped. Names are changed only through the alias table
-in [protocol-versions.md](protocol-versions.md).
+without the other seeing it as unspecified, which is refused. Both peers parse a
+`ProbeError` into the same values (`yata-protocol::failure`):
+
+```text
+type ProbeCode      = Session(SessionCode) | Request(RequestCode)   -- no unspecified case
+exit                : SessionCode -> Exit                           -- total; never Clean
+type SessionReason  = Ambiguous { candidates: [TargetProcess] }     -- the one reason with data
+                    | NotFound | ElevationRequired | AccessDenied | ProcessExited
+                    | UnsupportedEnvironment | LayoutMismatch | ProtocolUnsupported
+                    | ProtocolError | Internal
+record SessionFailure { reason: SessionReason, message: String, os_error: Option<NonZeroU32> }
+record RequestFailure { code: RequestCode, message: String }
+parse               : ProbeError -> Result<SessionFailure | RequestFailure, FailureError>
+```
+
+`parse` refuses an unstated code, an ambiguous target without its candidates, a
+discovery detail on any other code, an operating-system error on a request's
+failure, and an error number of 0. Each code has a stable dotted name,
+`probe.`-prefixed, which is what logs, this page, and the daemon's error details
+write. The namespace is disjoint from the core channel's on purpose:
+`probe.not_attached` and `command.stale_revision` cannot be confused by a reader
+or a log filter, even though both are `Error`-shaped. Names are changed only
+through the alias table in [protocol-versions.md](protocol-versions.md).
 
 A `Failed` states its subject: one request, by id, or the session. There is no
-request id that means "the session".
+request id that means "the session". The subject and the code's kind must agree:
+a session subject with a request's code, or a request with a session's code, is
+undecodable.
 
 ### Error codes
 
 The failures of attaching are kept apart, because each needs a different answer
-from the user. The exit a code ends the reader with is `ProbeErrorCode::exit` in
-`yata-protocol`, and the exit codes are `probe::Exit`.
+from the user. The exit a session code ends the reader with is
+`SessionCode::exit` in `yata-protocol::failure`, and the exit codes are `Exit`
+there.
 
 | Code                            | Meaning                                                                          | Exit |
 | ------------------------------- | -------------------------------------------------------------------------------- | ---- |

@@ -29,9 +29,14 @@
   mapped with its evidence and value, and the research analyses — survey,
   grouping, cross-tabulation, and the suit-code ledger against maintainer
   attestations, by scheme bit.
-- The daemon refuses what the schema leaves unstated — coverage, a mapping's
-  evidence, an innate reading's case, a raw value, an error code — rather than
-  defaulting it.
+- The daemon refuses what the schema leaves unstated — coverage, the mappings
+  message, a mapping's evidence or basis, an innate reading's case, a raw value,
+  an error code, a channel — rather than defaulting it, and refuses what a
+  reading contradicts: a value on a field it does not map, an empty account or
+  soul id, a failure whose subject disagrees with its code.
+- Both peers read failures through one vocabulary in `yata-protocol::failure`: a
+  session failure, with a total exit, or a request failure. The daemon elevates
+  only on a session failure that asks for it.
 - `yata-daemon`: the probe session over any stream, recording every byte it
   reads, and replay through the same decoder and rules; the Windows named pipe
   (owner-only, first instance, no remote clients, client pid checked) and
@@ -44,7 +49,10 @@
 ## Compatibility and migration
 
 Version 1 of the probe protocol is still reserved, so the schema changed in
-place. No recording or export of an earlier draft exists.
+place. No recording or export of an earlier draft exists. A fact store written
+before a blob became a `Reading` holds blobs this build does not read; before
+release, such a store is recreated rather than migrated. The `probe` commands
+refuse a reading without records instead of skipping it.
 
 ## Evidence
 

@@ -214,11 +214,11 @@ Need profiles are not in this catalogue. Their authoring is undecided
 
 ## Blobs and content addressing
 
-A blob is the protobuf serialization of one probe `ReadResult` with its request
-id left out, which belongs to the session and not to the reading
-(`probe-protocol.md`, § Export file). A reading from the pipe and the same
-reading from an export file are serialized by `yata-protocol` alike, so they
-have the same digest.
+A blob is the protobuf serialization of one probe `Reading`. The request id is
+on the `ReadResult` around it, which belongs to the session and not to the
+reading (`probe-protocol.md`, § Export file). A reading from the pipe and the
+same reading from an export file are serialized by `yata-protocol` alike, so
+they have the same digest.
 
 - **The digest is SHA-256 over the uncompressed bytes.** Identity does not
   depend on how the bytes are stored, so the compression codec can change

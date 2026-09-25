@@ -139,11 +139,12 @@ The same outcomes are asserted on the shared fixture files in
 
 ## Probe schema — `yata-protocol`
 
-| Claim                                                                         | Test in `tests` (crate root)                                  |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| a probe message survives encoding, framing, and decoding unchanged            | `a_probe_message_survives_a_frame`                            |
-| an unrecorded roll count is distinct from zero rolls on the wire              | `an_absent_roll_count_differs_from_zero_rolls`                |
-| every error code has a dotted name, and only the session's codes end a reader | `every_code_has_a_name_and_only_session_codes_end_the_reader` |
+| Claim                                                                                                                 | Test in `tests` (crate root)                                                                                                          |
+| --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| a probe message survives encoding, framing, and decoding unchanged                                                    | `a_probe_message_survives_a_frame`                                                                                                    |
+| an unrecorded roll count is distinct from zero rolls on the wire                                                      | `an_absent_roll_count_differs_from_zero_rolls`                                                                                        |
+| every stated code parses, round-trips, and has a distinct dotted name; only session codes end a reader, never cleanly | `failure::tests::every_stated_code_parses_round_trips_and_has_a_distinct_name`, `only_session_codes_end_the_reader_and_never_cleanly` |
+| a failure round-trips through the wire; shapes the schema rules out are refused                                       | `failure::tests::a_failure_round_trips_through_the_wire`, `shapes_the_schema_rules_out_are_refused`                                   |
 
 | Claim in [probe-protocol.md](../spec/probe-protocol.md)                                    | Test                                                                                                                    |
 | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
@@ -167,6 +168,7 @@ recorded.
 | a cancel is sent once and the request still gets one answer                      | `a_cancel_is_sent_once_and_the_request_still_gets_one_answer`                           |
 | a session-level failure ends the handshake and is a whole capture                | `a_session_level_failure_ends_the_handshake`                                            |
 | a failure without its error, or with no code, is undecodable                     | `a_failure_without_its_error_or_code_is_undecodable`                                    |
+| a failure whose subject disagrees with its code's kind is undecodable            | `a_failure_whose_subject_disagrees_with_its_code_is_undecodable`                        |
 | a malformed frame, and a frame that is not a message, end the session            | `a_malformed_frame_ends_the_session`, `a_frame_that_is_not_a_message_is_undecodable`    |
 | a second answer to one request breaks the discipline                             | `a_reader_that_answers_twice_breaks_the_discipline`                                     |
 | a reader of another major version is refused                                     | `a_reader_of_another_major_version_is_refused`                                          |
@@ -185,8 +187,8 @@ ledger that stays unretired.
 
 | Claim                                                                                                     | Test in `probe::convert::tests` or `probe::launch::tests` (Windows)                                   |
 | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| a value for an unmapped field is not taken; an established mapping keeps its basis                        | `a_value_for_an_unmapped_field_is_not_taken`, `an_established_mapping_keeps_its_basis`                |
-| unstated coverage, evidence, innate readings, and values are refused, not defaulted                       | `unstated_shapes_are_refused_not_defaulted`                                                           |
+| a value on an unmapped field is refused; an established mapping keeps its basis                           | `a_value_for_an_unmapped_field_is_refused`, `an_established_mapping_keeps_its_basis`                  |
+| unstated coverage, mappings, evidence, bases, innate readings, and values are refused, not defaulted      | `unstated_shapes_are_refused_not_defaulted`                                                           |
 | a cut sequence or mapping states a full length above what it holds                                        | `a_cut_length_must_be_above_what_is_held`                                                             |
 | a blob is the reading alone, whatever request carried it                                                  | `a_blob_is_the_reading_alone`                                                                         |
 | the pipe's descriptor grants its owner only; the owner connects and its process id is checked (R10, part) | `the_pipe_refuses_everyone_but_its_owner`, `the_owner_connects_and_its_process_id_is_checked`         |
@@ -196,14 +198,14 @@ ledger that stays unretired.
 
 ## Soul observations and evidence analyses — `yata-core::import`
 
-| Claim                                                                                           | Tests                                                                                                                                |
-| ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| field names round-trip; inherited is weaker than established; renderings keep kinds apart       | `observation::tests`                                                                                                                 |
-| an unmapped field holds no value whatever the record says; a mapped one a record lacks is empty | `observation::tests::an_unmapped_field_holds_no_value_whatever_the_record_says`, `a_mapped_field_a_record_lacks_is_mapped_and_empty` |
-| a survey counts kinds, integer ranges, and distinct values                                      | `evidence::tests::a_survey_counts_kinds_ranges_and_distinct_values`                                                                  |
-| groups order absent first, then integers numerically; a crosstab separates absent, null, values | `evidence::tests::groups_order_absent_then_integers_numerically`, `a_crosstab_separates_absent_null_and_values`                      |
-| matching codes re-establish a bit; a code attested for two bits contradicts both                | `evidence::tests::matching_codes_reestablish_their_bits`, `a_code_attested_for_two_bits_contradicts_both`                            |
-| unjoinable attestations are reported; only every bit re-established retires the inheritance     | `evidence::tests::unjoinable_attestations_are_reported_not_dropped`, `every_bit_reestablished_retires_the_inheritance`               |
+| Claim                                                                                                                                  | Tests                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| field names round-trip; inherited is weaker than established; renderings keep kinds apart                                              | `observation::tests`                                                                                                                                                      |
+| a value on an unmapped field, an empty account id, or an empty soul id contradicts the reading; a mapped field a record lacks is empty | `observation::tests::a_value_on_an_unmapped_field_contradicts_the_reading`, `an_empty_account_or_soul_id_is_refused`, `a_mapped_field_a_record_lacks_is_mapped_and_empty` |
+| a survey counts kinds, integer ranges, and distinct values                                                                             | `evidence::tests::a_survey_counts_kinds_ranges_and_distinct_values`                                                                                                       |
+| groups order absent first, then integers numerically; a crosstab separates absent, null, values                                        | `evidence::tests::groups_order_absent_then_integers_numerically`, `a_crosstab_separates_absent_null_and_values`                                                           |
+| matching codes re-establish a bit; a code attested for two bits contradicts both                                                       | `evidence::tests::matching_codes_reestablish_their_bits`, `a_code_attested_for_two_bits_contradicts_both`                                                                 |
+| unjoinable attestations are reported; only every bit re-established retires the inheritance                                            | `evidence::tests::unjoinable_attestations_are_reported_not_dropped`, `every_bit_reestablished_retires_the_inheritance`                                                    |
 
 The reader's own tests — discovery, attach classification, the layout decoder on
 synthetic memory and on a live process of the runtime it reads, its session
