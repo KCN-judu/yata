@@ -47,6 +47,32 @@ opened to contributors when the project accepts outside contributions.
   (ADR-0013).
 - Nothing from the prior tool is ported (ADR-0014).
 
+## Modelling
+
+Correctness by construction is the first means of modelling. A requirement that
+a type can express is expressed in the type, before any runtime check, test, or
+comment.
+
+- Alternatives are sum types whose cases carry their own data, not flags beside
+  optional fields. A value the domain does not admit cannot be built.
+- Every meaning has exactly one encoding. No sentinel values: absence is
+  explicit, and "unknown", "absent", and "present" are distinct cases.
+- Primitives that admit values the domain does not are wrapped in types with a
+  checked constructor.
+- Input is parsed into domain types once, at the boundary where it enters.
+  Unstated input is refused, never given a default.
+- Functions are total. A failure is returned in the type and never turned into a
+  plausible default.
+- Failures that are handled differently have different types.
+- Lifecycle state is a sum type. State that must agree is kept in one place.
+- Side effects are isolated at the edge. Domain logic takes values and returns
+  values: it performs no I/O, reads no clock or environment, draws no
+  randomness, and does not log. Effects enter as parameters and leave as data
+  that the boundary carries out.
+- Wire schemas follow the same rules: `oneof` for alternatives, closed enums for
+  codes with the unspecified value refused, explicit presence where absence has
+  meaning.
+
 ## Code
 
 - Errors are structured values carrying typed fields, returned in the type. A
