@@ -147,10 +147,10 @@ machine except in a backup the user makes; the daemon never logs it.
 
 ### Imports
 
-| Kind                | Payload                                                   | Meaning                                            |
-| ------------------- | --------------------------------------------------------- | -------------------------------------------------- |
-| `SnapshotImported`  | snapshot digest, original digest, source format, sections | one imported file landed (ADR-0032, rule 4)        |
-| `SnapshotRetracted` | snapshot digest, reason                                   | every current import of that snapshot is withdrawn |
+| Kind                | Payload                                                                     | Meaning                                               |
+| ------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `SnapshotImported`  | snapshot digest, original digest, source format, sections, optional account | one imported file landed (ADR-0032, rule 4; ADR-0033) |
+| `SnapshotRetracted` | snapshot digest, reason                                                     | every current import of that snapshot is withdrawn    |
 
 ```text
 SnapshotImported {
@@ -158,6 +158,7 @@ SnapshotImported {
   original : Digest          -- the blob of the file as imported
   source   : SourceFormat    -- YataSnapshot(version) | Community(FormatTag)
   sections : Sections        -- SectionKind → Completeness; at least one entry, each kind once
+  account  : GameAccountId?  -- the account the snapshot states; none when it states none
 }
 ```
 
@@ -191,10 +192,21 @@ of the same snapshot is a new observation and stands. A retraction that
 withdraws nothing — the snapshot was never imported in that profile, or already
 withdrawn — does not apply.
 
-**No account check.** A format-1 acquisition carried the account it was read
-from, and an import of another account's reading was refused. The snapshot IR
-states no account, so a format-2 import is not checked against one (ADR-0032,
-rule 8).
+**An import never crosses accounts** (ADR-0033). A profile's known account is
+derived, never stored as a fact of its own:
+
+```text
+known(p) = the account of p's ProfileCreated,                     if it names one
+         = the account of p's earliest current import stating one, otherwise
+         = none
+```
+
+An import that states an account other than `known(p)` does not apply: the fold
+refuses it as `ProfileMismatch`, and nothing is written. An import that states
+the account, or states one while `known(p)` is none, applies; in the second case
+it binds the profile while it is current. An import that states no account is
+not checked and binds nothing. Withdrawing the import that bound a profile frees
+the profile to be bound again; an account named at creation is never freed.
 
 ### User decisions
 
@@ -296,12 +308,13 @@ lift : (kind, version, payload) -> current payload of that kind
   rule 2). A build therefore never meets a case or value it does not know in a
   store it opened: an unset body or an unknown value is
   `store.malformed_commit`, never a newer format.
-- **Format 1 is retired, not lifted** (ADR-0032, rule 3). Its facts held the
-  retired reader's readings, which the IR cannot represent. A format-1 store is
-  refused with its own error, and a developer recreates it. This is the one
-  exception to lifting, and no released build wrote such a store.
+- **Formats 1 and 2 are retired, not lifted** (ADR-0032, rule 3; ADR-0033, rule
+  4). Format 1's facts held the retired reader's readings, which the IR cannot
+  represent; format 2's imports stated no account. Such a store is refused with
+  its own error, and a developer recreates it. These are the only exceptions to
+  lifting, and no released build wrote such a store.
 
-The store format version is 2.
+The store format version is 3.
 
 ## The projection cache
 
@@ -346,15 +359,16 @@ removed.
 
 At HEAD, with the tests named in `evidence/testing.md`:
 
-- store format 2: the fact kinds `ProfileCreated`, `ProfileRenamed`,
+- store format 3: the fact kinds `ProfileCreated`, `ProfileRenamed`,
   `ProfileRetired`, `ProfileRestored`, `SnapshotImported`, `SnapshotRetracted`,
   `SoulMarked`, and `SoulNoted`, each at version 1, as `oneof` cases in
-  `crates/yata-daemon/proto/fact.proto`; a format-1 store refused
+  `crates/yata-daemon/proto/fact.proto`; format-1 and format-2 stores refused
 - the codec; `store.newer_format` at open and `store.malformed_commit`
 - commands with the outcomes above; imports as jobs, storing the snapshot and
   the original file
-- the fold per profile and section, and `held`, as `yata-core::fact`; the soul
-  inventory derived from the live snapshots through `yata-core::import::admit`
+- the fold per profile and section, `held`, and the account check, as
+  `yata-core::fact`; the soul inventory derived from the live snapshots through
+  `yata-core::import::admit`
 - replay on open, in the daemon's store module; `yata-daemon log` dumps the log,
   showing account ids only as present
 
@@ -384,6 +398,8 @@ session do not call the fact log yet.
   [import-format.md](import-format.md)
 - Typed facts and section imports:
   [ADR-0032](../decisions/0032-typed-facts-and-section-imports.md)
+- The account check:
+  [ADR-0033](../decisions/0033-an-import-is-bound-to-its-profiles-account.md)
 - Scheme payloads kept as bytes: [scheme-code.md](scheme-code.md),
   `research/scheme-code-protocol.md` (local research, not published)
 - `GameProfile`, `Snapshot`, `AcquisitionEvent`: [glossary.md](glossary.md)
