@@ -160,6 +160,8 @@ Design questions under active consideration. Close with `accepted` (→ ADR) or
 - [proposals/0006-typed-fact-payloads.md](proposals/0006-typed-fact-payloads.md)
   — a fact's payload typed by its envelope, and facts about the store without a
   profile; **draft**
+- [proposals/0007-equipped-by.md](proposals/0007-equipped-by.md) — which
+  Shikigami wears a soul, as a type; **draft**, deferred past the first version
 - PRP-0001 and PRP-0002 are kept in local research (ADR-0016).
 
 ## Issues — `issues/`
