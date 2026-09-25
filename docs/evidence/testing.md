@@ -54,18 +54,18 @@ Integration tests in `crates/yata-daemon/tests/store.rs`, each against a real
 SQLite file under a directory whose name has Chinese characters and a space
 (ADR-0010), on Linux, Windows, and macOS.
 
-| Claim                                                                | Test                                                                         |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
-| a store is created, initialized with its format and id, and reopened | `a_store_is_created_initialized_and_reopened`                                |
-| opening never creates a missing store                                | `opening_never_creates_a_missing_store`                                      |
-| an existing store is opened without a new id                         | `an_existing_store_is_opened_without_a_new_id`                               |
-| commits append densely; a gap or a repeat is refused                 | `commits_append_densely_and_read_back_in_order`                              |
-| a failed commit keeps none of its writes                             | `a_failed_commit_keeps_none_of_its_writes`                                   |
-| blobs are stored once and pruned by digest                           | `blobs_are_stored_once_and_pruned_by_digest`                                 |
-| the projection cache keeps one entry                                 | `the_projection_cache_keeps_one_entry`                                       |
-| a file that is not a database is refused and left untouched          | `a_foreign_file_is_refused_and_left_untouched`                               |
-| an empty file is uninitialized until creation is asked for           | `an_empty_file_is_uninitialized_until_creation_is_asked_for`                 |
-| a format-1 store is retired and a newer one refused                  | `store::tests::a_format_one_store_is_retired_and_a_newer_one_refused` (unit) |
+| Claim                                                                | Test                                                                           |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| a store is created, initialized with its format and id, and reopened | `a_store_is_created_initialized_and_reopened`                                  |
+| opening never creates a missing store                                | `opening_never_creates_a_missing_store`                                        |
+| an existing store is opened without a new id                         | `an_existing_store_is_opened_without_a_new_id`                                 |
+| commits append densely; a gap or a repeat is refused                 | `commits_append_densely_and_read_back_in_order`                                |
+| a failed commit keeps none of its writes                             | `a_failed_commit_keeps_none_of_its_writes`                                     |
+| blobs are stored once and pruned by digest                           | `blobs_are_stored_once_and_pruned_by_digest`                                   |
+| the projection cache keeps one entry                                 | `the_projection_cache_keeps_one_entry`                                         |
+| a file that is not a database is refused and left untouched          | `a_foreign_file_is_refused_and_left_untouched`                                 |
+| an empty file is uninitialized until creation is asked for           | `an_empty_file_is_uninitialized_until_creation_is_asked_for`                   |
+| formats 1 and 2 are retired and a newer one refused                  | `store::tests::formats_one_and_two_are_retired_and_a_newer_one_refused` (unit) |
 
 ## Fact model and fold — `yata-core`
 
@@ -80,6 +80,8 @@ Claims of [fact-format.md](../spec/fact-format.md) that hold without a store.
 | an import without a section leaves that section alone                                                                                      | `projection::tests::an_import_without_a_section_leaves_that_section_alone`                                                                                                              |
 | a retraction withdraws every section of its snapshot, only what came before it, in its own profile                                         | `projection::tests::a_retraction_withdraws_every_section_of_its_snapshot`, `a_retraction_withdraws_only_what_came_before_it`, `a_retraction_must_withdraw_something_in_its_own_profile` |
 | `held` is `Complete` over a base and the strongest layer without one                                                                       | `projection::tests::held_is_complete_over_a_base_and_the_strongest_layer_without_one`                                                                                                   |
+| an import of another account does not apply; one that states none is not checked                                                           | `projection::tests::an_import_of_another_account_does_not_apply`                                                                                                                        |
+| withdrawing the binding import frees the profile; an account named at creation is never freed                                              | `projection::tests::withdrawing_the_binding_import_frees_the_profile`                                                                                                                   |
 | a no-op is decided by state, whatever the revision                                                                                         | `projection::tests::a_state_is_the_same_whatever_the_revision`                                                                                                                          |
 | a newer complete import replaces the inventory; a partial or unstated one overlays                                                         | `fact::inventory::tests::a_newer_complete_import_replaces_the_inventory`, `a_partial_or_unstated_import_overlays_and_removes_nothing`                                                   |
 | an import without souls, a repeated import, and a retracted import leave the inventory as it should be                                     | `inventory::tests::an_import_without_souls_leaves_the_inventory_alone`, `importing_the_same_snapshot_again_changes_no_soul`, `a_retracted_import_leaves_the_inventory`                  |
@@ -114,6 +116,8 @@ Integration tests in `crates/yata-daemon/tests/facts.rs`, and unit tests in
 | an import without the guild keeps the guild                                                   | `an_import_without_the_guild_keeps_the_guild`                                                                    |
 | importing the same snapshot again changes nothing but the log, and stores each blob once      | `importing_the_same_snapshot_again_changes_nothing_but_the_log`                                                  |
 | a retraction withdraws every section of its snapshot                                          | `a_retraction_withdraws_every_section_of_its_snapshot`                                                           |
+| an import of another account is refused and writes nothing                                    | `an_import_of_another_account_is_refused_and_writes_nothing`                                                     |
+| withdrawing the binding import lets another account in, and replay agrees                     | `withdrawing_the_binding_import_lets_another_account_in`                                                         |
 | the projection, `held`, and the inventories rebuild from the log alone; the cache is not read | `the_projection_rebuilds_from_the_log_alone`                                                                     |
 | the canonical codec gives one snapshot one digest                                             | `the_canonical_codec_gives_one_snapshot_one_digest`                                                              |
 | an import stores both blobs and its sections                                                  | `store::log::tests::an_import_stores_both_blobs_and_its_sections`                                                |
