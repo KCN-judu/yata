@@ -43,7 +43,6 @@ pub fn summary(loaded: &Loaded, readings: &[SoulReading]) -> String {
             let _ = writeln!(out, "engine        {}", p.engine);
             let channel = match p.channel {
                 Channel::DesktopMemory => "desktop memory",
-                Channel::MumuAdb => "MuMu over adb",
             };
             let _ = writeln!(out, "channel       {channel}");
             if let Some(t) = &p.target {

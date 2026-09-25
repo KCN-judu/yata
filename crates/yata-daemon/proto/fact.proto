@@ -90,9 +90,11 @@ enum Coverage {
 }
 
 enum Channel {
+  // 2 was CHANNEL_MUMU_ADB, removed with the MuMu channel (ADR-0030).
+  reserved 2;
+  reserved "CHANNEL_MUMU_ADB";
   CHANNEL_UNSPECIFIED = 0;
   CHANNEL_DESKTOP_MEMORY = 1;
-  CHANNEL_MUMU_ADB = 2;
 }
 
 enum Source {

@@ -423,7 +423,7 @@ mod tests {
 
     fn provenance() -> Provenance {
         Provenance {
-            channel: Channel::MumuAdb,
+            channel: Channel::DesktopMemory,
             source: Source::ExportFile,
             probe_build_id: "t".into(),
             probe_version: ProbeVersion { major: 1, minor: 0 },

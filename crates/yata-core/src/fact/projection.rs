@@ -332,7 +332,7 @@ pub(crate) mod tests {
                 digest: Digest([digest; 32]),
                 scope: Scope::Souls,
                 coverage,
-                channel: Channel::MumuAdb,
+                channel: Channel::DesktopMemory,
                 source: Source::ExportFile,
                 probe_build_id: "test".into(),
                 probe_version: ProbeVersion { major: 1, minor: 0 },

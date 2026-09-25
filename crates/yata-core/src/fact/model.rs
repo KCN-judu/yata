@@ -116,7 +116,6 @@ pub enum Coverage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Channel {
     DesktopMemory,
-    MumuAdb,
 }
 
 /// Whether the reading arrived from a running probe or from its export file (ADR-0008).

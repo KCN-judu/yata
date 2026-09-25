@@ -123,7 +123,6 @@ impl Provenance {
     fn parse(h: Header<'_>) -> Result<Provenance, InputError> {
         let channel = match probe::Channel::try_from(h.channel) {
             Ok(probe::Channel::DesktopMemory) => Channel::DesktopMemory,
-            Ok(probe::Channel::MumuAdb) => Channel::MumuAdb,
             Ok(probe::Channel::Unspecified) | Err(_) => {
                 return Err(InputError::Unstated(Unstated::Channel));
             }
@@ -140,7 +139,6 @@ impl Provenance {
     fn channel_wire(&self) -> probe::Channel {
         match self.channel {
             Channel::DesktopMemory => probe::Channel::DesktopMemory,
-            Channel::MumuAdb => probe::Channel::MumuAdb,
         }
     }
 }

@@ -215,7 +215,6 @@ fn encode_acquisition(a: &Acquisition) -> pb::SnapshotAcquired {
         .into(),
         channel: match a.channel {
             Channel::DesktopMemory => pb::Channel::DesktopMemory,
-            Channel::MumuAdb => pb::Channel::MumuAdb,
         }
         .into(),
         source: match a.source {
@@ -390,7 +389,6 @@ fn decode_acquisition(seq: Seq, p: pb::SnapshotAcquired) -> Result<Acquisition, 
         },
         channel: match known::<pb::Channel>(seq, "channel", p.channel)? {
             pb::Channel::DesktopMemory => Channel::DesktopMemory,
-            pb::Channel::MumuAdb => Channel::MumuAdb,
             pb::Channel::Unspecified => return Err(unspecified("channel")),
         },
         source: match known::<pb::Source>(seq, "source", p.source)? {
@@ -781,7 +779,7 @@ mod tests {
                     f.payload = pb::SnapshotAcquired {
                         digest: vec![0; 32],
                         scope: pb::Scope::Souls.into(),
-                        channel: pb::Channel::MumuAdb.into(),
+                        channel: pb::Channel::DesktopMemory.into(),
                         source: pb::Source::Live.into(),
                         ..pb::SnapshotAcquired::default()
                     }

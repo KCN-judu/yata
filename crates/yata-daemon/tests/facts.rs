@@ -143,7 +143,7 @@ fn complete(account: &str, souls: Vec<probe::SoulRecord>) -> probe::Reading {
 
 fn provenance() -> Provenance {
     Provenance {
-        channel: Channel::MumuAdb,
+        channel: Channel::DesktopMemory,
         source: Source::ExportFile,
         probe_build_id: "test".into(),
         probe_version: ProbeVersion { major: 1, minor: 0 },
