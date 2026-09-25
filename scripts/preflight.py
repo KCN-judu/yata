@@ -74,6 +74,11 @@ CODE_SCAN = ("crates/", "app/lib/")
 CODE_LITERAL_HOMES = (CORE_PROTO,)
 # The messages whose `oneof kind` cases are the error codes: per request, per stream, client only.
 CODE_MESSAGES = ("Error", "SessionFailed", "ClientFailure")
+# Every ProbeErrorCode but UNSPECIFIED has a row in the spec's error-code table.
+PROBE_PROTO = "crates/yata-protocol/proto/probe.proto"
+PROBE_DOC = "docs/spec/probe-protocol.md"
+# The wording of every explanation: a cause and a remedy per code, never blank (A-Q4).
+ARB_ZH = "app/lib/l10n/app_zh.arb"
 
 # ADR-0017: the SVG profile of committed icons.
 ICON_ROOT = "app/assets/icons/"
@@ -571,6 +576,108 @@ def error_codes() -> Result:
     return Result(not found, "\n".join(found))
 
 
+def probe_code_problems(proto: str, doc: str) -> list[str] | None:
+    """Every `ProbeErrorCode` value but UNSPECIFIED has a row in the spec's error-code table, and
+    every `probe.*` row names a value. None while the schema has no such enum."""
+    enum = re.search(r"enum ProbeErrorCode\s*\{(.*?)\}", proto, re.S)
+    if enum is None:
+        return None
+    values = re.findall(r"\bPROBE_ERROR_CODE_([A-Z0-9_]+)\s*=\s*\d+", enum.group(1))
+    codes = {"probe." + v.lower() for v in values if v != "UNSPECIFIED"}
+    table = re.search(r"^### Error codes\n(.*?)(?=^#|\Z)", doc, re.S | re.M)
+    rows = set(re.findall(r"^\|\s*`(probe\.[a-z0-9_]+)`\s*\|", table.group(1), re.M)) if table else set()
+    bad = [
+        f"{c}: a ProbeErrorCode value with no row in {PROBE_DOC}, section 'Error codes'" for c in sorted(codes - rows)
+    ]
+    bad += [
+        f"{r}: a row in {PROBE_DOC}, section 'Error codes', with no ProbeErrorCode value" for r in sorted(rows - codes)
+    ]
+    return bad
+
+
+def probe_codes() -> Result:
+    found = probe_code_problems(_read(PROBE_PROTO), _read(PROBE_DOC))
+    if found is None:
+        return Result(True, f"no ProbeErrorCode in {PROBE_PROTO} yet", na=True)
+    return Result(not found, "\n".join(found))
+
+
+def explanation_problems(arb: str) -> list[str]:
+    """Every `cause*` message has its `remedy*`, the other way round too, and none is blank. That
+    each code reaches a cause and a remedy is proved by the exhaustive switch; the text is not."""
+    messages = {k: v for k, v in json.loads(arb).items() if not k.startswith("@")}
+    causes = {k.removeprefix("cause") for k in messages if k.startswith("cause")}
+    remedies = {k.removeprefix("remedy") for k in messages if k.startswith("remedy")}
+    bad = [f"cause{k}: no remedy{k} in {ARB_ZH}" for k in sorted(causes - remedies)]
+    bad += [f"remedy{k}: no cause{k} in {ARB_ZH}" for k in sorted(remedies - causes)]
+    bad += [
+        f"{k}: blank in {ARB_ZH}"
+        for k, v in sorted(messages.items())
+        if k.startswith(("cause", "remedy")) and not str(v).strip()
+    ]
+    return bad
+
+
+def explanation_text() -> Result:
+    if not _has_app():
+        return Result(True, "no app/ yet", na=True)
+    found = explanation_problems(_read(ARB_ZH))
+    return Result(not found, "\n".join(found))
+
+
+def checks_selftest() -> Result:
+    """Planted defects the code checks must catch, and clean inputs they must pass."""
+    proto = "enum ProbeErrorCode {\n  PROBE_ERROR_CODE_UNSPECIFIED = 0;\n  PROBE_ERROR_CODE_NOT_FOUND = 1;\n}\n"
+    row = "| `probe.not_found` | not found | 1 |\n"
+    head = "### Error codes\n\n| Code | Meaning | Exit |\n| --- | --- | --- |\n"
+    cases: list[tuple[str, list[str] | None, int | None]] = [
+        ("a value with its row passes", probe_code_problems(proto, head + row), 0),
+        ("a value without a row fails", probe_code_problems(proto, head), 1),
+        ("a row without a value fails", probe_code_problems(proto, head + row + "| `probe.gone` | x | 2 |\n"), 1),
+        ("a row outside the table does not count", probe_code_problems(proto, row + "\n" + head), 1),
+        ("no enum is n/a", probe_code_problems("message Other {}\n", head + row), None),
+    ]
+    core = (
+        "message Error {\n  oneof kind {\n    StoreNewerFormat store_newer_format = 2;\n"
+        "    InternalBug internal_bug = 3;\n  }\n  string message = 1;\n}\n"
+        "message StoreNewerFormat {\n  uint32 found = 1;\n}\n"
+        "message SessionFailed {\n  oneof kind {\n    MalformedFrame session_malformed_frame = 2;\n  }\n"
+        "  string message = 1;\n}\n"
+        "message ClientFailure {\n  oneof kind {\n    Timeout client_timeout = 1;\n  }\n}\n"
+    )
+    clean = {"crates/x/src/a.rs": "let c = code(&kind);\n"}
+    planted = {"crates/yata-core/src/a.rs": 'fn f() {}\nconst C: &str = "store.newer_format";\n'}
+    in_dart = {"app/lib/ui/common/explanation.dart": "'client.timeout' => x,\n"}
+    in_test = {"crates/x/src/a.rs": 'fn f() {}\n#[cfg(test)]\nmod tests { const C: &str = "store.newer_format"; }\n'}
+    twice = core.replace("client_timeout = 1", "client_timeout = 1;\n    Bug internal_bug = 2")
+    cases += [
+        ("three oneofs and no literal pass", core_code_problems(core, clean), 0),
+        ("a planted literal in yata-core fails", core_code_problems(core, planted), 1),
+        ("a literal in the Dart explanations fails", core_code_problems(core, in_dart), 1),
+        ("a literal in the test module passes", core_code_problems(core, in_test), 0),
+        ("an unknown namespace fails", core_code_problems(core.replace("internal_bug", "widget_bug"), clean), 1),
+        ("a code in two oneofs fails", core_code_problems(twice, clean), 1),
+        ("a missing ClientFailure fails", core_code_problems(core.split("message ClientFailure")[0], clean), 1),
+        (
+            "an Error with a plain code fails",
+            core_code_problems(core.replace("oneof kind", "oneof other", 1), clean),
+            1,
+        ),
+    ]
+    arb = '{"@@locale": "zh", "causeX": "a", "remedyX": "b", "@causeX": {}}'
+    cases += [
+        ("a paired cause and remedy pass", explanation_problems(arb), 0),
+        ("a blank remedy fails", explanation_problems(arb.replace('"b"', '" "')), 1),
+        ("a cause without its remedy fails", explanation_problems(arb.replace("remedyX", "remedyY")), 2),
+    ]
+    bad = [
+        f"{name}: expected {want} problems, got {got}"
+        for name, got, want in cases
+        if (None if got is None else len(got)) != want
+    ]
+    return Result(not bad, "\n".join(bad))
+
+
 def icon_profile() -> Result:
     bad: list[str] = []
     for f in tracked_files():
@@ -632,6 +739,13 @@ CHECKS = [
     Check("icon-profile", "committed icons follow the SVG profile and layout", icon_profile, (), "ADR-0017"),
     Check("error-codes", "codes are core.proto oneof cases, spelled nowhere else", error_codes, (), "ADR-0012"),
     Check(
+        "probe-codes", "every ProbeErrorCode has a row in the spec", probe_codes, (), "add the row to probe-protocol.md"
+    ),
+    Check("explanation-text", "every cause has its remedy, none blank", explanation_text, (), "fill app_zh.arb"),
+    Check(
+        "checks-selftest", "the code checks fail on planted defects", checks_selftest, (), "fix the check, not the case"
+    ),
+    Check(
         "dart-bindings",
         "the committed Dart bindings match the schema",
         dart_bindings,
@@ -667,6 +781,9 @@ STRUCTURE = [
     "dart-layers",
     "icon-profile",
     "error-codes",
+    "probe-codes",
+    "explanation-text",
+    "checks-selftest",
 ]
 DOCS = ["docs-format", "docs-lint"]
 PYTHON = ["python-lint", "python-types", "release-selftest"]
