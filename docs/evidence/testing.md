@@ -143,25 +143,28 @@ The same outcomes are asserted on the shared fixture files in
 ## Core protocol session — `yata-daemon`
 
 Integration tests in `crates/yata-daemon/tests/core_session.rs`, driving the
-real loop over in-memory streams, and unit tests in `wire` and
-`serve::projection`.
+real loop over in-memory streams, and unit tests in `wire`, `serve::projection`,
+and `serve::session`.
 
-| Claim in [core-protocol.md](../spec/core-protocol.md)                                      | Tests                                                                                                              |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ |
-| one response per request; nothing is read after `Shutdown`                                 | `a_session_opens_answers_every_request_once_and_shuts_down`                                                        |
-| the version rule: same major opens, lower warns, higher is refused                         | `a_newer_major_is_refused_and_the_session_stays_closed`, `an_older_major_opens_with_a_warning_event`               |
-| a request before `OpenSession` is refused by code                                          | `a_request_before_open_session_is_refused_by_code`                                                                 |
-| a scan pages through the query engine by its cursor to the end; every row carries its soul | `a_scan_pages_by_cursor_to_the_end`                                                                                |
-| a stale scan, a foreign cursor, an unknown profile, a malformed query fail by code         | `query_failures_carry_their_codes`                                                                                 |
-| a subscription behind the projection gets one `ProjectionChanged`                          | `subscribing_behind_the_projection_emits_its_revision_once`                                                        |
-| a scheme code decodes from its text and from its QR image                                  | `a_scheme_code_decodes_from_text_and_from_its_qr_image`, `scheme_decode_failures_carry_their_codes`                |
-| a broken frame ends the session with a `session_failure` event                             | `a_broken_frame_ends_the_session_with_an_event`, `a_payload_that_is_not_a_message_ends_the_session`                |
-| a code is its case's field name with the first `_` read as `.`, in all three failure sets  | `wire::tests::every_failure_set_names_its_cases_by_the_field_rule`                                                 |
-| a profile id has one spelling; revision 0 is the empty log                                 | `wire::tests::a_profile_id_has_one_spelling`, `revision_zero_is_the_empty_log`, `query_failures_carry_their_codes` |
-| a soul renders to the wire with its kind and reads back through the query conversion       | `wire::tests`                                                                                                      |
-| every fixture soul is well-formed under W-Soul                                             | `projection::tests::every_fixture_soul_is_well_formed`                                                             |
-| every fixture row is a soul                                                                | `projection::tests::every_fixture_row_is_a_soul`                                                                   |
-| the recorded session is what the daemon writes (`fixtures/core/session.*`)                 | `the_recorded_session_matches_the_shared_fixtures`                                                                 |
+| Claim in [core-protocol.md](../spec/core-protocol.md)                                                                                                  | Tests                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| one response per request; nothing is read after `Shutdown`                                                                                             | `a_session_opens_answers_every_request_once_and_shuts_down`                                                                            |
+| the version rule: same major opens, lower warns, higher is refused                                                                                     | `a_newer_major_is_refused_and_the_session_stays_closed`, `an_older_major_opens_with_a_warning_event`                                   |
+| a request before `OpenSession` is refused by code                                                                                                      | `a_request_before_open_session_is_refused_by_code`                                                                                     |
+| a scan pages through the query engine by its cursor to the end; every row carries its soul                                                             | `a_scan_pages_by_cursor_to_the_end`                                                                                                    |
+| a stale scan, a foreign cursor, an unknown profile, a malformed query fail by code                                                                     | `query_failures_carry_their_codes`                                                                                                     |
+| a subscription behind the projection gets one `ProjectionChanged`                                                                                      | `subscribing_behind_the_projection_emits_its_revision_once`                                                                            |
+| a scheme code decodes from its text and from its QR image                                                                                              | `a_scheme_code_decodes_from_text_and_from_its_qr_image`, `scheme_decode_failures_carry_their_codes`                                    |
+| a broken frame ends the session with a `session_failure` event                                                                                         | `a_broken_frame_ends_the_session_with_an_event`, `a_payload_that_is_not_a_message_ends_the_session`                                    |
+| a code is its case's field name with the first `_` read as `.`, in all three failure sets                                                              | `wire::tests::every_failure_set_names_its_cases_by_the_field_rule`                                                                     |
+| each refused import file has the code of the stage that refused it; the fact log's refusals of a snapshot too                                          | `wire::tests::each_import_refusal_has_the_code_of_its_stage`                                                                           |
+| a capability reads back as sent; an unspecified enum, no availability, an empty or repeated missing list is refused                                    | `wire::tests::every_capability_reads_back_as_it_was_sent`, `an_unstated_capability_field_is_refused`                                   |
+| the fixture's profiles offer the inventory, and every other capability names its missing section; capabilities follow the held sections, not the souls | `session::tests::the_fixture_offers_the_inventory_and_names_what_the_rest_lack`, `capabilities_follow_the_held_sections_not_the_souls` |
+| a profile id has one spelling; revision 0 is the empty log                                                                                             | `wire::tests::a_profile_id_has_one_spelling`, `revision_zero_is_the_empty_log`, `query_failures_carry_their_codes`                     |
+| a soul renders to the wire with its kind and reads back through the query conversion                                                                   | `wire::tests`                                                                                                                          |
+| every fixture soul is well-formed under W-Soul                                                                                                         | `projection::tests::every_fixture_soul_is_well_formed`                                                                                 |
+| every fixture row is a soul                                                                                                                            | `projection::tests::every_fixture_row_is_a_soul`                                                                                       |
+| the recorded session is what the daemon writes (`fixtures/core/session.*`)                                                                             | `the_recorded_session_matches_the_shared_fixtures`                                                                                     |
 
 ## Scheme selection and evaluation — `yata-core::scheme`
 
@@ -292,20 +295,22 @@ Tests under `app/test/`, against a fake daemon client, an in-memory transport,
 or, in `daemon/process_test.dart`, the built daemon itself (ADR-0012, "Tests").
 Test data is the recorded session, so no test builds a soul by hand.
 
-| Claim                                                                                                                                 | Tests                                      |
-| ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| the Dart codec agrees with the Rust codec on the shared frame fixtures                                                                | `daemon/frame_codec_test.dart`             |
-| Rust encode → Dart decode: every recorded daemon frame decodes, typed                                                                 | `daemon/recorded_session_test.dart`        |
-| Dart encode → Rust decode: the client's requests are the recorded bytes the daemon decoded                                            | `daemon/recorded_session_test.dart`        |
-| responses match by id; an exit, a stray id, a bad frame, or a session failure ends every request in flight                            | `daemon/connection_test.dart`              |
-| a failure arrives as its case with its debug record; a case this build does not know keeps its tag                                    | `daemon/connection_test.dart`              |
-| every case's dotted code is its schema field name, as the daemon's; every case has a cause and a remedy                               | `daemon/failure_test.dart`                 |
-| a missing daemon, a protocol mismatch, and a daemon that keeps exiting end in failure; an exit restarts                               | `daemon/supervisor_test.dart`              |
-| the real daemon: a session end to end, a newer major refused, a missing executable                                                    | `daemon/process_test.dart`                 |
-| providers: loading, data, and failure by case; paging by position; a stale scan restarts; revision and session refetch                | `state/state_test.dart`                    |
-| an import keeps running while a scheme is chosen or removed, and a second import is refused; a selection never names a missing scheme | `state/state_test.dart`, `ui/ui_test.dart` |
-| icons resolve in ADR-0017's order                                                                                                     | `state/icons_test.dart`                    |
-| navigation; inventory data, empty, and failure states with cause and remedy; an unknown code shows its tag; the core banner; QR       | `ui/ui_test.dart`                          |
+| Claim                                                                                                                                                                                                             | Tests                                      |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| the Dart codec agrees with the Rust codec on the shared frame fixtures                                                                                                                                            | `daemon/frame_codec_test.dart`             |
+| Rust encode → Dart decode: every recorded daemon frame decodes, typed                                                                                                                                             | `daemon/recorded_session_test.dart`        |
+| Dart encode → Rust decode: the client's requests are the recorded bytes the daemon decoded                                                                                                                        | `daemon/recorded_session_test.dart`        |
+| responses match by id; an exit, a stray id, a bad frame, or a session failure ends every request in flight                                                                                                        | `daemon/connection_test.dart`              |
+| a failure arrives as its case with its debug record; a case this build does not know keeps its tag                                                                                                                | `daemon/connection_test.dart`              |
+| every case's dotted code is its schema field name, as the daemon's; every case has a cause and a remedy                                                                                                           | `daemon/failure_test.dart`                 |
+| a missing daemon, a protocol mismatch, and a daemon that keeps exiting end in failure; an exit restarts                                                                                                           | `daemon/supervisor_test.dart`              |
+| the real daemon: a session end to end, a newer major refused, a missing executable                                                                                                                                | `daemon/process_test.dart`                 |
+| providers: loading, data, and failure by case; paging by position; a stale scan restarts; revision and session refetch                                                                                            | `state/state_test.dart`                    |
+| an import keeps running while a scheme is chosen or removed, and a second import is refused; a selection never names a missing scheme                                                                             | `state/state_test.dart`, `ui/ui_test.dart` |
+| icons resolve in ADR-0017's order                                                                                                                                                                                 | `state/icons_test.dart`                    |
+| navigation; inventory data, empty, and failure states with cause and remedy; an unknown code shows its tag; the core banner; QR                                                                                   | `ui/ui_test.dart`                          |
+| a profile's capabilities parse once: the recorded fixture's as sent; anything unspecified or stated twice is `client.protocol_error`; a capability from a newer schema is skipped; one not sent is not reported   | `state/profiles_test.dart`                 |
+| a page shows its content only while its capability is available, with a note for a partial or unstated section; otherwise it names the missing sections, or says the core did not report it, and queries no souls | `ui/capability_test.dart`                  |
 
 ## Import — `yata-core::import`, `yata-daemon::import`
 
@@ -348,4 +353,6 @@ Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and no
 implemented.
 
 The import job and the protocol session do not call the fact log yet, so no test
-drives an import from a file to the store, or capabilities to the application.
+drives an import from a file to the store, or a folded profile's capabilities to
+the application. The session derives capabilities from its fixture's held
+sections, which is what the tests above exercise.
