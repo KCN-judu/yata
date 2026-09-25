@@ -153,6 +153,9 @@ rewrite.
 - [decisions/0032-typed-facts-and-section-imports.md](decisions/0032-typed-facts-and-section-imports.md)
   — facts are a typed `oneof` in store format 2, format 1 is refused; an import
   is recorded by its sections and folded per section
+- [decisions/0033-an-import-is-bound-to-its-profiles-account.md](decisions/0033-an-import-is-bound-to-its-profiles-account.md)
+  — an import that states an account is checked against the profile's, which is
+  derived and freed by retraction; store format 3
 
 ## Proposals — `proposals/`
 
@@ -236,6 +239,8 @@ Current state. Edited in place.
 What changed for someone. Append-only; one fragment per change.
 
 - `changes/unreleased/` — fragments not yet tied to a release
+- [changes/unreleased/2026-09-profile-binding.md](changes/unreleased/2026-09-profile-binding.md)
+  — an import of another account is refused; store format 3
 - [changes/unreleased/2026-09-fact-sections.md](changes/unreleased/2026-09-fact-sections.md)
   — facts are typed in store format 2; an import is recorded by its sections
 - [changes/unreleased/2026-09-scheme-transport-and-qr.md](changes/unreleased/2026-09-scheme-transport-and-qr.md)
