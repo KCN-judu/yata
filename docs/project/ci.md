@@ -43,11 +43,10 @@ reproduce a job exactly.
 | Lean, calibration, docs, Dart | Linux only            | no platform-dependent code                                                                                                                                    |
 
 The macOS job is what shows that nothing the daemon needs is Windows-only: the
-workspace builds and its tests pass on macOS arm64. There is no reader code in
-this repository (ADR-0006, ADR-0007), and no `cfg(windows)` module yet, so the
-Windows job exercises the daemon only. Nothing in CI runs against an installed
-game or a running game process; that stays manual and is tested by replay of
-recorded bytes (`architecture/overview.md`, "What CI can and cannot see").
+workspace builds and its tests pass on macOS arm64. The project reads no game
+(ADR-0030) and has no `cfg(windows)` module, so the Windows job exercises the
+daemon only. Nothing in CI or outside it runs against an installed game or a
+running game process (`architecture/overview.md`, "What CI can and cannot see").
 
 ## Caching
 
