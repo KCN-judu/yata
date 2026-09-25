@@ -18,8 +18,8 @@ use std::time::{Duration, Instant};
 
 use prost::Message;
 use yata_core::query::{
-    CompiledQuery, Direction, EnumValue, Expr, Field, PageRequest, SchemeRef, SortKey, SoulQuery,
-    Test, compile,
+    Bound, CompiledQuery, Direction, EnumValue, Expr, Field, PageRequest, SchemeCodeText,
+    SchemeRef, SortKey, SoulQuery, Test, compile,
 };
 use yata_core::scheme::code::{SchemeCode, StrengtheningPlan, StrengtheningSchemeSet, encode_code};
 use yata_core::scheme::layout::{AccountSegment, serialize};
@@ -122,15 +122,7 @@ fn nested() -> Expr {
     let slots = [SoulSlot::Slot2, SoulSlot::Slot4, SoulSlot::Slot6]
         .map(EnumValue::Slot)
         .to_vec();
-    let at_least = |a, v| {
-        Expr::Pred(
-            Field::SubValue(a),
-            Test::NumberRange {
-                min: Some(v),
-                max: None,
-            },
-        )
-    };
+    let at_least = |a, v| Expr::Pred(Field::SubValue(a), Test::NumberRange(Bound::AtLeast(v)));
     Expr::And(vec![
         Expr::Pred(Field::Slot, Test::In(slots)),
         Expr::Or(vec![
@@ -142,10 +134,7 @@ fn nested() -> Expr {
         ]),
         Expr::Not(Box::new(Expr::Pred(
             Field::Level,
-            Test::IntRange {
-                min: None,
-                max: Some(3),
-            },
+            Test::IntRange(Bound::AtMost(3)),
         ))),
     ])
 }
@@ -225,13 +214,7 @@ fn main() {
     let cases: Vec<(&str, SoulQuery, usize)> = vec![
         (
             "one predicate, all rows",
-            unsorted(Expr::Pred(
-                Field::Star,
-                Test::IntRange {
-                    min: Some(6),
-                    max: None,
-                },
-            )),
+            unsorted(Expr::Pred(Field::Star, Test::IntRange(Bound::AtLeast(6)))),
             usize::MAX,
         ),
         (
@@ -242,7 +225,7 @@ fn main() {
         (
             "matches_scheme, all rows",
             unsorted(Expr::MatchesScheme(SchemeRef {
-                code: code.clone(),
+                code: SchemeCodeText(code.clone()),
                 entry: None,
             })),
             usize::MAX,

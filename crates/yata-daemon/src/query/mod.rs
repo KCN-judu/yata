@@ -15,8 +15,8 @@ use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use prost::Message;
-use yata_core::query::{CompiledQuery, Page, PageRequest, QueryError, compile};
-use yata_core::scheme::evaluate::{OpenRule, Verdict};
+use yata_core::query::{CompiledQuery, Page, PageRequest, QueryError, RowVerdict, compile};
+use yata_core::scheme::evaluate::OpenRule;
 use yata_core::soul::Soul;
 use yata_protocol::core as wire;
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
@@ -211,7 +211,7 @@ pub fn run(
 }
 
 fn to_wire(page: Page<String>) -> wire::QueryPage {
-    let rule = |r: &OpenRule| match r {
+    let rule = |r: OpenRule| match r {
         OpenRule::Innate => wire::OpenRule::Innate as i32,
         OpenRule::UnknownConditions => wire::OpenRule::UnknownConditions as i32,
     };
@@ -221,9 +221,9 @@ fn to_wire(page: Page<String>) -> wire::QueryPage {
         .map(|row| wire::QueryRow {
             soul: None,
             soul_id: row.id,
-            open_rules: match &row.verdict {
-                Verdict::Undetermined(rules) => rules.iter().map(rule).collect(),
-                Verdict::Matches | Verdict::DoesNotMatch => Vec::new(),
+            open_rules: match row.verdict {
+                RowVerdict::Open(rules) => rules.iter().map(rule).collect(),
+                RowVerdict::Exact => Vec::new(),
             },
         })
         .collect();

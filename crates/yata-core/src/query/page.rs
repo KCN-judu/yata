@@ -12,7 +12,7 @@ use std::cmp::Ordering;
 use std::num::NonZeroUsize;
 
 use super::compile::CompiledQuery;
-use super::eval::{BoolField, IntField, NumberField, Outcome};
+use super::eval::{BoolField, IntField, NumberField, OpenRules, Outcome};
 use super::{Direction, QueryError};
 use crate::scheme::evaluate::Verdict;
 use crate::soul::{Soul, SoulAttribute, SoulSet, SoulSlot};
@@ -68,12 +68,19 @@ pub struct PageRequest<Id> {
     pub cursor: Option<Cursor<Id>>,
 }
 
-/// A row the filter keeps: exact, or open with the rules it rests on (ADR-0026, rule 2).
+/// A row the filter keeps (ADR-0026, rule 2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Row<Id> {
     pub id: Id,
-    /// `Matches` or `Undetermined`; never `DoesNotMatch`.
-    pub verdict: Verdict,
+    pub verdict: RowVerdict,
+}
+
+/// How a kept row stands: in the game's selection however the open rules are settled, or open
+/// on the rules it names. A row the filter rules out is not a row, so there is no third case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowVerdict {
+    Exact,
+    Open(OpenRules),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -130,7 +137,7 @@ impl SortValue {
 }
 
 /// A row on its way to a page: its key values, its id, its outcome.
-type Candidate<'a, Id> = (Vec<SortValue>, &'a Id, Outcome);
+type Candidate<'a, Id> = (Vec<SortValue>, &'a Id, RowVerdict);
 
 impl CompiledQuery {
     /// `evaluate(query, soul)`: whether the filter keeps `soul`, as far as the evidence decides.
@@ -174,9 +181,13 @@ impl CompiledQuery {
         };
         let mut kept: Vec<Candidate<'a, Id>> = souls
             .into_iter()
-            .filter_map(|(id, soul)| match self.outcome(soul) {
-                Outcome::No => None,
-                o => Some((self.keys(soul), id, o)),
+            .filter_map(|(id, soul)| {
+                let verdict = match self.outcome(soul) {
+                    Outcome::No => return None,
+                    Outcome::Yes => RowVerdict::Exact,
+                    Outcome::Open(rules) => RowVerdict::Open(rules),
+                };
+                Some((self.keys(soul), id, verdict))
             })
             .collect();
         // Counted before the cursor narrows the rows, so every page of a scan reports the same.
@@ -200,9 +211,9 @@ impl CompiledQuery {
         });
         let rows = kept
             .into_iter()
-            .map(|(_, id, o)| Row {
+            .map(|(_, id, verdict)| Row {
                 id: id.clone(),
-                verdict: o.verdict(),
+                verdict,
             })
             .collect();
         Ok(Page { rows, next, total })

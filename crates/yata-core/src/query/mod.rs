@@ -23,10 +23,13 @@ pub mod vocabulary;
 mod tests;
 
 pub use compile::{CompiledQuery, compile};
+pub use eval::OpenRules;
+pub use page::RowVerdict;
 pub use page::{Cursor, Page, PageRequest, Row, SortValue};
 pub use vocabulary::{
-    Direction, EnumValue, Expr, Field, FieldType, MAX_EXPR_DEPTH, MAX_EXPR_NODES, MAX_SORT_KEYS,
-    MAX_TEST_VALUES, ParamSetRef, QualityComponent, SchemeRef, SortKey, SoulQuery, Test,
+    Bound, Direction, EnumValue, Expr, Field, FieldType, MAX_EXPR_DEPTH, MAX_EXPR_NODES,
+    MAX_SORT_KEYS, MAX_TEST_VALUES, ParamSetId, ParamSetRef, QualityComponent, SchemeCodeText,
+    SchemeRef, SortKey, SoulQuery, Test,
 };
 
 use crate::scheme::code::CodeError;
@@ -90,8 +93,6 @@ impl Limit {
 pub enum Malformation {
     /// `In []`: always a client bug, so refused rather than read as false.
     EmptyIn,
-    /// A range with neither bound.
-    RangeWithoutBound,
     /// A range whose minimum is above its maximum.
     RangeInverted,
     /// A number bound that is NaN or infinite.
@@ -112,4 +113,6 @@ pub enum SchemeProblem {
         entry: usize,
         entries: usize,
     },
+    /// The code holds no plan and no scheme.
+    NoEntries,
 }

@@ -67,12 +67,22 @@ fn pred(field: Field, test: Test) -> Expr {
     Expr::Pred(field, test)
 }
 
+/// The bound of a range given as optional ends; tests always give at least one.
+fn bound<T>(min: Option<T>, max: Option<T>) -> Bound<T> {
+    match (min, max) {
+        (Some(min), Some(max)) => Bound::Between { min, max },
+        (Some(min), None) => Bound::AtLeast(min),
+        (None, Some(max)) => Bound::AtMost(max),
+        (None, None) => panic!("a range test gives at least one bound"),
+    }
+}
+
 fn int(field: Field, min: Option<i64>, max: Option<i64>) -> Expr {
-    pred(field, Test::IntRange { min, max })
+    pred(field, Test::IntRange(bound(min, max)))
 }
 
 fn num(field: Field, min: Option<f64>, max: Option<f64>) -> Expr {
-    pred(field, Test::NumberRange { min, max })
+    pred(field, Test::NumberRange(bound(min, max)))
 }
 
 fn is(field: Field, b: bool) -> Expr {
@@ -252,7 +262,10 @@ fn a_decided_operand_settles_an_open_one() {
 fn an_open_result_names_every_open_rule_beneath_it() {
     let s = boss(speed_two());
     let code = unknown_condition_code();
-    let scheme = Expr::MatchesScheme(SchemeRef { code, entry: None });
+    let scheme = Expr::MatchesScheme(SchemeRef {
+        code: SchemeCodeText(code),
+        entry: None,
+    });
     let both = Expr::And(vec![innate_open(), scheme]);
     assert_eq!(
         verdict(both, &s),
@@ -264,14 +277,14 @@ fn outcome() -> impl Strategy<Value = Outcome> {
     prop_oneof![
         Just(Outcome::Yes),
         Just(Outcome::No),
-        (1u8..4).prop_map(|m| Outcome::Open(OpenRules::of(
-            &[OpenRule::Innate, OpenRule::UnknownConditions]
+        (1u8..4).prop_map(|m| {
+            let rules = [OpenRule::Innate, OpenRule::UnknownConditions]
                 .into_iter()
                 .enumerate()
                 .filter(|(i, _)| m & (1 << i) != 0)
-                .map(|(_, r)| r)
-                .collect::<Vec<_>>()
-        ))),
+                .map(|(_, r)| r);
+            Outcome::Open(OpenRules::collect(rules).expect("m is not zero"))
+        }),
     ]
 }
 
@@ -351,7 +364,7 @@ fn slots(k: SoulSlot) -> SoulSelection {
 
 fn scheme(code: &str, entry: Option<usize>) -> Expr {
     Expr::MatchesScheme(SchemeRef {
-        code: code.to_owned(),
+        code: SchemeCodeText(code.to_owned()),
         entry,
     })
 }
@@ -398,12 +411,28 @@ fn a_scheme_reference_names_exactly_one_entry() {
         QueryError::UnknownScheme(SchemeProblem::Transport(_))
     ));
     let empty = code_of(vec![]);
+    for entry in [None, Some(0)] {
+        assert_eq!(
+            refusal(filter(scheme(&empty, entry))),
+            unknown(SchemeProblem::NoEntries)
+        );
+    }
+}
+
+#[test]
+fn open_rules_are_never_empty() {
+    assert_eq!(OpenRules::collect([]), None);
+    let innate = OpenRules::one(OpenRule::Innate);
+    let unknown = OpenRules::one(OpenRule::UnknownConditions);
+    let both = innate.union(unknown);
     assert_eq!(
-        refusal(filter(scheme(&empty, None))),
-        unknown(SchemeProblem::NoSuchEntry {
-            entry: 0,
-            entries: 0
-        })
+        both.iter().collect::<Vec<_>>(),
+        [OpenRule::Innate, OpenRule::UnknownConditions]
+    );
+    assert!(innate.contains(OpenRule::Innate) && !innate.contains(OpenRule::UnknownConditions));
+    assert_eq!(
+        OpenRules::collect([OpenRule::UnknownConditions, OpenRule::Innate]),
+        Some(both)
     );
 }
 
@@ -479,27 +508,9 @@ fn test_values_and_sort_keys_are_limited() {
 fn a_test_must_fit_its_field() {
     let wrong = [
         (Field::Star, Test::Is(true)),
-        (
-            Field::Set,
-            Test::IntRange {
-                min: Some(1),
-                max: None,
-            },
-        ),
-        (
-            Field::Level,
-            Test::NumberRange {
-                min: Some(1.0),
-                max: None,
-            },
-        ),
-        (
-            Field::MainValue,
-            Test::IntRange {
-                min: Some(1),
-                max: None,
-            },
-        ),
+        (Field::Set, Test::IntRange(Bound::AtLeast(1))),
+        (Field::Level, Test::NumberRange(Bound::AtLeast(1.0))),
+        (Field::MainValue, Test::IntRange(Bound::AtLeast(1))),
         (
             Field::HasSub(Spd),
             Test::In(vec![EnumValue::Attribute(Spd)]),
@@ -530,10 +541,6 @@ fn a_malformed_test_is_refused_not_read_as_false() {
         malformed(Malformation::EmptyIn)
     );
     assert_eq!(
-        refusal(filter(int(Field::Star, None, None))),
-        malformed(Malformation::RangeWithoutBound)
-    );
-    assert_eq!(
         refusal(filter(int(Field::Star, Some(6), Some(5)))),
         malformed(Malformation::RangeInverted)
     );
@@ -557,7 +564,7 @@ fn a_score_field_needs_a_parameter_set_and_is_not_evaluated_yet() {
     );
     let with_params = SoulQuery {
         params: Some(ParamSetRef {
-            id: "yata-quality".into(),
+            id: ParamSetId::new("yata-quality").expect("non-empty"),
             version: 1,
         }),
         ..q
@@ -712,21 +719,22 @@ fn rows_carry_their_verdict() {
     ])))
     .expect("ok");
     let page = run(&q, &inventory(), 100, None);
-    let by_id: Vec<(&str, &Verdict)> = page
+    let by_id: Vec<(&str, RowVerdict)> = page
         .rows
         .iter()
-        .map(|r| (r.id.as_str(), &r.verdict))
+        .map(|r| (r.id.as_str(), r.verdict))
         .collect();
-    let innate = open(&[OpenRule::Innate]);
+    let exact = RowVerdict::Exact;
+    let innate = RowVerdict::Open(OpenRules::one(OpenRule::Innate));
     assert_eq!(
         by_id,
         [
-            ("a", &YES),
-            ("b", &YES),
-            ("c", &YES),
-            ("d", &innate),
-            ("e", &YES),
-            ("f", &innate)
+            ("a", exact),
+            ("b", exact),
+            ("c", exact),
+            ("d", innate),
+            ("e", exact),
+            ("f", innate)
         ]
     );
 }

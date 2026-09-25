@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use super::eval::{BoolField, Cond, IntField, NumberField, SchemeEntry};
 use super::page::SortField;
-use super::vocabulary::{EnumValue, Expr, Field, SchemeRef, SortKey, SoulQuery, Test};
+use super::vocabulary::{Bound, EnumValue, Expr, Field, SchemeRef, SortKey, SoulQuery, Test};
 use super::{Direction, Limit, Malformation, QueryError, SchemeProblem};
 use crate::scheme::code::{SchemeCode, decode_code};
 use crate::scheme::layout::parse;
@@ -66,7 +66,7 @@ fn cond(expr: Expr, depth: usize, nodes: &mut usize, has_params: bool) -> Result
     match expr {
         Expr::And(es) => below(es).map(Cond::All),
         Expr::Or(es) => below(es).map(Cond::Any),
-        Expr::Not(e) => below(vec![*e]).map(|mut v| Cond::Not(Box::new(v.remove(0)))),
+        Expr::Not(e) => cond(*e, depth + 1, nodes, has_params).map(|c| Cond::Not(Box::new(c))),
         Expr::Pred(field, test) => pred(field, test, has_params),
         Expr::Matches(selection) => Ok(Cond::Selection(selection)),
         Expr::MatchesScheme(r) => resolve(r)
@@ -108,15 +108,11 @@ fn pred(field: Field, test: Test, has_params: bool) -> Result<Cond, QueryError> 
         (Field::MainAttribute, Test::In(vs)) => {
             values(vs, attribute, mismatch).map(Cond::MainAttributes)
         }
-        (Field::Star, Test::IntRange { min, max }) => int(IntField::Star, min, max),
-        (Field::Level, Test::IntRange { min, max }) => int(IntField::Level, min, max),
-        (Field::SubCount, Test::IntRange { min, max }) => int(IntField::SubCount, min, max),
-        (Field::MainValue, Test::NumberRange { min, max }) => {
-            number(NumberField::MainValue, min, max)
-        }
-        (Field::SubValue(a), Test::NumberRange { min, max }) => {
-            number(NumberField::SubValue(a), min, max)
-        }
+        (Field::Star, Test::IntRange(b)) => int(IntField::Star, b),
+        (Field::Level, Test::IntRange(b)) => int(IntField::Level, b),
+        (Field::SubCount, Test::IntRange(b)) => int(IntField::SubCount, b),
+        (Field::MainValue, Test::NumberRange(b)) => number(NumberField::MainValue, b),
+        (Field::SubValue(a), Test::NumberRange(b)) => number(NumberField::SubValue(a), b),
         (Field::HasSub(a), Test::Is(b)) => Ok(Cond::Is(BoolField::HasSub(a), b)),
         (Field::Pristine, Test::Is(b)) => Ok(Cond::Is(BoolField::Pristine, b)),
         _ => Err(mismatch),
@@ -144,25 +140,29 @@ fn values<T: Ord>(
         .ok_or(mismatch)
 }
 
-fn int(field: IntField, min: Option<i64>, max: Option<i64>) -> Result<Cond, QueryError> {
-    match (min, max) {
-        (None, None) => Err(QueryError::Malformed(Malformation::RangeWithoutBound)),
-        (Some(lo), Some(hi)) if lo > hi => Err(QueryError::Malformed(Malformation::RangeInverted)),
-        _ => Ok(Cond::Int(
-            field,
-            min.unwrap_or(i64::MIN)..=max.unwrap_or(i64::MAX),
-        )),
+/// A range's bounds, if they are in order.
+fn ordered<T: PartialOrd + Copy>(bound: Bound<T>) -> Result<Bound<T>, QueryError> {
+    match bound {
+        Bound::Between { min, max } if min > max => {
+            Err(QueryError::Malformed(Malformation::RangeInverted))
+        }
+        b => Ok(b),
     }
 }
 
-fn number(field: NumberField, min: Option<f64>, max: Option<f64>) -> Result<Cond, QueryError> {
-    let finite = [min, max].into_iter().flatten().all(f64::is_finite);
-    match (min, max) {
-        (None, None) => Err(QueryError::Malformed(Malformation::RangeWithoutBound)),
-        _ if !finite => Err(QueryError::Malformed(Malformation::NonFiniteBound)),
-        (Some(lo), Some(hi)) if lo > hi => Err(QueryError::Malformed(Malformation::RangeInverted)),
-        _ => Ok(Cond::Number(field, min, max)),
+fn int(field: IntField, bound: Bound<i64>) -> Result<Cond, QueryError> {
+    ordered(bound).map(|b| Cond::Int(field, b))
+}
+
+fn number(field: NumberField, bound: Bound<f64>) -> Result<Cond, QueryError> {
+    let finite = [bound.min(), bound.max()]
+        .into_iter()
+        .flatten()
+        .all(f64::is_finite);
+    if !finite {
+        return Err(QueryError::Malformed(Malformation::NonFiniteBound));
     }
+    ordered(bound).map(|b| Cond::Number(field, b))
 }
 
 fn sort_key(key: SortKey, has_params: bool) -> Result<(SortField, Direction), QueryError> {
@@ -188,7 +188,7 @@ fn sort_key(key: SortKey, has_params: bool) -> Result<(SortField, Direction), Qu
 /// The plan or discard scheme a reference names, decoded by the scheme codec: the query never
 /// reads a scheme's conditions itself (`query.md`, `MatchesScheme`).
 fn resolve(r: SchemeRef) -> Result<SchemeEntry, SchemeProblem> {
-    let payload = decode_text(&r.code).map_err(SchemeProblem::Transport)?;
+    let payload = decode_text(&r.code.0).map_err(SchemeProblem::Transport)?;
     let layout = parse(&payload).map_err(SchemeProblem::Layout)?;
     let mut entries: Vec<SchemeEntry> = match decode_code(&layout).map_err(SchemeProblem::Code)? {
         SchemeCode::Strengthening(set) => set.plans.into_iter().map(SchemeEntry::Plan).collect(),
@@ -196,15 +196,10 @@ fn resolve(r: SchemeRef) -> Result<SchemeEntry, SchemeProblem> {
     };
     let n = entries.len();
     let entry = match r.entry {
+        _ if n == 0 => return Err(SchemeProblem::NoEntries),
         Some(i) => i,
         None if n == 1 => 0,
-        None if n > 1 => return Err(SchemeProblem::EntryRequired { entries: n }),
-        None => {
-            return Err(SchemeProblem::NoSuchEntry {
-                entry: 0,
-                entries: 0,
-            });
-        }
+        None => return Err(SchemeProblem::EntryRequired { entries: n }),
     };
     if entry >= n {
         return Err(SchemeProblem::NoSuchEntry { entry, entries: n });

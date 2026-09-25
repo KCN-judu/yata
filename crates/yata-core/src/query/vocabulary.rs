@@ -100,17 +100,36 @@ impl Field {
 pub enum Test {
     /// For an enum field: the value is one of these. Never empty.
     In(Vec<EnumValue>),
-    /// For an int field; both bounds inclusive, at least one present.
-    IntRange {
-        min: Option<i64>,
-        max: Option<i64>,
-    },
-    /// For a number or score field; both bounds inclusive, at least one present, both finite.
-    NumberRange {
-        min: Option<f64>,
-        max: Option<f64>,
-    },
+    /// For an int field.
+    IntRange(Bound<i64>),
+    /// For a number or score field; every bound finite.
+    NumberRange(Bound<f64>),
     Is(bool),
+}
+
+/// The bounds of a range test, inclusive. A range with no bound cannot be written; a minimum
+/// above its maximum can, and is `query.malformed`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Bound<T> {
+    AtLeast(T),
+    AtMost(T),
+    Between { min: T, max: T },
+}
+
+impl<T: Copy> Bound<T> {
+    pub fn min(self) -> Option<T> {
+        match self {
+            Bound::AtLeast(min) | Bound::Between { min, .. } => Some(min),
+            Bound::AtMost(_) => None,
+        }
+    }
+
+    pub fn max(self) -> Option<T> {
+        match self {
+            Bound::AtMost(max) | Bound::Between { max, .. } => Some(max),
+            Bound::AtLeast(_) => None,
+        }
+    }
 }
 
 /// A value of an enum field.
@@ -127,7 +146,7 @@ pub enum EnumValue {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemeRef {
     /// The Base64 text a scheme QR code carries.
-    pub code: String,
+    pub code: SchemeCodeText,
     /// The plan or discard scheme, in code order. Required when the code has more than one
     /// (ADR-0026, rule 5).
     pub entry: Option<usize>,
@@ -136,8 +155,28 @@ pub struct SchemeRef {
 /// A parameter set, by identity and version (`scoring.md`, "Parameter set").
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParamSetRef {
-    pub id: String,
+    pub id: ParamSetId,
     pub version: u32,
+}
+
+/// The text of a scheme code, as a scheme QR code carries it. Whether it decodes is the scheme
+/// codec's to say, when the reference is compiled.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemeCodeText(pub String);
+
+/// A parameter set's identity: non-empty.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct ParamSetId(String);
+
+impl ParamSetId {
+    pub fn new(id: impl Into<String>) -> Option<ParamSetId> {
+        let id = id.into();
+        (!id.is_empty()).then_some(ParamSetId(id))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,8 +195,8 @@ impl Test {
     pub fn kind(&self) -> super::TestKind {
         match self {
             Test::In(_) => super::TestKind::In,
-            Test::IntRange { .. } => super::TestKind::IntRange,
-            Test::NumberRange { .. } => super::TestKind::NumberRange,
+            Test::IntRange(_) => super::TestKind::IntRange,
+            Test::NumberRange(_) => super::TestKind::NumberRange,
             Test::Is(_) => super::TestKind::Is,
         }
     }

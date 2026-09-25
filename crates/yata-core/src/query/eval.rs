@@ -5,8 +5,9 @@
 //! node when it can, and an open result carries the union of the open rules beneath it.
 
 use std::collections::BTreeSet;
-use std::ops::RangeInclusive;
+use std::num::NonZeroU8;
 
+use super::vocabulary::Bound;
 use crate::mechanics::VALUE_TOLERANCE;
 use crate::scheme::code::{DiscardScheme, StrengtheningPlan};
 use crate::scheme::evaluate::{OpenRule, Verdict, matches};
@@ -22,8 +23,8 @@ pub(super) enum Cond {
     Sets(BTreeSet<SoulSet>),
     Slots(BTreeSet<SoulSlot>),
     MainAttributes(BTreeSet<SoulAttribute>),
-    Int(IntField, RangeInclusive<i64>),
-    Number(NumberField, Option<f64>, Option<f64>),
+    Int(IntField, Bound<i64>),
+    Number(NumberField, Bound<f64>),
     Is(BoolField, bool),
     Selection(SoulSelection),
     Scheme(SchemeEntry),
@@ -64,32 +65,54 @@ pub(super) enum Outcome {
     Open(OpenRules),
 }
 
-/// A set of [`OpenRule`]s.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub(super) struct OpenRules(u8);
+/// A non-empty set of [`OpenRule`]s: the rules an open verdict rests on. Empty cannot be built,
+/// so an open row always names at least one rule.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct OpenRules(NonZeroU8);
 
 impl OpenRules {
-    fn bit(rule: OpenRule) -> u8 {
+    const ALL: [OpenRule; 2] = [OpenRule::Innate, OpenRule::UnknownConditions];
+
+    /// Each rule's bit, built at compile time: a zero bit would not compile.
+    fn bit(rule: OpenRule) -> NonZeroU8 {
+        const fn nonzero(n: u8) -> NonZeroU8 {
+            match NonZeroU8::new(n) {
+                Some(n) => n,
+                None => panic!("a rule's bit is never zero"),
+            }
+        }
         match rule {
-            OpenRule::Innate => 1,
-            OpenRule::UnknownConditions => 2,
+            OpenRule::Innate => const { nonzero(1) },
+            OpenRule::UnknownConditions => const { nonzero(2) },
         }
     }
 
-    pub(super) fn of(rules: &[OpenRule]) -> OpenRules {
-        OpenRules(rules.iter().fold(0, |m, &r| m | OpenRules::bit(r)))
+    /// The set of one rule.
+    pub fn one(rule: OpenRule) -> OpenRules {
+        OpenRules(OpenRules::bit(rule))
     }
 
-    fn union(self, other: OpenRules) -> OpenRules {
+    /// The set of these rules, if there is at least one.
+    pub fn collect(rules: impl IntoIterator<Item = OpenRule>) -> Option<OpenRules> {
+        rules
+            .into_iter()
+            .map(OpenRules::one)
+            .reduce(OpenRules::union)
+    }
+
+    pub fn union(self, other: OpenRules) -> OpenRules {
         OpenRules(self.0 | other.0)
     }
 
+    pub fn contains(self, rule: OpenRule) -> bool {
+        self.0.get() & OpenRules::bit(rule).get() != 0
+    }
+
     /// The rules, in [`OpenRule`] order.
-    fn rules(self) -> Vec<OpenRule> {
-        [OpenRule::Innate, OpenRule::UnknownConditions]
+    pub fn iter(self) -> impl Iterator<Item = OpenRule> {
+        OpenRules::ALL
             .into_iter()
-            .filter(|&r| self.0 & OpenRules::bit(r) != 0)
-            .collect()
+            .filter(move |&r| self.contains(r))
     }
 }
 
@@ -98,7 +121,10 @@ impl Outcome {
         match verdict {
             Verdict::Matches => Outcome::Yes,
             Verdict::DoesNotMatch => Outcome::No,
-            Verdict::Undetermined(rules) => Outcome::Open(OpenRules::of(rules)),
+            // With no open rule named, nothing is left open: the scheme evaluator decided it.
+            Verdict::Undetermined(rules) => {
+                OpenRules::collect(rules.iter().copied()).map_or(Outcome::Yes, Outcome::Open)
+            }
         }
     }
 
@@ -110,7 +136,7 @@ impl Outcome {
         match self {
             Outcome::Yes => Verdict::Matches,
             Outcome::No => Verdict::DoesNotMatch,
-            Outcome::Open(rules) => Verdict::Undetermined(rules.rules()),
+            Outcome::Open(rules) => Verdict::Undetermined(rules.iter().collect()),
         }
     }
 
@@ -158,13 +184,18 @@ impl Cond {
             Cond::Sets(sets) => Outcome::decided(sets.contains(&soul.set)),
             Cond::Slots(slots) => Outcome::decided(slots.contains(&soul.slot)),
             Cond::MainAttributes(attributes) => Outcome::decided(attributes.contains(&soul.main)),
-            Cond::Int(field, range) => Outcome::decided(range.contains(&field.value(soul))),
-            Cond::Number(field, min, max) => {
+            Cond::Int(field, bound) => {
+                let v = field.value(soul);
+                Outcome::decided(
+                    bound.min().is_none_or(|lo| v >= lo) && bound.max().is_none_or(|hi| v <= hi),
+                )
+            }
+            Cond::Number(field, bound) => {
                 let v = field.value(soul);
                 // Stored values compare with the domain's tolerance, as 真 n does (ADR-0026, 3).
                 Outcome::decided(
-                    min.is_none_or(|lo| v + VALUE_TOLERANCE >= lo)
-                        && max.is_none_or(|hi| v - VALUE_TOLERANCE <= hi),
+                    bound.min().is_none_or(|lo| v + VALUE_TOLERANCE >= lo)
+                        && bound.max().is_none_or(|hi| v - VALUE_TOLERANCE <= hi),
                 )
             }
             Cond::Is(field, b) => Outcome::decided(field.value(soul) == *b),

@@ -7,9 +7,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use yata_core::query::{
-    Direction, EnumValue, Expr, Field, Limit, MAX_EXPR_DEPTH, MAX_EXPR_NODES, MAX_SORT_KEYS,
-    MAX_TEST_VALUES, ParamSetRef, QualityComponent, QueryError, SchemeRef, SortKey, SoulQuery,
-    Test,
+    Bound, Direction, EnumValue, Expr, Field, Limit, MAX_EXPR_DEPTH, MAX_EXPR_NODES, MAX_SORT_KEYS,
+    MAX_TEST_VALUES, ParamSetId, ParamSetRef, QualityComponent, QueryError, SchemeCodeText,
+    SchemeRef, SortKey, SoulQuery, Test,
 };
 use yata_core::scheme::selection::{
     InnateAttribute, LevelBand, SetChoice, SoulSelection, SubAttributeMode, SubCount,
@@ -193,10 +193,17 @@ pub fn query(q: wire::Query) -> Result<SoulQuery, RequestError> {
     Ok(SoulQuery {
         filter: q.filter.map(|e| expr(e, 1, &mut nodes)).transpose()?,
         sort,
-        params: q.params.map(|p| ParamSetRef {
-            id: p.id,
-            version: p.version,
-        }),
+        params: q
+            .params
+            .map(|p| {
+                let id = ParamSetId::new(p.id)
+                    .ok_or(malformed(WireProblem::Missing("ParamSetRef.id")))?;
+                Ok(ParamSetRef {
+                    id,
+                    version: p.version,
+                })
+            })
+            .transpose()?,
     })
 }
 
@@ -267,9 +274,19 @@ fn expr(e: wire::Expr, depth: usize, nodes: &mut usize) -> Result<Expr, RequestE
         Kind::Pred(p) => predicate(p),
         Kind::Matches(s) => selection(&s).map(Expr::Matches),
         Kind::MatchesScheme(r) => Ok(Expr::MatchesScheme(SchemeRef {
-            code: r.code,
+            code: SchemeCodeText(r.code),
             entry: r.entry.and_then(|e| usize::try_from(e).ok()),
         })),
+    }
+}
+
+/// A range's bounds: at least one end is given.
+fn bound<T>(min: Option<T>, max: Option<T>) -> Result<Bound<T>, RequestError> {
+    match (min, max) {
+        (Some(min), Some(max)) => Ok(Bound::Between { min, max }),
+        (Some(min), None) => Ok(Bound::AtLeast(min)),
+        (None, Some(max)) => Ok(Bound::AtMost(max)),
+        (None, None) => Err(malformed(WireProblem::Missing("range bound"))),
     }
 }
 
@@ -289,14 +306,8 @@ fn predicate(p: wire::Predicate) -> Result<Expr, RequestError> {
         .ok_or(malformed(WireProblem::Missing("Predicate.test")))?
     {
         W::In(t) => Test::In(in_values(&t)?),
-        W::IntRange(r) => Test::IntRange {
-            min: r.min,
-            max: r.max,
-        },
-        W::NumberRange(r) => Test::NumberRange {
-            min: r.min,
-            max: r.max,
-        },
+        W::IntRange(r) => Test::IntRange(bound(r.min, r.max)?),
+        W::NumberRange(r) => Test::NumberRange(bound(r.min, r.max)?),
         W::Is(b) => Test::Is(b),
     };
     Ok(Expr::Pred(field, test))
