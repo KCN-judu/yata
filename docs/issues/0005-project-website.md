@@ -4,7 +4,7 @@ state: deferred
 area: tooling
 opened: 2026-09-23
 resolved-by: []
-related: [ADR-0011, ADR-0007, ADR-0016, ISS-0003]
+related: [ADR-0011, ADR-0016, ADR-0030, ISS-0003]
 ---
 
 # ISS-0005: The project website: what it carries is set, how it is built and hosted is not
@@ -25,10 +25,6 @@ Several existing decisions need a public, trusted place:
 - **Release public key.** ADR-0011 says losing the release key means shipping a
   new public key "through some channel users trust". A website that publishes
   the key fingerprint is one candidate for that channel.
-- **Reader transparency.** ADR-0007 makes the reader open source so that anyone
-  can confirm it does not harm their system. Users need a place that links the
-  reader's source, its `reader-security.md` guarantees, and the matching
-  download.
 - **First install without OS signing.** Until ISS-0003 is settled, users meet
   SmartScreen and Gatekeeper warnings. A download page is where that is
   explained.
@@ -58,8 +54,6 @@ location changes only the page's links. It carries:
 - the current version and its release notes
 - what the first install looks like while OS signing is deferred (ISS-0003): the
   SmartScreen and Gatekeeper warnings and how to proceed
-- a link to the open-source reader and its security guarantees (ADR-0007,
-  `spec/reader-security.md`)
 
 **The site is deployed as a GitHub Pages static site** (maintainer, 2026-09-23),
 which matches the choice of GitHub and Actions for the code. Consequences for
