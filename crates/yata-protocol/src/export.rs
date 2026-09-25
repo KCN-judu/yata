@@ -12,7 +12,7 @@ use crate::probe::{self, ProbeExport, ProtocolVersion};
 /// file can make the parser allocate.
 pub const MAX_EXPORT_BYTES: usize = 64 * 1024 * 1024;
 
-/// Why a file is not an export this build accepts.
+/// Why a file is not an export this build accepts, or an export could not be written.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExportError {
     /// Larger than [`MAX_EXPORT_BYTES`].
@@ -25,15 +25,17 @@ pub enum ExportError {
     UnsupportedVersion { found: ProtocolVersion },
     /// JSON of the right version that is not a `ProbeExport`.
     Malformed { reason: String },
+    /// The export could not be written as JSON.
+    Unwritable { reason: String },
 }
 
 /// The file's text for an export: pretty-printed, ending in a newline.
-pub fn to_json(export: &ProbeExport) -> String {
-    // The generated mapping writes every value it holds, including non-finite floats as the
-    // strings proto3 JSON names them, so serializing to a string cannot fail.
-    let mut text = serde_json::to_string_pretty(export).unwrap_or_default();
+pub fn to_json(export: &ProbeExport) -> Result<String, ExportError> {
+    let mut text = serde_json::to_string_pretty(export).map_err(|e| ExportError::Unwritable {
+        reason: e.to_string(),
+    })?;
     text.push('\n');
-    text
+    Ok(text)
 }
 
 /// The export a file holds, if this build accepts it.
@@ -82,9 +84,9 @@ fn version_of(value: &serde_json::Value) -> Option<ProtocolVersion> {
 mod tests {
     use super::*;
     use crate::probe::{
-        Channel, Coverage, Evidence, FieldEvidence, ObservedRecord, RawEntry, RawNull, RawSequence,
-        RawValue, ReadResult, Scope, SequenceKind, SoulRecord, SoulRecords, TargetProcess,
-        raw_value::Kind, read_result::Records,
+        Channel, Coverage, Inherited, Mapping, ObservedRecord, PointerWidth, RawEntry, RawNull,
+        RawSequence, RawValue, Reading, SequenceKind, SoulMappings, SoulRecord, SoulRecords,
+        TargetProcess, mapping::Evidence, raw_value::Kind, reading::Records,
     };
 
     fn text(s: &str) -> RawValue {
@@ -97,6 +99,16 @@ mod tests {
         RawValue {
             kind: Some(Kind::Integer(n)),
         }
+    }
+
+    fn inherited() -> Mapping {
+        Mapping {
+            evidence: Some(Evidence::Inherited(Inherited {})),
+        }
+    }
+
+    fn json(export: &ProbeExport) -> String {
+        to_json(export).expect("writable")
     }
 
     fn sample() -> ProbeExport {
@@ -120,8 +132,7 @@ mod tests {
                         kind: Some(Kind::Sequence(RawSequence {
                             kind: SequenceKind::Tuple.into(),
                             items: vec![integer(1), text("二")],
-                            truncated: false,
-                            length: 2,
+                            full_length: Some(5),
                         })),
                     }),
                 },
@@ -132,17 +143,15 @@ mod tests {
             probe_build_id: "test".into(),
             engine: "synthetic".into(),
             channel: Channel::DesktopMemory.into(),
-            captured_at: "2026-09-25T00:00:00Z".into(),
+            captured_at: Some("2026-09-25T00:00:00Z".into()),
             target: Some(TargetProcess {
                 pid: 42,
                 image_name: "game.exe".into(),
-                pointer_bits: 64,
-                created_unix_ms: u64::MAX,
+                pointer_width: Some(PointerWidth::PointerWidth64.into()),
+                created_unix_ms: Some(u64::MAX),
                 ..TargetProcess::default()
             }),
-            results: vec![ReadResult {
-                request_id: 1,
-                scope: Scope::Souls.into(),
+            readings: vec![Reading {
                 coverage: Coverage::Partial.into(),
                 records: Some(Records::Souls(SoulRecords {
                     souls: vec![SoulRecord {
@@ -150,13 +159,13 @@ mod tests {
                         observed: Some(observed),
                         ..SoulRecord::default()
                     }],
+                    recognition: Some(inherited()),
+                    mappings: Some(SoulMappings {
+                        soul_id: Some(inherited()),
+                        ..SoulMappings::default()
+                    }),
                 })),
-                field_evidence: vec![FieldEvidence {
-                    field: "SoulRecord.soul_id".into(),
-                    evidence: Evidence::Inherited.into(),
-                    basis: String::new(),
-                }],
-                ..ReadResult::default()
+                ..Reading::default()
             }],
         }
     }
@@ -164,21 +173,23 @@ mod tests {
     #[test]
     fn an_export_survives_its_json_text() {
         let export = sample();
-        assert_eq!(from_json(to_json(&export).as_bytes()), Ok(export));
+        assert_eq!(from_json(json(&export).as_bytes()), Ok(export));
     }
 
     #[test]
     fn the_text_follows_the_proto3_json_mapping() {
-        let json = to_json(&sample());
+        let json = json(&sample());
         for expected in [
             "\"protocolVersion\"",
             "\"CHANNEL_DESKTOP_MEMORY\"",
             "\"COVERAGE_PARTIAL\"",
-            "\"EVIDENCE_INHERITED\"",
+            "\"POINTER_WIDTH_64\"",
+            "\"inherited\": {}",
             "\"SEQUENCE_KIND_TUPLE\"",
             // 64-bit integers are strings.
             "\"-9223372036854775808\"",
             "\"18446744073709551615\"",
+            "\"fullLength\": \"5\"",
             "\"null\": {}",
         ] {
             assert!(json.contains(expected), "{expected} missing from\n{json}");
@@ -187,29 +198,35 @@ mod tests {
     }
 
     #[test]
-    fn an_unset_typed_field_stays_unset() {
-        let json = to_json(&sample());
+    fn an_unset_field_stays_unset() {
+        let mut export = sample();
+        export.captured_at = None;
+        let json = json(&export);
         assert!(!json.contains("\"star\""));
         assert!(!json.contains("\"locked\""));
+        assert!(!json.contains("\"capturedAt\""));
+        assert!(!json.contains("\"sessionId\""));
         let back = from_json(json.as_bytes()).expect("accepted");
-        let Some(Records::Souls(souls)) = &back.results[0].records else {
+        assert_eq!(back.captured_at, None);
+        let Some(Records::Souls(souls)) = &back.readings[0].records else {
             panic!("souls")
         };
         assert_eq!(souls.souls[0].star, None);
         assert_eq!(souls.souls[0].locked, None);
+        assert_eq!(souls.mappings.as_ref().and_then(|m| m.star.as_ref()), None);
     }
 
     #[test]
     fn a_byte_order_mark_and_windows_line_ends_are_not_content() {
         let export = sample();
         let mut bytes = b"\xEF\xBB\xBF".to_vec();
-        bytes.extend(to_json(&export).replace('\n', "\r\n").into_bytes());
+        bytes.extend(json(&export).replace('\n', "\r\n").into_bytes());
         assert_eq!(from_json(&bytes), Ok(export));
     }
 
     #[test]
     fn a_future_major_version_is_unsupported_not_malformed() {
-        let json = r#"{"protocolVersion": {"major": 2}, "results": [{"newThing": 1}], "x": 3}"#;
+        let json = r#"{"protocolVersion": {"major": 2}, "readings": [{"newThing": 1}], "x": 3}"#;
         assert_eq!(
             from_json(json.as_bytes()),
             Err(ExportError::UnsupportedVersion {
@@ -242,7 +259,7 @@ mod tests {
 
     #[test]
     fn a_wrong_value_kind_is_malformed() {
-        let json = r#"{"protocolVersion": {"major": 1}, "results": "none"}"#;
+        let json = r#"{"protocolVersion": {"major": 1}, "readings": "none"}"#;
         assert!(matches!(
             from_json(json.as_bytes()),
             Err(ExportError::Malformed { .. })

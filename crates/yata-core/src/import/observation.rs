@@ -4,8 +4,11 @@
 //! Nothing here is interpreted beyond its type. A suit code is the game's code, an attribute code
 //! the game's code, a value the game's stored value; turning them into [`crate::soul`] values is a
 //! separate step, and one that waits on evidence (`probe-protocol.md`, "Evidence").
-
-use std::collections::BTreeMap;
+//!
+//! A [`SoulReading`] is built only by [`SoulReading::new`], from the reading's mappings and each
+//! record's raw values ([`RawSoul`]). That is where "not mapped" and "mapped but missing" are told
+//! apart, once: every [`SoulObservation`] field is a [`Field`] that says which it is, so a value
+//! for an unmapped field cannot exist.
 
 /// How a layout mapping is known (`probe-protocol.md`, "Evidence"). Ordered by strength.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -16,7 +19,64 @@ pub enum Evidence {
     Established,
 }
 
-/// A typed field of [`SoulObservation`], by its name in the probe schema.
+/// A mapping as the reading states it: its evidence, and for an established one where that
+/// evidence is recorded.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Mapping {
+    Inherited,
+    Established { basis: String },
+}
+
+impl Mapping {
+    pub fn evidence(&self) -> Evidence {
+        match self {
+            Mapping::Inherited => Evidence::Inherited,
+            Mapping::Established { .. } => Evidence::Established,
+        }
+    }
+}
+
+/// One typed field of one soul.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Field<T> {
+    /// The reader does not map this field.
+    Unmapped,
+    /// The reader maps it with this evidence; `None` is a record that lacks it.
+    Mapped {
+        evidence: Evidence,
+        value: Option<T>,
+    },
+}
+
+impl<T> Field<T> {
+    fn from_mapping(mapping: Option<&Mapping>, value: Option<T>) -> Field<T> {
+        match mapping {
+            None => Field::Unmapped,
+            Some(m) => Field::Mapped {
+                evidence: m.evidence(),
+                value,
+            },
+        }
+    }
+
+    /// The evidence behind the mapping, or `None` when unmapped.
+    pub fn evidence(&self) -> Option<Evidence> {
+        match self {
+            Field::Unmapped => None,
+            Field::Mapped { evidence, .. } => Some(*evidence),
+        }
+    }
+
+    /// The value, when the field is mapped and the record holds it.
+    pub fn value(&self) -> Option<&T> {
+        match self {
+            Field::Unmapped => None,
+            Field::Mapped { value, .. } => value.as_ref(),
+        }
+    }
+}
+
+/// A typed field of [`SoulObservation`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SoulField {
     SoulId,
@@ -45,24 +105,56 @@ impl SoulField {
         SoulField::Discarded,
     ];
 
-    /// The field's name in the probe schema, as `FieldEvidence.field` states it.
-    pub fn schema_name(self) -> &'static str {
+    /// The field's name in the probe schema's `SoulRecord`.
+    pub fn name(self) -> &'static str {
         match self {
-            SoulField::SoulId => "SoulRecord.soul_id",
-            SoulField::SuitCode => "SoulRecord.suit_code",
-            SoulField::Star => "SoulRecord.star",
-            SoulField::Slot => "SoulRecord.slot",
-            SoulField::Level => "SoulRecord.level",
-            SoulField::Main => "SoulRecord.main",
-            SoulField::Subs => "SoulRecord.subs",
-            SoulField::Innate => "SoulRecord.innate",
-            SoulField::Locked => "SoulRecord.locked",
-            SoulField::Discarded => "SoulRecord.discarded",
+            SoulField::SoulId => "soul_id",
+            SoulField::SuitCode => "suit_code",
+            SoulField::Star => "star",
+            SoulField::Slot => "slot",
+            SoulField::Level => "level",
+            SoulField::Main => "main",
+            SoulField::Subs => "subs",
+            SoulField::Innate => "innate",
+            SoulField::Locked => "locked",
+            SoulField::Discarded => "discarded",
         }
     }
 
-    pub fn from_schema_name(name: &str) -> Option<SoulField> {
-        SoulField::ALL.into_iter().find(|f| f.schema_name() == name)
+    pub fn from_name(name: &str) -> Option<SoulField> {
+        SoulField::ALL.into_iter().find(|f| f.name() == name)
+    }
+}
+
+/// The reading's mapping for each typed field; `None` is a field the reader does not map.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct SoulMappings {
+    pub soul_id: Option<Mapping>,
+    pub suit_code: Option<Mapping>,
+    pub star: Option<Mapping>,
+    pub slot: Option<Mapping>,
+    pub level: Option<Mapping>,
+    pub main: Option<Mapping>,
+    pub subs: Option<Mapping>,
+    pub innate: Option<Mapping>,
+    pub locked: Option<Mapping>,
+    pub discarded: Option<Mapping>,
+}
+
+impl SoulMappings {
+    pub fn get(&self, field: SoulField) -> Option<&Mapping> {
+        match field {
+            SoulField::SoulId => self.soul_id.as_ref(),
+            SoulField::SuitCode => self.suit_code.as_ref(),
+            SoulField::Star => self.star.as_ref(),
+            SoulField::Slot => self.slot.as_ref(),
+            SoulField::Level => self.level.as_ref(),
+            SoulField::Main => self.main.as_ref(),
+            SoulField::Subs => self.subs.as_ref(),
+            SoulField::Innate => self.innate.as_ref(),
+            SoulField::Locked => self.locked.as_ref(),
+            SoulField::Discarded => self.discarded.as_ref(),
+        }
     }
 }
 
@@ -71,67 +163,175 @@ impl SoulField {
 pub enum Coverage {
     Complete,
     Partial,
-    /// The reading did not say.
-    Unstated,
 }
 
-/// One reading of the souls scope.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SoulReading {
-    pub coverage: Coverage,
-    /// The evidence behind the rule that recognised these objects as souls, when the reader
-    /// states it.
-    pub recognition: Option<Evidence>,
-    /// The game account the reading belongs to, when the reader read it.
-    pub account: Option<String>,
-    /// The evidence behind each typed field the reader fills. A field missing here is not
-    /// mapped, and is `None` on every soul.
-    pub evidence: BTreeMap<SoulField, Evidence>,
-    pub souls: Vec<SoulObservation>,
-}
+/// The game's suit code, as read: not yet a [`crate::soul::SoulSet`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GameSuitCode(pub u32);
 
-impl SoulReading {
-    /// The evidence for a field, or `None` when the reader does not map it.
-    pub fn evidence_of(&self, field: SoulField) -> Option<Evidence> {
-        self.evidence.get(&field).copied()
-    }
-}
+/// The game's attribute code, as read: not yet a [`crate::soul::SoulAttribute`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GameAttributeCode(pub u32);
+
+/// The game's star value, as read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GameStar(pub u32);
+
+/// The game's slot number, as read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GameSlot(pub u32);
+
+/// The game's level value, as read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GameLevel(pub u32);
 
 /// An attribute as the game stores it: its code and its stored value.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct AttributeReading {
-    pub code: u32,
+    pub code: GameAttributeCode,
     pub value: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SubAttributeReading {
-    pub code: u32,
+    pub code: GameAttributeCode,
     pub value: f64,
     /// The rolls the game records for it, when it records them.
     pub roll_count: Option<u32>,
 }
 
-/// One soul of a reading. A typed field is `None` when the reader does not map it, or when it
-/// maps it and the record lacks it; [`SoulReading::evidence_of`] tells the two apart.
+/// A soul's innate attribute as its record holds it. Decode maps `None` to an ordinary soul and
+/// `Present` to a boss soul (ADR-0029); a soul whose field is unmapped or missing has no kind to
+/// decode, and decode refuses it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum InnateReading {
+    None,
+    Present(AttributeReading),
+}
+
+/// One record's raw values, before the reading's mappings are applied: what conversion from the
+/// wire produces, and the input of [`SoulReading::new`].
 #[derive(Debug, Clone, PartialEq, Default)]
-pub struct SoulObservation {
+pub struct RawSoul {
     pub soul_id: Option<String>,
-    pub suit_code: Option<u32>,
-    pub star: Option<u32>,
-    pub slot: Option<u32>,
-    pub level: Option<u32>,
+    pub suit_code: Option<GameSuitCode>,
+    pub star: Option<GameStar>,
+    pub slot: Option<GameSlot>,
+    pub level: Option<GameLevel>,
     pub main: Option<AttributeReading>,
-    pub subs: Vec<SubAttributeReading>,
-    /// `None` both when not mapped and when mapped and absent; [`SoulReading::evidence_of`] tells
-    /// the two apart. Only a mapped field decides a soul's kind: mapped and `None` is an ordinary
-    /// soul, mapped and present a boss soul. A record whose field is not mapped is not a row
-    /// (ADR-0029).
-    pub innate: Option<AttributeReading>,
+    pub subs: Option<Vec<SubAttributeReading>>,
+    /// `None` when the record lacks the field. Only a mapped field decides a soul's kind:
+    /// [`InnateReading::None`] is an ordinary soul, [`InnateReading::Present`] a boss soul, and
+    /// a record whose field is unmapped or lacking is not a row (ADR-0029).
+    pub innate: Option<InnateReading>,
     pub locked: Option<bool>,
     pub discarded: Option<bool>,
+    pub observed: Option<ObservedRecord>,
+}
+
+/// One soul of a reading.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SoulObservation {
+    pub soul_id: Field<String>,
+    pub suit_code: Field<GameSuitCode>,
+    pub star: Field<GameStar>,
+    pub slot: Field<GameSlot>,
+    pub level: Field<GameLevel>,
+    pub main: Field<AttributeReading>,
+    pub subs: Field<Vec<SubAttributeReading>>,
+    pub innate: Field<InnateReading>,
+    pub locked: Field<bool>,
+    pub discarded: Field<bool>,
     /// What the reader saw, when it sent it.
     pub observed: Option<ObservedRecord>,
+}
+
+impl SoulObservation {
+    /// The evidence behind one of this soul's fields, or `None` when unmapped.
+    pub fn evidence_of(&self, field: SoulField) -> Option<Evidence> {
+        match field {
+            SoulField::SoulId => self.soul_id.evidence(),
+            SoulField::SuitCode => self.suit_code.evidence(),
+            SoulField::Star => self.star.evidence(),
+            SoulField::Slot => self.slot.evidence(),
+            SoulField::Level => self.level.evidence(),
+            SoulField::Main => self.main.evidence(),
+            SoulField::Subs => self.subs.evidence(),
+            SoulField::Innate => self.innate.evidence(),
+            SoulField::Locked => self.locked.evidence(),
+            SoulField::Discarded => self.discarded.evidence(),
+        }
+    }
+}
+
+/// One reading of the souls scope.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SoulReading {
+    coverage: Coverage,
+    account: Option<String>,
+    recognition: Option<Mapping>,
+    mappings: SoulMappings,
+    souls: Vec<SoulObservation>,
+}
+
+impl SoulReading {
+    /// A reading from its mappings and its records' raw values: each field of each soul is
+    /// unmapped exactly when its mapping is, whatever the raw value holds.
+    pub fn new(
+        coverage: Coverage,
+        account: Option<String>,
+        recognition: Option<Mapping>,
+        mappings: SoulMappings,
+        souls: Vec<RawSoul>,
+    ) -> SoulReading {
+        let m = &mappings;
+        let souls = souls
+            .into_iter()
+            .map(|r| SoulObservation {
+                soul_id: Field::from_mapping(m.soul_id.as_ref(), r.soul_id),
+                suit_code: Field::from_mapping(m.suit_code.as_ref(), r.suit_code),
+                star: Field::from_mapping(m.star.as_ref(), r.star),
+                slot: Field::from_mapping(m.slot.as_ref(), r.slot),
+                level: Field::from_mapping(m.level.as_ref(), r.level),
+                main: Field::from_mapping(m.main.as_ref(), r.main),
+                subs: Field::from_mapping(m.subs.as_ref(), r.subs),
+                innate: Field::from_mapping(m.innate.as_ref(), r.innate),
+                locked: Field::from_mapping(m.locked.as_ref(), r.locked),
+                discarded: Field::from_mapping(m.discarded.as_ref(), r.discarded),
+                observed: r.observed,
+            })
+            .collect();
+        SoulReading {
+            coverage,
+            account,
+            recognition,
+            mappings,
+            souls,
+        }
+    }
+
+    pub fn coverage(&self) -> Coverage {
+        self.coverage
+    }
+
+    /// The game account the reading belongs to, when the reader read it.
+    pub fn account(&self) -> Option<&str> {
+        self.account.as_deref()
+    }
+
+    /// The rule that recognised these objects as souls, when the reader states it.
+    pub fn recognition(&self) -> Option<&Mapping> {
+        self.recognition.as_ref()
+    }
+
+    /// Which fields the reader maps, with the evidence and its basis.
+    pub fn mappings(&self) -> &SoulMappings {
+        &self.mappings
+    }
+
+    pub fn souls(&self) -> &[SoulObservation] {
+        &self.souls
+    }
 }
 
 /// A record as the game's runtime holds it: every entry, mapped or not.
@@ -157,7 +357,6 @@ impl ObservedRecord {
 pub enum SequenceKind {
     List,
     Tuple,
-    Unstated,
 }
 
 /// Why the reader left a value unread.
@@ -168,8 +367,6 @@ pub enum UnreadReason {
     Unreadable,
     Malformed,
     OutOfRange,
-    /// The reading gave no value kind or no reason.
-    Unstated,
 }
 
 /// One value as the runtime holds it.
@@ -180,19 +377,21 @@ pub enum RawValue {
     Integer(i64),
     Float(f64),
     Text(String),
-    /// `items` may be shorter than `length`: the reader's item limit cut it.
+    /// `full_length` is set only when the reader's item limit cut the sequence, and is then
+    /// above the number of items.
     Sequence {
         kind: SequenceKind,
         items: Vec<RawValue>,
-        length: u64,
+        full_length: Option<u64>,
     },
-    /// `entries` may be shorter than `length`: the reader's entry limit cut it.
+    /// `full_length` as for [`RawValue::Sequence`].
     Mapping {
         entries: Vec<(RawValue, RawValue)>,
-        length: u64,
+        full_length: Option<u64>,
     },
     Unread {
-        type_name: String,
+        /// The runtime's name for the value's type, when it could be read.
+        type_name: Option<String>,
         reason: UnreadReason,
     },
 }
@@ -207,7 +406,6 @@ pub enum RawKind {
     Text,
     List,
     Tuple,
-    Sequence,
     Mapping,
     Unread,
 }
@@ -228,7 +426,6 @@ impl RawValue {
                 kind: SequenceKind::Tuple,
                 ..
             } => RawKind::Tuple,
-            RawValue::Sequence { .. } => RawKind::Sequence,
             RawValue::Mapping { .. } => RawKind::Mapping,
             RawValue::Unread { .. } => RawKind::Unread,
         }
@@ -239,7 +436,7 @@ impl RawValue {
     pub fn matches_key(&self, key: &str) -> bool {
         match self {
             RawValue::Text(t) => t == key,
-            RawValue::Integer(n) => n.to_string() == key,
+            RawValue::Integer(n) => key.parse::<i64>() == Ok(*n),
             _ => false,
         }
     }
@@ -252,6 +449,10 @@ impl RawValue {
     }
 
     fn render_into(&self, out: &mut String) {
+        let more = |shown: usize, full: Option<u64>| {
+            full.map(|f| format!(", …{} more", f.saturating_sub(shown as u64)))
+                .unwrap_or_default()
+        };
         match self {
             RawValue::Null => out.push_str("null"),
             RawValue::Bool(b) => out.push_str(if *b { "true" } else { "false" }),
@@ -262,11 +463,11 @@ impl RawValue {
             RawValue::Sequence {
                 kind,
                 items,
-                length,
+                full_length,
             } => {
                 let (open, close) = match kind {
                     SequenceKind::Tuple => ('(', ')'),
-                    SequenceKind::List | SequenceKind::Unstated => ('[', ']'),
+                    SequenceKind::List => ('[', ']'),
                 };
                 out.push(open);
                 for (i, item) in items.iter().enumerate() {
@@ -275,12 +476,13 @@ impl RawValue {
                     }
                     item.render_into(out);
                 }
-                if (items.len() as u64) < *length {
-                    out.push_str(&format!(", …{} more", length - items.len() as u64));
-                }
+                out.push_str(&more(items.len(), *full_length));
                 out.push(close);
             }
-            RawValue::Mapping { entries, length } => {
+            RawValue::Mapping {
+                entries,
+                full_length,
+            } => {
                 out.push('{');
                 for (i, (k, v)) in entries.iter().enumerate() {
                     if i > 0 {
@@ -290,13 +492,12 @@ impl RawValue {
                     out.push_str(": ");
                     v.render_into(out);
                 }
-                if (entries.len() as u64) < *length {
-                    out.push_str(&format!(", …{} more", length - entries.len() as u64));
-                }
+                out.push_str(&more(entries.len(), *full_length));
                 out.push('}');
             }
             RawValue::Unread { type_name, reason } => {
-                out.push_str(&format!("<{type_name}: {reason:?}>"));
+                let name = type_name.as_deref().unwrap_or("?");
+                out.push_str(&format!("<{name}: {reason:?}>"));
             }
         }
     }
@@ -307,11 +508,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn schema_names_round_trip() {
+    fn field_names_round_trip() {
         for f in SoulField::ALL {
-            assert_eq!(SoulField::from_schema_name(f.schema_name()), Some(f));
+            assert_eq!(SoulField::from_name(f.name()), Some(f));
         }
-        assert_eq!(SoulField::from_schema_name("SoulRecord.nothing"), None);
+        assert_eq!(SoulField::from_name("nothing"), None);
     }
 
     #[test]
@@ -320,29 +521,73 @@ mod tests {
     }
 
     #[test]
+    fn an_unmapped_field_holds_no_value_whatever_the_record_says() {
+        let mappings = SoulMappings {
+            star: Some(Mapping::Inherited),
+            ..SoulMappings::default()
+        };
+        let raw = RawSoul {
+            star: Some(GameStar(6)),
+            level: Some(GameLevel(15)),
+            ..RawSoul::default()
+        };
+        let r = SoulReading::new(Coverage::Partial, None, None, mappings, vec![raw]);
+        let soul = &r.souls()[0];
+        assert_eq!(soul.star.value(), Some(&GameStar(6)));
+        assert_eq!(soul.star.evidence(), Some(Evidence::Inherited));
+        assert_eq!(soul.level, Field::Unmapped);
+        assert_eq!(soul.level.value(), None);
+    }
+
+    #[test]
+    fn a_mapped_field_a_record_lacks_is_mapped_and_empty() {
+        let mappings = SoulMappings {
+            subs: Some(Mapping::Established {
+                basis: "exp".into(),
+            }),
+            ..SoulMappings::default()
+        };
+        let r = SoulReading::new(
+            Coverage::Complete,
+            None,
+            None,
+            mappings,
+            vec![RawSoul::default()],
+        );
+        assert_eq!(
+            r.souls()[0].subs,
+            Field::Mapped {
+                evidence: Evidence::Established,
+                value: None
+            }
+        );
+    }
+
+    #[test]
     fn renderings_distinguish_kinds() {
         let tuple = RawValue::Sequence {
             kind: SequenceKind::Tuple,
             items: vec![RawValue::Integer(3), RawValue::Float(3.0)],
-            length: 5,
+            full_length: Some(5),
         };
         assert_eq!(tuple.render(), "(3, 3.0, …3 more)");
         let map = RawValue::Mapping {
             entries: vec![(RawValue::Text("k".into()), RawValue::Null)],
-            length: 1,
+            full_length: None,
         };
         assert_eq!(map.render(), "{\"k\": null}");
         let unread = RawValue::Unread {
-            type_name: "set".into(),
+            type_name: Some("set".into()),
             reason: UnreadReason::UnknownKind,
         };
         assert_eq!(unread.render(), "<set: UnknownKind>");
     }
 
     #[test]
-    fn keys_match_by_text_or_decimal() {
+    fn keys_match_by_text_or_integer_value() {
         assert!(RawValue::Text("a".into()).matches_key("a"));
         assert!(RawValue::Integer(-4).matches_key("-4"));
+        assert!(RawValue::Integer(4).matches_key("04"));
         assert!(!RawValue::Text("4".into()).matches_key("a"));
         assert!(!RawValue::Null.matches_key("null"));
     }

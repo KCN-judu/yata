@@ -81,8 +81,7 @@ impl Inventory {
             .iter()
             .map(|l| (l, Coverage::Complete))
             .chain(live.partials.iter().map(|l| (l, Coverage::Partial)));
-        let mut records: BTreeMap<GameSoulId, (u64, &SoulReading, &SoulObservation)> =
-            BTreeMap::new();
+        let mut records: BTreeMap<GameSoulId, (u64, &SoulObservation)> = BTreeMap::new();
         for (&(seq, digest), coverage) in layers {
             let reading = readings
                 .get(&digest)
@@ -92,14 +91,14 @@ impl Inventory {
             if admitted.coverage != coverage {
                 return Err(InventoryError::ReadingDisagrees { seq, digest });
             }
-            for (id, soul) in admitted.souls.into_iter().zip(&reading.souls) {
-                records.insert(id, (seq, reading, soul));
+            for (id, soul) in admitted.souls.into_iter().zip(reading.souls()) {
+                records.insert(id, (seq, soul));
             }
         }
         let mut souls = BTreeMap::new();
         let mut defects = Vec::new();
-        for (id, (observed_at, reading, record)) in records {
-            match check_soul(reading, record) {
+        for (id, (observed_at, record)) in records {
+            match check_soul(record) {
                 Ok(()) => {
                     let row = InventorySoul {
                         id: id.clone(),
@@ -158,13 +157,13 @@ mod tests {
     use crate::fact::model::Commit;
     use crate::fact::projection::fold;
     use crate::fact::projection::tests::{P, Q, acquired, commit, created, marked};
-    use crate::import::observation;
+    use crate::import::observation::{self, GameStar, RawSoul, SoulMappings};
 
     fn id(s: &str) -> GameSoulId {
         GameSoulId::new(s).expect("non-empty")
     }
 
-    fn reading(coverage: Coverage, souls: Vec<SoulObservation>) -> SoulReading {
+    fn reading(coverage: Coverage, souls: Vec<RawSoul>) -> SoulReading {
         let coverage = match coverage {
             Coverage::Complete => observation::Coverage::Complete,
             Coverage::Partial => observation::Coverage::Partial,
@@ -205,7 +204,10 @@ mod tests {
         let inv = derive(&log, &readings, P);
         assert_eq!(ids(&inv), vec!["a", "c"]);
         let a = inv.get(&id("a")).expect("a");
-        assert_eq!((a.record.level, a.observed_at), (Some(15), 3));
+        assert_eq!(
+            (a.record.level.value().map(|l| l.0), a.observed_at),
+            (Some(15), 3)
+        );
     }
 
     #[test]
@@ -228,7 +230,11 @@ mod tests {
         let inv = derive(&log, &readings, P);
         assert_eq!(ids(&inv), vec!["a", "b", "d"]);
         assert_eq!(inv.get(&id("a")).map(|s| s.observed_at), Some(2));
-        assert_eq!(inv.get(&id("b")).and_then(|s| s.record.level), Some(6));
+        assert_eq!(
+            inv.get(&id("b"))
+                .and_then(|s| s.record.level.value().map(|l| l.0)),
+            Some(6)
+        );
     }
 
     #[test]
@@ -280,7 +286,7 @@ mod tests {
             commit(2, vec![acquired(P, 1, Coverage::Complete, None)]),
         ];
         let mut bad = soul("b", 15);
-        bad.star = Some(9);
+        bad.star = Some(GameStar(9));
         let readings = [(1, reading(Coverage::Complete, vec![soul("a", 15), bad]))];
         let inv = derive(&log, &readings, P);
         assert_eq!(ids(&inv), vec!["a"]);
@@ -317,8 +323,13 @@ mod tests {
             Inventory::derive(&p, Q, &partial),
             Err(InventoryError::UnknownProfile { profile: Q })
         );
-        let mut unmapped = reading(Coverage::Complete, vec![]);
-        unmapped.evidence.clear();
+        let unmapped = SoulReading::new(
+            observation::Coverage::Complete,
+            None,
+            None,
+            SoulMappings::default(),
+            vec![],
+        );
         assert!(matches!(
             Inventory::derive(&p, P, &BTreeMap::from([([1; 32], unmapped)])),
             Err(InventoryError::ReadingRefused { seq: 2, .. })

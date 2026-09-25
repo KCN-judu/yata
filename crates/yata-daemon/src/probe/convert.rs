@@ -1,183 +1,187 @@
-//! Domain ↔ message conversion for the probe channel (ADR-0004, rule 1): a `ReadResult` becomes a
-//! [`SoulReading`], and a reading's blob is its `ReadResult` serialized (ADR-0008, "Importing a
+//! Domain ↔ message conversion for the probe channel (ADR-0004, rule 1): a wire `Reading` becomes
+//! a [`SoulReading`], and a reading's blob is its `Reading` serialized (ADR-0008, "Importing a
 //! file", step 2).
 //!
-//! Conversion changes no value. Evidence is carried as the reader states it and never raised; an
-//! evidence entry for a field this build does not know is dropped with the field.
-
-use std::collections::BTreeMap;
+//! Conversion changes no value and repairs nothing. Every shape the schema says is refused —
+//! unset coverage, an unset oneof, an unspecified enum, a cut sequence whose full length is not
+//! above its items — is a [`ConvertError`], never a default.
 
 use prost::Message;
 use yata_core::import::observation::{
-    AttributeReading, Coverage, Evidence, ObservedRecord, RawValue, SequenceKind, SoulField,
-    SoulObservation, SoulReading, SubAttributeReading, UnreadReason,
+    AttributeReading, Coverage, GameAttributeCode, GameLevel, GameSlot, GameStar, GameSuitCode,
+    InnateReading, Mapping, ObservedRecord, RawSoul, RawValue, SequenceKind, SoulMappings,
+    SoulReading, SubAttributeReading, UnreadReason,
 };
 use yata_protocol::probe;
 
-/// Why a `ReadResult` is not a soul reading.
+/// Why a wire reading is not a reading this build accepts: `import.malformed_reading`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConvertError {
-    /// A scope this build does not read, or none.
-    NotSouls { scope: i32 },
-    /// A field's evidence stated twice.
-    DuplicateEvidence { field: String },
-    /// Evidence with no stated strength.
-    UnstatedEvidence { field: String },
+    /// A reading with no records: its scope is unknown, and no empty inventory is assumed.
+    NoRecords,
+    /// Coverage unspecified.
+    UnstatedCoverage,
+    /// A mapping whose evidence is unset, by field name (`recognition` for the rule).
+    UnstatedEvidence { field: &'static str },
+    /// An innate reading with neither case set.
+    UnstatedInnate,
+    /// A raw value, a sequence kind, or an unread reason unset or unspecified.
+    UnstatedValue,
+    /// A cut sequence or mapping whose full length is not above what it holds.
+    BadLength { shown: u64, full: u64 },
 }
 
-/// The blob of a reading: its `ReadResult` as protobuf bytes, without the request id, which is
-/// the session's and not the reading's. The same reading has the same blob whether it arrived by
-/// pipe or by file.
-pub fn blob_of(result: &probe::ReadResult) -> Vec<u8> {
-    probe::ReadResult {
-        request_id: 0,
-        ..result.clone()
-    }
-    .encode_to_vec()
+/// The blob of a reading: its `Reading` as protobuf bytes. The request id is not in it, so the
+/// same reading has the same blob whether it arrived by pipe or by file.
+pub fn blob_of(reading: &probe::Reading) -> Vec<u8> {
+    reading.encode_to_vec()
 }
 
-/// The `FieldEvidence.field` that names the soul recognition rule.
-pub const SOUL_RECOGNITION: &str = "SoulRecord";
-
-pub fn soul_reading(result: &probe::ReadResult) -> Result<SoulReading, ConvertError> {
-    let souls = match (&result.records, result.scope()) {
-        (Some(probe::read_result::Records::Souls(s)), probe::Scope::Souls) => &s.souls,
-        (None, probe::Scope::Souls) => &Vec::new(),
-        _ => {
-            return Err(ConvertError::NotSouls {
-                scope: result.scope,
-            });
-        }
+pub fn soul_reading(reading: &probe::Reading) -> Result<SoulReading, ConvertError> {
+    let Some(probe::reading::Records::Souls(records)) = &reading.records else {
+        return Err(ConvertError::NoRecords);
     };
-    let mut evidence = BTreeMap::new();
-    let mut recognition = None;
-    for e in &result.field_evidence {
-        let strength = match e.evidence() {
-            probe::Evidence::Inherited => Evidence::Inherited,
-            probe::Evidence::Established => Evidence::Established,
-            probe::Evidence::Unspecified => {
-                return Err(ConvertError::UnstatedEvidence {
-                    field: e.field.clone(),
-                });
-            }
-        };
-        if e.field == SOUL_RECOGNITION {
-            if recognition.replace(strength).is_some() {
-                return Err(ConvertError::DuplicateEvidence {
-                    field: e.field.clone(),
-                });
-            }
-            continue;
-        }
-        let Some(field) = SoulField::from_schema_name(&e.field) else {
-            continue;
-        };
-        if evidence.insert(field, strength).is_some() {
-            return Err(ConvertError::DuplicateEvidence {
-                field: e.field.clone(),
-            });
-        }
-    }
-    // A typed value for a field with no evidence entry is not trusted as mapped.
-    let mapped = |f: SoulField| evidence.contains_key(&f);
-    let souls = souls
+    let coverage = match reading.coverage() {
+        probe::Coverage::Complete => Coverage::Complete,
+        probe::Coverage::Partial => Coverage::Partial,
+        probe::Coverage::Unspecified => return Err(ConvertError::UnstatedCoverage),
+    };
+    let recognition = records
+        .recognition
+        .as_ref()
+        .map(|m| mapping(m, "recognition"))
+        .transpose()?;
+    let mappings = mappings(records.mappings.as_ref())?;
+    let souls = records
+        .souls
         .iter()
-        .map(|s| SoulObservation {
-            soul_id: s.soul_id.clone().filter(|_| mapped(SoulField::SoulId)),
-            suit_code: s.suit_code.filter(|_| mapped(SoulField::SuitCode)),
-            star: s.star.filter(|_| mapped(SoulField::Star)),
-            slot: s.slot.filter(|_| mapped(SoulField::Slot)),
-            level: s.level.filter(|_| mapped(SoulField::Level)),
-            main: s
-                .main
-                .as_ref()
-                .filter(|_| mapped(SoulField::Main))
-                .map(attribute),
-            subs: if mapped(SoulField::Subs) {
-                s.subs
-                    .iter()
-                    .map(|a| SubAttributeReading {
-                        code: a.attribute_code,
-                        value: a.value,
-                        roll_count: a.roll_count,
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            },
-            innate: s
-                .innate
-                .as_ref()
-                .filter(|_| mapped(SoulField::Innate))
-                .map(attribute),
-            locked: s.locked.filter(|_| mapped(SoulField::Locked)),
-            discarded: s.discarded.filter(|_| mapped(SoulField::Discarded)),
-            observed: s.observed.as_ref().map(observed),
-        })
-        .collect();
-    Ok(SoulReading {
-        coverage: match result.coverage() {
-            probe::Coverage::Complete => Coverage::Complete,
-            probe::Coverage::Partial => Coverage::Partial,
-            probe::Coverage::Unspecified => Coverage::Unstated,
-        },
-        account: Some(result.observed_account_id.clone()).filter(|a| !a.is_empty()),
+        .map(raw_soul)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SoulReading::new(
+        coverage,
+        reading.observed_account_id.clone(),
         recognition,
-        evidence,
+        mappings,
         souls,
+    ))
+}
+
+fn mapping(m: &probe::Mapping, field: &'static str) -> Result<Mapping, ConvertError> {
+    match &m.evidence {
+        Some(probe::mapping::Evidence::Inherited(_)) => Ok(Mapping::Inherited),
+        Some(probe::mapping::Evidence::Established(e)) => Ok(Mapping::Established {
+            basis: e.basis.clone(),
+        }),
+        None => Err(ConvertError::UnstatedEvidence { field }),
+    }
+}
+
+fn mappings(m: Option<&probe::SoulMappings>) -> Result<SoulMappings, ConvertError> {
+    let Some(m) = m else {
+        return Ok(SoulMappings::default());
+    };
+    let one = |m: &Option<probe::Mapping>, field| m.as_ref().map(|m| mapping(m, field)).transpose();
+    Ok(SoulMappings {
+        soul_id: one(&m.soul_id, "soul_id")?,
+        suit_code: one(&m.suit_code, "suit_code")?,
+        star: one(&m.star, "star")?,
+        slot: one(&m.slot, "slot")?,
+        level: one(&m.level, "level")?,
+        main: one(&m.main, "main")?,
+        subs: one(&m.subs, "subs")?,
+        innate: one(&m.innate, "innate")?,
+        locked: one(&m.locked, "locked")?,
+        discarded: one(&m.discarded, "discarded")?,
+    })
+}
+
+fn raw_soul(s: &probe::SoulRecord) -> Result<RawSoul, ConvertError> {
+    Ok(RawSoul {
+        soul_id: s.soul_id.clone(),
+        suit_code: s.suit_code.map(GameSuitCode),
+        star: s.star.map(GameStar),
+        slot: s.slot.map(GameSlot),
+        level: s.level.map(GameLevel),
+        main: s.main.as_ref().map(attribute),
+        subs: s.subs.as_ref().map(|subs| {
+            subs.items
+                .iter()
+                .map(|a| SubAttributeReading {
+                    code: GameAttributeCode(a.attribute_code),
+                    value: a.value,
+                    roll_count: a.roll_count,
+                })
+                .collect()
+        }),
+        innate: s.innate.as_ref().map(innate).transpose()?,
+        locked: s.locked,
+        discarded: s.discarded,
+        observed: s.observed.as_ref().map(observed).transpose()?,
     })
 }
 
 fn attribute(a: &probe::AttributeValue) -> AttributeReading {
     AttributeReading {
-        code: a.attribute_code,
+        code: GameAttributeCode(a.attribute_code),
         value: a.value,
     }
 }
 
-fn observed(r: &probe::ObservedRecord) -> ObservedRecord {
-    ObservedRecord {
+fn innate(i: &probe::InnateReading) -> Result<InnateReading, ConvertError> {
+    match &i.state {
+        Some(probe::innate_reading::State::None(_)) => Ok(InnateReading::None),
+        Some(probe::innate_reading::State::Present(a)) => Ok(InnateReading::Present(attribute(a))),
+        None => Err(ConvertError::UnstatedInnate),
+    }
+}
+
+fn observed(r: &probe::ObservedRecord) -> Result<ObservedRecord, ConvertError> {
+    Ok(ObservedRecord {
         type_name: r.type_name.clone(),
-        container_key: r.container_key.as_ref().map(raw),
-        entries: r.entries.iter().map(entry).collect(),
+        container_key: r.container_key.as_ref().map(raw).transpose()?,
+        entries: r.entries.iter().map(entry).collect::<Result<_, _>>()?,
+    })
+}
+
+fn entry(e: &probe::RawEntry) -> Result<(RawValue, RawValue), ConvertError> {
+    let side =
+        |v: &Option<probe::RawValue>| v.as_ref().ok_or(ConvertError::UnstatedValue).and_then(raw);
+    Ok((side(&e.key)?, side(&e.value)?))
+}
+
+/// A cut collection's full length, which must be above what it holds.
+fn full_length(shown: usize, full: Option<u64>) -> Result<Option<u64>, ConvertError> {
+    match full {
+        Some(f) if f <= shown as u64 => Err(ConvertError::BadLength {
+            shown: shown as u64,
+            full: f,
+        }),
+        other => Ok(other),
     }
 }
 
-fn entry(e: &probe::RawEntry) -> (RawValue, RawValue) {
-    let side = |v: &Option<probe::RawValue>| v.as_ref().map_or_else(unstated, raw);
-    (side(&e.key), side(&e.value))
-}
-
-fn unstated() -> RawValue {
-    RawValue::Unread {
-        type_name: String::new(),
-        reason: UnreadReason::Unstated,
-    }
-}
-
-fn raw(v: &probe::RawValue) -> RawValue {
+fn raw(v: &probe::RawValue) -> Result<RawValue, ConvertError> {
     use probe::raw_value::Kind;
-    match &v.kind {
-        None => unstated(),
-        Some(Kind::Null(_)) => RawValue::Null,
-        Some(Kind::Boolean(b)) => RawValue::Bool(*b),
-        Some(Kind::Integer(n)) => RawValue::Integer(*n),
-        Some(Kind::Float(x)) => RawValue::Float(*x),
-        Some(Kind::Text(t)) => RawValue::Text(t.clone()),
-        Some(Kind::Sequence(s)) => RawValue::Sequence {
+    Ok(match v.kind.as_ref().ok_or(ConvertError::UnstatedValue)? {
+        Kind::Null(_) => RawValue::Null,
+        Kind::Boolean(b) => RawValue::Bool(*b),
+        Kind::Integer(n) => RawValue::Integer(*n),
+        Kind::Float(x) => RawValue::Float(*x),
+        Kind::Text(t) => RawValue::Text(t.clone()),
+        Kind::Sequence(s) => RawValue::Sequence {
             kind: match s.kind() {
                 probe::SequenceKind::List => SequenceKind::List,
                 probe::SequenceKind::Tuple => SequenceKind::Tuple,
-                probe::SequenceKind::Unspecified => SequenceKind::Unstated,
+                probe::SequenceKind::Unspecified => return Err(ConvertError::UnstatedValue),
             },
-            items: s.items.iter().map(raw).collect(),
-            length: s.length.max(s.items.len() as u64),
+            full_length: full_length(s.items.len(), s.full_length)?,
+            items: s.items.iter().map(raw).collect::<Result<_, _>>()?,
         },
-        Some(Kind::Mapping(m)) => RawValue::Mapping {
-            entries: m.entries.iter().map(entry).collect(),
-            length: m.length.max(m.entries.len() as u64),
+        Kind::Mapping(m) => RawValue::Mapping {
+            full_length: full_length(m.entries.len(), m.full_length)?,
+            entries: m.entries.iter().map(entry).collect::<Result<_, _>>()?,
         },
-        Some(Kind::Unread(u)) => RawValue::Unread {
+        Kind::Unread(u) => RawValue::Unread {
             type_name: u.type_name.clone(),
             reason: match u.reason() {
                 probe::UnreadReason::UnknownKind => UnreadReason::UnknownKind,
@@ -185,142 +189,162 @@ fn raw(v: &probe::RawValue) -> RawValue {
                 probe::UnreadReason::Unreadable => UnreadReason::Unreadable,
                 probe::UnreadReason::Malformed => UnreadReason::Malformed,
                 probe::UnreadReason::OutOfRange => UnreadReason::OutOfRange,
-                probe::UnreadReason::Unspecified => UnreadReason::Unstated,
+                probe::UnreadReason::Unspecified => return Err(ConvertError::UnstatedValue),
             },
         },
-    }
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use probe::{FieldEvidence, ReadResult, SoulRecord, SoulRecords, read_result::Records};
+    use probe::{
+        Established, Inherited, Reading, SoulRecord, SoulRecords, mapping::Evidence as E,
+        reading::Records,
+    };
+    use yata_core::import::observation::{Evidence, Field};
 
-    fn result(souls: Vec<SoulRecord>, evidence: Vec<(&str, probe::Evidence)>) -> ReadResult {
-        ReadResult {
-            request_id: 1,
-            scope: probe::Scope::Souls.into(),
+    fn inherited() -> probe::Mapping {
+        probe::Mapping {
+            evidence: Some(E::Inherited(Inherited {})),
+        }
+    }
+
+    fn reading(souls: Vec<SoulRecord>, mappings: probe::SoulMappings) -> Reading {
+        Reading {
             coverage: probe::Coverage::Complete.into(),
-            records: Some(Records::Souls(SoulRecords { souls })),
-            field_evidence: evidence
-                .into_iter()
-                .map(|(f, e)| FieldEvidence {
-                    field: f.into(),
-                    evidence: e.into(),
-                    basis: String::new(),
-                })
-                .collect(),
-            ..ReadResult::default()
+            records: Some(Records::Souls(SoulRecords {
+                souls,
+                recognition: Some(inherited()),
+                mappings: Some(mappings),
+            })),
+            ..Reading::default()
         }
     }
 
     #[test]
-    fn a_typed_value_without_evidence_is_not_taken_as_mapped() {
-        let r = result(
+    fn a_value_for_an_unmapped_field_is_not_taken() {
+        let r = reading(
             vec![SoulRecord {
                 soul_id: Some("x".into()),
                 star: Some(6),
                 ..SoulRecord::default()
             }],
-            vec![("SoulRecord.soul_id", probe::Evidence::Inherited)],
+            probe::SoulMappings {
+                soul_id: Some(inherited()),
+                ..probe::SoulMappings::default()
+            },
         );
         let reading = soul_reading(&r).expect("souls");
-        assert_eq!(reading.souls[0].soul_id.as_deref(), Some("x"));
-        assert_eq!(reading.souls[0].star, None);
+        let soul = &reading.souls()[0];
+        assert_eq!(soul.soul_id.value().map(String::as_str), Some("x"));
+        assert_eq!(soul.soul_id.evidence(), Some(Evidence::Inherited));
+        assert_eq!(soul.star, Field::Unmapped);
+        assert_eq!(reading.recognition(), Some(&Mapping::Inherited));
+    }
+
+    #[test]
+    fn an_established_mapping_keeps_its_basis() {
+        let r = reading(
+            vec![],
+            probe::SoulMappings {
+                suit_code: Some(probe::Mapping {
+                    evidence: Some(E::Established(Established {
+                        basis: "exp-1".into(),
+                    })),
+                }),
+                ..probe::SoulMappings::default()
+            },
+        );
+        let reading = soul_reading(&r).expect("souls");
         assert_eq!(
-            reading.evidence_of(SoulField::SoulId),
-            Some(Evidence::Inherited)
+            reading.mappings().suit_code,
+            Some(Mapping::Established {
+                basis: "exp-1".into()
+            })
         );
-        assert_eq!(reading.evidence_of(SoulField::Star), None);
     }
 
     #[test]
-    fn evidence_is_carried_as_stated_and_never_raised() {
-        let r = result(
-            vec![],
-            vec![
-                ("SoulRecord.suit_code", probe::Evidence::Established),
-                ("SoulRecord.future_field", probe::Evidence::Established),
-            ],
-        );
-        let reading = soul_reading(&r).expect("souls");
-        assert_eq!(
-            reading.evidence_of(SoulField::SuitCode),
-            Some(Evidence::Established)
-        );
-        assert_eq!(reading.evidence.len(), 1);
-    }
-
-    #[test]
-    fn unstated_or_repeated_evidence_is_refused() {
-        let unstated = result(
-            vec![],
-            vec![("SoulRecord.star", probe::Evidence::Unspecified)],
-        );
-        assert!(matches!(
-            soul_reading(&unstated),
-            Err(ConvertError::UnstatedEvidence { .. })
-        ));
-        let twice = result(
-            vec![],
-            vec![
-                ("SoulRecord.star", probe::Evidence::Inherited),
-                ("SoulRecord.star", probe::Evidence::Established),
-            ],
-        );
-        assert!(matches!(
-            soul_reading(&twice),
-            Err(ConvertError::DuplicateEvidence { .. })
-        ));
-    }
-
-    #[test]
-    fn the_recognition_rule_has_its_own_evidence() {
-        let r = result(vec![], vec![("SoulRecord", probe::Evidence::Inherited)]);
-        let reading = soul_reading(&r).expect("souls");
-        assert_eq!(reading.recognition, Some(Evidence::Inherited));
-        assert!(reading.evidence.is_empty());
-    }
-
-    #[test]
-    fn the_request_id_is_not_part_of_the_blob() {
-        let a = result(vec![SoulRecord::default()], vec![]);
-        let b = ReadResult {
-            request_id: 7,
-            ..a.clone()
+    fn unstated_shapes_are_refused_not_defaulted() {
+        let no_records = Reading {
+            coverage: probe::Coverage::Complete.into(),
+            ..Reading::default()
         };
-        assert_eq!(blob_of(&a), blob_of(&b));
+        assert_eq!(soul_reading(&no_records), Err(ConvertError::NoRecords));
+        let mut no_coverage = reading(vec![], probe::SoulMappings::default());
+        no_coverage.coverage = probe::Coverage::Unspecified.into();
+        assert_eq!(
+            soul_reading(&no_coverage),
+            Err(ConvertError::UnstatedCoverage)
+        );
+        let unstated = reading(
+            vec![],
+            probe::SoulMappings {
+                star: Some(probe::Mapping { evidence: None }),
+                ..probe::SoulMappings::default()
+            },
+        );
+        assert_eq!(
+            soul_reading(&unstated),
+            Err(ConvertError::UnstatedEvidence { field: "star" })
+        );
+        let no_innate_case = reading(
+            vec![SoulRecord {
+                innate: Some(probe::InnateReading { state: None }),
+                ..SoulRecord::default()
+            }],
+            probe::SoulMappings::default(),
+        );
+        assert_eq!(
+            soul_reading(&no_innate_case),
+            Err(ConvertError::UnstatedInnate)
+        );
     }
 
     #[test]
-    fn another_scope_is_not_a_soul_reading() {
-        let r = ReadResult::default();
-        assert_eq!(soul_reading(&r), Err(ConvertError::NotSouls { scope: 0 }));
-    }
-
-    #[test]
-    fn raw_values_convert_without_change() {
+    fn a_cut_length_must_be_above_what_is_held() {
         use probe::raw_value::Kind;
-        let v = probe::RawValue {
+        let seq = |full| probe::RawValue {
             kind: Some(Kind::Sequence(probe::RawSequence {
-                kind: probe::SequenceKind::Tuple.into(),
-                items: vec![
-                    probe::RawValue {
-                        kind: Some(Kind::Integer(-3)),
-                    },
-                    probe::RawValue { kind: None },
-                ],
-                truncated: true,
-                length: 9,
+                kind: probe::SequenceKind::List.into(),
+                items: vec![probe::RawValue {
+                    kind: Some(Kind::Integer(1)),
+                }],
+                full_length: full,
             })),
         };
+        assert!(matches!(
+            raw(&seq(Some(3))),
+            Ok(RawValue::Sequence {
+                full_length: Some(3),
+                ..
+            })
+        ));
         assert_eq!(
-            raw(&v),
-            RawValue::Sequence {
-                kind: SequenceKind::Tuple,
-                items: vec![RawValue::Integer(-3), unstated()],
-                length: 9,
-            }
+            raw(&seq(Some(1))),
+            Err(ConvertError::BadLength { shown: 1, full: 1 })
+        );
+        assert_eq!(
+            raw(&probe::RawValue { kind: None }),
+            Err(ConvertError::UnstatedValue)
+        );
+    }
+
+    #[test]
+    fn a_blob_is_the_reading_alone() {
+        let r = reading(vec![SoulRecord::default()], probe::SoulMappings::default());
+        let a = probe::ReadResult {
+            request_id: 1,
+            reading: Some(r.clone()),
+        };
+        let b = probe::ReadResult {
+            request_id: 7,
+            reading: Some(r.clone()),
+        };
+        assert_eq!(
+            a.reading.as_ref().map(blob_of),
+            b.reading.as_ref().map(blob_of)
         );
     }
 }

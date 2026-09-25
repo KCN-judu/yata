@@ -23,11 +23,11 @@ use interprocess::os::windows::named_pipe::{
     DuplexPipeStream, PipeListenerOptions, PipeStream, pipe_mode,
 };
 use interprocess::os::windows::security_descriptor::SecurityDescriptor;
-use sha2::{Digest, Sha256};
+use sha2::Digest;
 use widestring::U16CString;
-use yata_protocol::probe::{self, HandshakeAck, Log, Progress, ReadResult, Scope};
+use yata_protocol::probe::{HandshakeAck, Log, ProbeErrorCode, Reading, Scope};
 
-use super::session::{Session, SessionError, Step};
+use super::session::{Session, SessionError, Step, Target};
 
 /// One access-allowed entry, for the object's owner, and no inheritance (`P`): R10.
 pub const PIPE_SDDL: &str = "D:P(A;;GA;;;OW)";
@@ -44,8 +44,77 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// What the elevation helper exits with when the user declines the UAC prompt.
 const DECLINED_EXIT: i32 = 23;
 
+/// A SHA-256 digest.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Sha256([u8; 32]);
+
+impl Sha256 {
+    /// Exactly 64 hexadecimal digits, of either case, and nothing else.
+    pub fn parse(text: &str) -> Option<Sha256> {
+        let digits = text.as_bytes();
+        if digits.len() != 64 || !digits.iter().all(u8::is_ascii_hexdigit) {
+            return None;
+        }
+        let nibble = |d: u8| match d {
+            b'0'..=b'9' => d - b'0',
+            b'a'..=b'f' => d - b'a' + 10,
+            _ => d - b'A' + 10,
+        };
+        let mut out = [0u8; 32];
+        for (byte, pair) in out.iter_mut().zip(digits.chunks_exact(2)) {
+            *byte = nibble(pair[0]) << 4 | nibble(pair[1]);
+        }
+        Some(Sha256(out))
+    }
+
+    /// The digest of a file's contents.
+    pub fn of_file(path: &Path) -> io::Result<Sha256> {
+        let mut file = File::open(path)?;
+        let mut hasher = sha2::Sha256::new();
+        let mut buffer = vec![0u8; 64 * 1024];
+        loop {
+            let n = file.read(&mut buffer)?;
+            if n == 0 {
+                break;
+            }
+            hasher.update(&buffer[..n]);
+        }
+        Ok(Sha256(hasher.finalize().into()))
+    }
+}
+
+impl std::fmt::Display for Sha256 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.iter().try_for_each(|b| write!(f, "{b:02x}"))
+    }
+}
+
+/// Whether the reader ran with the user's ordinary rights or through UAC.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Elevation {
+    Unelevated,
+    Elevated,
+}
+
+/// A started reader: a child the daemon owns, or an elevated process it knows only by id.
+enum Started {
+    Child(Child),
+    Elevated { pid: u32 },
+}
+
+impl Started {
+    fn pid(&self) -> u32 {
+        match self {
+            Started::Child(c) => c.id(),
+            Started::Elevated { pid } => *pid,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum LaunchError {
+    /// No random bytes for the pipe name.
+    Random(String),
     /// The pipe or its security descriptor could not be created; nothing was started (R10).
     Pipe(io::Error),
     /// The reader could not be started.
@@ -55,7 +124,7 @@ pub enum LaunchError {
     /// A process other than the reader connected (ADR-0006, rule 7).
     WrongClient { expected: u32, connected: u32 },
     /// The reader file's hash is not the expected one, so it is not elevated (R7).
-    Unverified { found: String },
+    Unverified { found: Sha256 },
     /// Elevation is needed and the caller gave no expected hash to check the reader against.
     NoExpectedHash,
     /// The user declined the UAC prompt: `import.elevation_declined`.
@@ -68,26 +137,25 @@ pub enum LaunchError {
 #[derive(Debug)]
 pub struct Outcome {
     pub ack: HandshakeAck,
-    pub result: ReadResult,
+    pub reading: Reading,
     pub logs: Vec<Log>,
-    pub elevated: bool,
+    pub elevation: Elevation,
 }
 
 /// What a read is asked to do.
 pub struct ReadOptions<'a> {
     pub reader: &'a Path,
-    /// 0 lets the reader choose the process.
-    pub target_pid: u32,
+    pub target: Target,
     /// Where the frames of the final attempt are recorded.
     pub record: Option<&'a Path>,
     /// The SHA-256 the reader file must have before it is elevated.
-    pub expected_sha256: Option<[u8; 32]>,
+    pub expected_sha256: Option<Sha256>,
 }
 
 /// A random, per-session pipe name.
 pub fn pipe_name() -> Result<String, LaunchError> {
     let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|e| LaunchError::Pipe(io::Error::other(e.to_string())))?;
+    getrandom::fill(&mut bytes).map_err(|e| LaunchError::Random(e.to_string()))?;
     let hex: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
     Ok(format!(r"\\.\pipe\yata-reader-{hex}"))
 }
@@ -146,18 +214,18 @@ pub fn accept_from(
 /// Read the souls: unelevated first, then elevated only if the reader asks for it.
 pub fn read_souls(
     options: &ReadOptions<'_>,
-    observe: &mut dyn FnMut(&Progress) -> Step,
+    observe: &mut dyn FnMut(u64, Option<u64>) -> Step,
 ) -> Result<Outcome, LaunchError> {
-    match attempt(options, false, observe) {
+    match attempt(options, Elevation::Unelevated, observe) {
         Err(LaunchError::Session(SessionError::Failed(e)))
-            if e.code == probe::code::ELEVATION_REQUIRED =>
+            if e.code == ProbeErrorCode::ElevationRequired =>
         {
             let expected = options.expected_sha256.ok_or(LaunchError::NoExpectedHash)?;
-            let found = sha256_of(options.reader).map_err(LaunchError::Spawn)?;
+            let found = Sha256::of_file(options.reader).map_err(LaunchError::Spawn)?;
             if found != expected {
-                return Err(LaunchError::Unverified { found: hex(&found) });
+                return Err(LaunchError::Unverified { found });
             }
-            attempt(options, true, observe)
+            attempt(options, Elevation::Elevated, observe)
         }
         other => other,
     }
@@ -165,21 +233,21 @@ pub fn read_souls(
 
 fn attempt(
     options: &ReadOptions<'_>,
-    elevated: bool,
-    observe: &mut dyn FnMut(&Progress) -> Step,
+    elevation: Elevation,
+    observe: &mut dyn FnMut(u64, Option<u64>) -> Step,
 ) -> Result<Outcome, LaunchError> {
     let name = pipe_name()?;
     let listener = create_pipe(&name)?;
-    let (pid, mut child) = if elevated {
-        (start_elevated(options.reader, &name)?, None)
-    } else {
-        let child = start(options.reader, &name)?;
-        (child.id(), Some(child))
+    let mut started = match elevation {
+        Elevation::Elevated => Started::Elevated {
+            pid: start_elevated(options.reader, &name)?,
+        },
+        Elevation::Unelevated => Started::Child(start(options.reader, &name)?),
     };
-    let stream = match accept_from(&name, listener, pid) {
+    let stream = match accept_from(&name, listener, started.pid()) {
         Ok(s) => s,
         Err(e) => {
-            if let Some(c) = child.as_mut() {
+            if let Started::Child(c) = &mut started {
                 let _ = c.kill();
                 let _ = c.wait();
             }
@@ -195,22 +263,22 @@ fn attempt(
         .map(|f| Box::new(f) as Box<dyn io::Write + Send>);
     let mut session = Session::start(incoming, outgoing, recorder).with_wait(FRAME_WAIT);
     let read = session
-        .handshake(options.target_pid)
+        .handshake(options.target)
         .and_then(|ack| session.read(Scope::Souls, &mut *observe).map(|r| (ack, r)));
-    let logs = std::mem::take(&mut session.logs);
+    let logs = session.logs().to_vec();
     let closed = session.shutdown();
-    if let Some(c) = child.as_mut() {
+    if let Started::Child(c) = &mut started {
         // Reaped so it does not outlive the session; its message, not its exit code, says why it
         // stopped, and an elevation-required reader exits with code 5 after saying so.
         c.wait().map_err(LaunchError::Spawn)?;
     }
-    let (ack, result) = read.map_err(LaunchError::Session)?;
+    let (ack, reading) = read.map_err(LaunchError::Session)?;
     closed.map_err(LaunchError::Session)?;
     Ok(Outcome {
         ack,
-        result,
+        reading,
         logs,
-        elevated,
+        elevation,
     })
 }
 
@@ -277,38 +345,6 @@ fn powershell() -> Result<PathBuf, LaunchError> {
     Ok(PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe"))
 }
 
-/// The SHA-256 of a file.
-pub fn sha256_of(path: &Path) -> io::Result<[u8; 32]> {
-    let mut file = File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = vec![0u8; 64 * 1024];
-    loop {
-        let n = file.read(&mut buffer)?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buffer[..n]);
-    }
-    Ok(hasher.finalize().into())
-}
-
-pub fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
-
-/// A SHA-256 written as 64 hexadecimal digits.
-pub fn parse_sha256(text: &str) -> Option<[u8; 32]> {
-    let text = text.trim();
-    if text.len() != 64 || !text.is_ascii() {
-        return None;
-    }
-    let mut out = [0u8; 32];
-    for (i, byte) in out.iter_mut().enumerate() {
-        *byte = u8::from_str_radix(&text[2 * i..2 * i + 2], 16).ok()?;
-    }
-    Some(out)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -369,11 +405,16 @@ mod tests {
     }
 
     #[test]
-    fn hashes_are_read_and_written_as_hex() {
-        let h = [0xabu8; 32];
-        assert_eq!(parse_sha256(&hex(&h)), Some(h));
-        assert_eq!(parse_sha256("ab"), None);
-        assert_eq!(parse_sha256(&"zz".repeat(32)), None);
+    fn hashes_are_read_and_written_as_hex_and_nothing_else() {
+        let text = "ab".repeat(32);
+        let h = Sha256::parse(&text).expect("hex");
+        assert_eq!(h.to_string(), text);
+        assert_eq!(Sha256::parse(&"AB".repeat(32)), Some(h));
+        assert_eq!(Sha256::parse("ab"), None);
+        assert_eq!(Sha256::parse(&"zz".repeat(32)), None);
+        // A sign is not a digit, though `from_str_radix` would take one.
+        assert_eq!(Sha256::parse(&"+f".repeat(32)), None);
+        assert_eq!(Sha256::parse(&format!(" {}", "a".repeat(63))), None);
     }
 
     #[test]
@@ -383,7 +424,7 @@ mod tests {
         let path = dir.join("f");
         std::fs::write(&path, b"abc").expect("written");
         assert_eq!(
-            hex(&sha256_of(&path).expect("hashed")),
+            Sha256::of_file(&path).expect("hashed").to_string(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
         let _ = std::fs::remove_dir_all(&dir);

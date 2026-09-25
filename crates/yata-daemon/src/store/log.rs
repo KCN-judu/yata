@@ -107,8 +107,8 @@ pub enum InventoryReadError {
         digest: Digest,
         error: BlobError,
     },
-    /// The blob is not a `ReadResult`.
-    NotAReadResult {
+    /// The blob is not a `Reading`.
+    NotAReading {
         digest: Digest,
     },
     Reading {
@@ -192,20 +192,20 @@ impl FactLog {
         self.land(origin, recorded_at_ms, facts, Vec::new())
     }
 
-    /// Import one reading into a profile: the read result becomes a blob ([`blob_of`], which
-    /// leaves out the session's request id), and one `SnapshotAcquired` commit records it. The
-    /// same reading imported again, by pipe or by file, is a second observation of one blob.
+    /// Import one reading into a profile: the reading becomes a blob ([`blob_of`]; the session's
+    /// request id is not part of it), and one `SnapshotAcquired` commit records it. The same
+    /// reading imported again, by pipe or by file, is a second observation of one blob.
     pub fn ingest(
         &mut self,
         profile: ProfileId,
-        read_result: &probe::ReadResult,
+        wire: &probe::Reading,
         provenance: Provenance,
         origin: Origin,
         recorded_at_ms: i64,
     ) -> Result<Ingested, IngestError> {
-        let reading = soul_reading(read_result).map_err(IngestError::Convert)?;
+        let reading = soul_reading(wire).map_err(IngestError::Convert)?;
         let admitted = admit_reading(&reading).map_err(IngestError::Refused)?;
-        let (digest, stored) = blob::seal(&blob_of(read_result)).map_err(IngestError::Blob)?;
+        let (digest, stored) = blob::seal(&blob_of(wire)).map_err(IngestError::Blob)?;
         let fact = Fact {
             profile,
             body: FactBody::SnapshotAcquired(Acquisition {
@@ -234,9 +234,9 @@ impl FactLog {
         let defects = admitted
             .souls
             .into_iter()
-            .zip(&reading.souls)
+            .zip(reading.souls())
             .filter_map(|(soul, record)| {
-                check_soul(&reading, record).err().map(|kind| SoulDefect {
+                check_soul(record).err().map(|kind| SoulDefect {
                     soul,
                     observed_at: seq,
                     kind,
@@ -278,9 +278,9 @@ impl FactLog {
                 digest: *digest,
                 error,
             })?;
-            let result = probe::ReadResult::decode(bytes.as_slice())
-                .map_err(|_| InventoryReadError::NotAReadResult { digest: *digest })?;
-            let reading = soul_reading(&result).map_err(|error| InventoryReadError::Reading {
+            let wire = probe::Reading::decode(bytes.as_slice())
+                .map_err(|_| InventoryReadError::NotAReading { digest: *digest })?;
+            let reading = soul_reading(&wire).map_err(|error| InventoryReadError::Reading {
                 digest: *digest,
                 error,
             })?;
@@ -414,20 +414,23 @@ mod tests {
         }
     }
 
-    fn reading() -> probe::ReadResult {
-        probe::ReadResult {
-            request_id: 1,
-            scope: probe::Scope::Souls.into(),
-            coverage: probe::Coverage::Complete.into(),
-            records: Some(probe::read_result::Records::Souls(probe::SoulRecords {
-                souls: vec![],
-            })),
-            field_evidence: vec![probe::FieldEvidence {
-                field: "SoulRecord.soul_id".into(),
-                evidence: probe::Evidence::Established.into(),
+    fn reading() -> probe::Reading {
+        let established = || probe::Mapping {
+            evidence: Some(probe::mapping::Evidence::Established(probe::Established {
                 basis: "test".into(),
-            }],
-            ..probe::ReadResult::default()
+            })),
+        };
+        probe::Reading {
+            coverage: probe::Coverage::Complete.into(),
+            records: Some(probe::reading::Records::Souls(probe::SoulRecords {
+                souls: vec![],
+                recognition: None,
+                mappings: Some(probe::SoulMappings {
+                    soul_id: Some(established()),
+                    ..probe::SoulMappings::default()
+                }),
+            })),
+            ..probe::Reading::default()
         }
     }
 

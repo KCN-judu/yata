@@ -1,7 +1,8 @@
 //! What of a reading the fact log admits (`fact-format.md`, § Ingestion).
 //!
-//! The reading itself is `import::observation`'s [`SoulReading`]: typed fields, each with the
-//! evidence behind its mapping. Two levels of check apply, and they fail differently:
+//! The reading itself is `import::observation`'s [`SoulReading`]: typed fields, each saying
+//! whether the reader maps it and with what evidence. Two levels of check apply, and they fail
+//! differently:
 //! - [`admit_reading`] refuses a reading that cannot be an observation of one account's souls:
 //!   without an established soul id there is no soul identity, and so no inventory. An import of
 //!   it is refused and nothing is committed.
@@ -13,7 +14,10 @@
 use std::collections::BTreeSet;
 
 use super::model::{Coverage, GameAccountId, GameSoulId};
-use crate::import::observation::{self, Evidence, SoulField, SoulObservation, SoulReading};
+use crate::import::observation::{
+    self, Evidence, Field, GameAttributeCode, InnateReading, SoulField, SoulObservation,
+    SoulReading,
+};
 
 /// The fields a record must carry, established, to be an inventory row: every field W-Soul reads,
 /// the set, the slot, and the innate attribute, which decides whether the soul is a boss soul
@@ -43,8 +47,6 @@ pub enum AdmissionError {
     /// `import.unestablished_identity`: the soul id's mapping is not established, so no record
     /// has an identity the inventory can key on.
     UnestablishedIdentity { evidence: Option<Evidence> },
-    /// The reading does not say whether it is complete.
-    UnstatedCoverage,
     /// A record without a soul id, by position, in a reading that maps it.
     MissingSoulId { index: usize },
     /// `import.duplicate_soul`: two records claim one soul. One soul has one state at one time,
@@ -58,30 +60,31 @@ impl AdmissionError {
         match self {
             AdmissionError::UnestablishedIdentity { .. } => "import.unestablished_identity",
             AdmissionError::DuplicateSoul { .. } => "import.duplicate_soul",
-            AdmissionError::UnstatedCoverage | AdmissionError::MissingSoulId { .. } => {
-                "import.malformed_reading"
-            }
+            AdmissionError::MissingSoulId { .. } => "import.malformed_reading",
         }
     }
 }
 
 /// Admit a reading, or refuse it whole.
 pub fn admit_reading(reading: &SoulReading) -> Result<Admitted, AdmissionError> {
-    let evidence = reading.evidence_of(SoulField::SoulId);
+    let evidence = reading
+        .mappings()
+        .get(SoulField::SoulId)
+        .map(observation::Mapping::evidence);
     if evidence != Some(Evidence::Established) {
         return Err(AdmissionError::UnestablishedIdentity { evidence });
     }
-    let coverage = match reading.coverage {
+    let coverage = match reading.coverage() {
         observation::Coverage::Complete => Coverage::Complete,
         observation::Coverage::Partial => Coverage::Partial,
-        observation::Coverage::Unstated => return Err(AdmissionError::UnstatedCoverage),
     };
     let mut seen = BTreeSet::new();
-    let mut souls = Vec::with_capacity(reading.souls.len());
-    for (index, soul) in reading.souls.iter().enumerate() {
+    let mut souls = Vec::with_capacity(reading.souls().len());
+    for (index, soul) in reading.souls().iter().enumerate() {
         let id = soul
             .soul_id
-            .clone()
+            .value()
+            .cloned()
             .and_then(|id| GameSoulId::new(id).ok())
             .ok_or(AdmissionError::MissingSoulId { index })?;
         if !seen.insert(id.clone()) {
@@ -92,9 +95,8 @@ pub fn admit_reading(reading: &SoulReading) -> Result<Admitted, AdmissionError> 
     Ok(Admitted {
         coverage,
         account: reading
-            .account
-            .clone()
-            .and_then(|a| GameAccountId::new(a).ok()),
+            .account()
+            .and_then(|a| GameAccountId::new(a.to_owned()).ok()),
         souls,
     })
 }
@@ -113,57 +115,75 @@ pub enum SoulDefectKind {
     /// `|dom S| ≤ 4`.
     TooManySubs(usize),
     /// `S` is a partial map: an attribute is in its domain at most once.
-    RepeatedSub { attribute_code: u32 },
+    RepeatedSub { attribute_code: GameAttributeCode },
     /// Stored values are finite and not negative (`S : SoulAttribute ⇀ ℚ≥0`).
     Value(f64),
     /// `Σ c(a) ≤ nodes(ℓ)`, when the roll counts are recorded.
     Rolls { rolls: u64, nodes: u32 },
 }
 
-/// Check that a record of `reading` can be a row: every field of [`ROW_FIELDS`] established and
-/// present, then the premises of W-Soul that need no code table.
-pub fn check_soul(reading: &SoulReading, soul: &SoulObservation) -> Result<(), SoulDefectKind> {
+/// A row field's value: established and present, or the defect that says why not.
+fn row<T>(field: SoulField, value: &Field<T>) -> Result<&T, SoulDefectKind> {
+    match value {
+        Field::Mapped {
+            evidence: Evidence::Established,
+            value: Some(v),
+        } => Ok(v),
+        Field::Mapped {
+            evidence: Evidence::Established,
+            value: None,
+        } => Err(SoulDefectKind::Missing(field)),
+        _ => Err(SoulDefectKind::Unestablished(field)),
+    }
+}
+
+/// Check that a record can be a row: every field of [`ROW_FIELDS`] established and present, then
+/// the premises of W-Soul that need no code table.
+pub fn check_soul(soul: &SoulObservation) -> Result<(), SoulDefectKind> {
     for field in ROW_FIELDS {
-        if reading.evidence_of(field) != Some(Evidence::Established) {
+        if soul.evidence_of(field) != Some(Evidence::Established) {
             return Err(SoulDefectKind::Unestablished(field));
         }
     }
-    let present = |field, value: Option<u32>| value.ok_or(SoulDefectKind::Missing(field));
-    present(SoulField::SuitCode, soul.suit_code)?;
-    present(SoulField::Slot, soul.slot)?;
-    let star = present(SoulField::Star, soul.star)?;
-    let level = present(SoulField::Level, soul.level)?;
-    let main = soul.main.ok_or(SoulDefectKind::Missing(SoulField::Main))?;
+    row(SoulField::SuitCode, &soul.suit_code)?;
+    row(SoulField::Slot, &soul.slot)?;
+    let star = row(SoulField::Star, &soul.star)?.0;
+    let level = row(SoulField::Level, &soul.level)?.0;
+    let main = row(SoulField::Main, &soul.main)?;
+    let subs = row(SoulField::Subs, &soul.subs)?;
     if !(1..=6).contains(&star) {
         return Err(SoulDefectKind::Star(star));
     }
     if level > 15 {
         return Err(SoulDefectKind::Level(level));
     }
-    if soul.subs.len() > 4 {
-        return Err(SoulDefectKind::TooManySubs(soul.subs.len()));
+    if subs.len() > 4 {
+        return Err(SoulDefectKind::TooManySubs(subs.len()));
     }
     let mut codes = BTreeSet::new();
-    for sub in &soul.subs {
+    for sub in subs {
         if !codes.insert(sub.code) {
             return Err(SoulDefectKind::RepeatedSub {
                 attribute_code: sub.code,
             });
         }
     }
-    let values = soul
-        .subs
+    // A lacking innate field is `Missing`: only a stated `None` is an ordinary soul (ADR-0029).
+    let innate = match row(SoulField::Innate, &soul.innate)? {
+        InnateReading::Present(a) => Some(a.value),
+        InnateReading::None => None,
+    };
+    let values = subs
         .iter()
         .map(|s| s.value)
         .chain([main.value])
-        .chain(soul.innate.map(|i| i.value));
+        .chain(innate);
     for v in values {
         if !v.is_finite() || v < 0.0 {
             return Err(SoulDefectKind::Value(v));
         }
     }
-    let rolls: u64 = soul
-        .subs
+    let rolls: u64 = subs
         .iter()
         .filter_map(|s| s.roll_count)
         .map(u64::from)
@@ -177,61 +197,91 @@ pub fn check_soul(reading: &SoulReading, soul: &SoulObservation) -> Result<(), S
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::collections::BTreeMap;
-
     use super::*;
-    use crate::import::observation::{AttributeReading, SubAttributeReading};
+    use crate::import::observation::{
+        AttributeReading, GameLevel, GameSlot, GameStar, GameSuitCode, Mapping, RawSoul,
+        SoulMappings, SubAttributeReading,
+    };
 
-    /// A reading whose every typed field is established.
-    pub(crate) fn established(
-        coverage: observation::Coverage,
-        souls: Vec<SoulObservation>,
-    ) -> SoulReading {
-        SoulReading {
-            coverage,
-            recognition: Some(Evidence::Established),
-            account: None,
-            evidence: SoulField::ALL
-                .into_iter()
-                .map(|f| (f, Evidence::Established))
-                .collect(),
-            souls,
+    fn established_mapping() -> Option<Mapping> {
+        Some(Mapping::Established {
+            basis: "test".into(),
+        })
+    }
+
+    /// Every typed field mapped, established.
+    pub(crate) fn all_established() -> SoulMappings {
+        let e = established_mapping;
+        SoulMappings {
+            soul_id: e(),
+            suit_code: e(),
+            star: e(),
+            slot: e(),
+            level: e(),
+            main: e(),
+            subs: e(),
+            innate: e(),
+            locked: e(),
+            discarded: e(),
         }
     }
 
-    pub(crate) fn soul(id: &str, level: u32) -> SoulObservation {
-        SoulObservation {
+    /// A reading whose every typed field is established.
+    pub(crate) fn established(coverage: observation::Coverage, souls: Vec<RawSoul>) -> SoulReading {
+        SoulReading::new(
+            coverage,
+            None,
+            established_mapping(),
+            all_established(),
+            souls,
+        )
+    }
+
+    pub(crate) fn soul(id: &str, level: u32) -> RawSoul {
+        RawSoul {
             soul_id: Some(id.into()),
-            suit_code: Some(30),
-            star: Some(6),
-            slot: Some(2),
-            level: Some(level),
+            suit_code: Some(GameSuitCode(30)),
+            star: Some(GameStar(6)),
+            slot: Some(GameSlot(2)),
+            level: Some(GameLevel(level)),
             main: Some(AttributeReading {
-                code: 7,
+                code: GameAttributeCode(7),
                 value: 57.0,
             }),
-            subs: vec![SubAttributeReading {
-                code: 3,
+            subs: Some(vec![SubAttributeReading {
+                code: GameAttributeCode(3),
                 value: 2.7,
                 roll_count: None,
-            }],
-            innate: None,
+            }]),
+            innate: Some(InnateReading::None),
             locked: Some(false),
             discarded: Some(false),
             observed: None,
         }
     }
 
-    fn complete(souls: Vec<SoulObservation>) -> SoulReading {
+    fn complete(souls: Vec<RawSoul>) -> SoulReading {
         established(observation::Coverage::Complete, souls)
+    }
+
+    fn with_mappings(mappings: SoulMappings, souls: Vec<RawSoul>) -> SoulReading {
+        SoulReading::new(observation::Coverage::Complete, None, None, mappings, souls)
+    }
+
+    /// The check of one record under all-established mappings.
+    fn check(raw: RawSoul) -> Result<(), SoulDefectKind> {
+        check_soul(&complete(vec![raw]).souls()[0])
     }
 
     #[test]
     fn a_reading_without_an_established_soul_id_is_refused() {
-        let mut inherited = complete(vec![soul("a", 15)]);
-        inherited
-            .evidence
-            .insert(SoulField::SoulId, Evidence::Inherited);
+        let inherited = with_mappings(
+            SoulMappings {
+                soul_id: Some(Mapping::Inherited),
+                ..all_established()
+            },
+            vec![soul("a", 15)],
+        );
         let e = admit_reading(&inherited).expect_err("inherited");
         assert_eq!(
             e,
@@ -241,10 +291,7 @@ pub(crate) mod tests {
         );
         assert_eq!(e.code(), "import.unestablished_identity");
         // What the reader sends today: no typed field at all, only observed records.
-        let unmapped = SoulReading {
-            evidence: BTreeMap::new(),
-            ..complete(vec![SoulObservation::default()])
-        };
+        let unmapped = with_mappings(SoulMappings::default(), vec![RawSoul::default()]);
         assert_eq!(
             admit_reading(&unmapped),
             Err(AdmissionError::UnestablishedIdentity { evidence: None })
@@ -259,24 +306,24 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_record_without_an_id_or_a_reading_without_coverage_is_refused() {
+    fn a_record_without_an_id_is_refused() {
         let mut no_id = soul("a", 15);
         no_id.soul_id = None;
         assert_eq!(
             admit_reading(&complete(vec![soul("b", 15), no_id])),
             Err(AdmissionError::MissingSoulId { index: 1 })
         );
-        let unstated = established(observation::Coverage::Unstated, vec![]);
-        assert_eq!(
-            admit_reading(&unstated),
-            Err(AdmissionError::UnstatedCoverage)
-        );
     }
 
     #[test]
     fn an_admitted_reading_names_its_souls_and_account() {
-        let mut r = complete(vec![soul("a", 15)]);
-        r.account = Some("acct".into());
+        let r = SoulReading::new(
+            observation::Coverage::Complete,
+            Some("acct".into()),
+            None,
+            all_established(),
+            vec![soul("a", 15)],
+        );
         let a = admit_reading(&r).expect("admitted");
         assert_eq!(a.coverage, Coverage::Complete);
         assert_eq!(a.account.as_ref().map(GameAccountId::as_str), Some("acct"));
@@ -287,76 +334,131 @@ pub(crate) mod tests {
 
     #[test]
     fn a_row_needs_every_row_field_established_and_present() {
-        let r = complete(vec![]);
-        assert_eq!(check_soul(&r, &soul("a", 15)), Ok(()));
+        assert_eq!(check(soul("a", 15)), Ok(()));
         for field in ROW_FIELDS {
-            let mut inherited = complete(vec![]);
-            inherited.evidence.insert(field, Evidence::Inherited);
+            let mut mappings = all_established();
+            match field {
+                SoulField::SuitCode => mappings.suit_code = Some(Mapping::Inherited),
+                SoulField::Star => mappings.star = Some(Mapping::Inherited),
+                SoulField::Slot => mappings.slot = Some(Mapping::Inherited),
+                SoulField::Level => mappings.level = Some(Mapping::Inherited),
+                SoulField::Main => mappings.main = Some(Mapping::Inherited),
+                SoulField::Subs => mappings.subs = Some(Mapping::Inherited),
+                SoulField::Innate => mappings.innate = Some(Mapping::Inherited),
+                _ => {}
+            }
+            let r = with_mappings(mappings, vec![soul("a", 15)]);
             assert_eq!(
-                check_soul(&inherited, &soul("a", 15)),
+                check_soul(&r.souls()[0]),
                 Err(SoulDefectKind::Unestablished(field))
             );
         }
         let mut no_star = soul("a", 15);
         no_star.star = None;
         assert_eq!(
-            check_soul(&r, &no_star),
+            check(no_star),
             Err(SoulDefectKind::Missing(SoulField::Star))
         );
-        // Fields outside the row are carried as read, established or not.
-        let mut unmapped_lock = complete(vec![]);
-        unmapped_lock.evidence.remove(&SoulField::Locked);
-        let mut s = soul("a", 15);
-        s.locked = None;
-        assert_eq!(check_soul(&unmapped_lock, &s), Ok(()));
+        // A mapped sub-attribute list the record lacks is missing, not a soul with none.
+        let mut no_subs = soul("a", 15);
+        no_subs.subs = None;
+        assert_eq!(
+            check(no_subs),
+            Err(SoulDefectKind::Missing(SoulField::Subs))
+        );
+        let mut none = soul("a", 15);
+        none.subs = Some(vec![]);
+        assert_eq!(check(none), Ok(()));
+        // A mapped innate attribute the record lacks is missing, not an ordinary soul
+        // (ADR-0029); a stated one makes a boss soul.
+        let mut no_innate = soul("a", 15);
+        no_innate.innate = None;
+        assert_eq!(
+            check(no_innate),
+            Err(SoulDefectKind::Missing(SoulField::Innate))
+        );
+        let mut boss = soul("a", 15);
+        boss.innate = Some(InnateReading::Present(AttributeReading {
+            code: GameAttributeCode(4),
+            value: 15.0,
+        }));
+        assert_eq!(check(boss), Ok(()));
+        // Fields outside the row are carried as read, mapped or not.
+        let unmapped_lock = with_mappings(
+            SoulMappings {
+                locked: None,
+                ..all_established()
+            },
+            vec![soul("a", 15)],
+        );
+        assert_eq!(check_soul(&unmapped_lock.souls()[0]), Ok(()));
     }
 
     #[test]
     fn each_premise_of_w_soul_that_needs_no_code_table_is_checked() {
-        fn with(f: impl FnOnce(&mut SoulObservation)) -> Result<(), SoulDefectKind> {
+        fn with(f: impl FnOnce(&mut RawSoul)) -> Result<(), SoulDefectKind> {
             let mut s = soul("a", 15);
             f(&mut s);
-            check_soul(&complete(vec![]), &s)
+            check(s)
         }
-        assert_eq!(with(|s| s.star = Some(0)), Err(SoulDefectKind::Star(0)));
-        assert_eq!(with(|s| s.star = Some(7)), Err(SoulDefectKind::Star(7)));
-        assert_eq!(with(|s| s.level = Some(16)), Err(SoulDefectKind::Level(16)));
+        assert_eq!(
+            with(|s| s.star = Some(GameStar(0))),
+            Err(SoulDefectKind::Star(0))
+        );
+        assert_eq!(
+            with(|s| s.star = Some(GameStar(7))),
+            Err(SoulDefectKind::Star(7))
+        );
+        assert_eq!(
+            with(|s| s.level = Some(GameLevel(16))),
+            Err(SoulDefectKind::Level(16))
+        );
         let sub = |code| SubAttributeReading {
-            code,
+            code: GameAttributeCode(code),
             value: 1.0,
             roll_count: Some(1),
         };
         assert_eq!(
-            with(|s| s.subs = vec![sub(1), sub(2), sub(3), sub(4), sub(5)]),
+            with(|s| s.subs = Some(vec![sub(1), sub(2), sub(3), sub(4), sub(5)])),
             Err(SoulDefectKind::TooManySubs(5))
         );
         assert_eq!(
-            with(|s| s.subs = vec![sub(1), sub(1)]),
-            Err(SoulDefectKind::RepeatedSub { attribute_code: 1 })
+            with(|s| s.subs = Some(vec![sub(1), sub(1)])),
+            Err(SoulDefectKind::RepeatedSub {
+                attribute_code: GameAttributeCode(1)
+            })
         );
         assert!(matches!(
             with(|s| s.main = Some(AttributeReading {
-                code: 7,
+                code: GameAttributeCode(7),
                 value: f64::NAN
             })),
             Err(SoulDefectKind::Value(_))
         ));
         assert_eq!(
-            with(|s| s.subs[0].value = -0.5),
+            with(|s| s.subs = Some(vec![SubAttributeReading {
+                value: -0.5,
+                ..sub(3)
+            }])),
             Err(SoulDefectKind::Value(-0.5))
         );
     }
 
     #[test]
     fn recorded_rolls_cannot_exceed_the_nodes_reached() {
-        let r = complete(vec![]);
-        let mut s = soul("a", 5);
-        s.subs[0].roll_count = Some(2);
+        let rolled = |level: u32| {
+            let mut s = soul("a", level);
+            s.subs = Some(vec![SubAttributeReading {
+                code: GameAttributeCode(3),
+                value: 2.7,
+                roll_count: Some(2),
+            }]);
+            s
+        };
         assert_eq!(
-            check_soul(&r, &s),
+            check(rolled(5)),
             Err(SoulDefectKind::Rolls { rolls: 2, nodes: 1 })
         );
-        s.level = Some(6);
-        assert_eq!(check_soul(&r, &s), Ok(()));
+        assert_eq!(check(rolled(6)), Ok(()));
     }
 }

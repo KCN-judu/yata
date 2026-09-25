@@ -1,52 +1,68 @@
 //! Readings from a file: a recording (the frame stream, ADR-0006) or an export (a `ProbeExport`
-//! in proto3 JSON, ADR-0008). Both arrive as the same `ReadResult`s with the same provenance, so
-//! everything downstream is indifferent to how a reading travelled.
+//! in proto3 JSON, ADR-0008). Both arrive as the same wire `Reading`s, so everything downstream is
+//! indifferent to how a reading travelled.
 
 use std::path::{Path, PathBuf};
 
+use yata_protocol::discipline::RequestId;
 use yata_protocol::export::{self, ExportError};
-use yata_protocol::probe::{
-    self, Channel, Failed, ProbeExport, ProtocolVersion, ReadResult, TargetProcess,
-};
+use yata_protocol::probe::{Channel, ProbeExport, ProtocolVersion, Reading, TargetProcess};
 
-use super::session::{self, SessionError};
+use super::session::{self, ProbeFailure, SessionError};
 
 /// The largest recording read: the export file's bound.
 pub const MAX_RECORDING_BYTES: u64 = export::MAX_EXPORT_BYTES as u64;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Carrier {
-    Recording,
-    Export,
-}
-
 /// Who produced a reading, as the reading itself states it.
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Provenance {
-    pub protocol_version: Option<ProtocolVersion>,
+    pub protocol_version: ProtocolVersion,
     pub probe_build_id: String,
     pub engine: String,
     pub channel: Channel,
     pub target: Option<TargetProcess>,
-    /// Only an export states when it was taken.
-    pub captured_at: Option<String>,
+}
+
+/// How the readings travelled, and what only that way of travelling carries.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Carrier {
+    /// A frame stream. It states no capture time, and it holds the reader's failures.
+    Recording {
+        failures: Vec<(Option<RequestId>, ProbeFailure)>,
+    },
+    /// An export file, with its capture time when it states one.
+    Export { captured_at: Option<String> },
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Loaded {
     pub carrier: Carrier,
-    pub provenance: Provenance,
-    pub results: Vec<ReadResult>,
-    /// A recording's `Failed` answers; an export holds none.
-    pub failures: Vec<Failed>,
+    /// `None` for a recording with no `HandshakeAck`: a reader that failed before attaching.
+    pub provenance: Option<Provenance>,
+    pub readings: Vec<Reading>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum InputError {
-    Io { path: PathBuf, reason: String },
-    TooLarge { path: PathBuf, bytes: u64 },
+    Io {
+        path: PathBuf,
+        reason: String,
+    },
+    TooLarge {
+        path: PathBuf,
+        bytes: u64,
+    },
     Recording(SessionError),
     Export(ExportError),
+    /// A `HandshakeAck` or an export without a protocol version.
+    NoVersion,
+}
+
+/// Why a reading cannot be written as an export.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToExportError {
+    /// The recording states no provenance to put in the file.
+    NoProvenance,
 }
 
 /// Read a recording or an export from a file, by its content.
@@ -79,18 +95,19 @@ pub fn load_bytes(bytes: &[u8]) -> Result<Loaded, InputError> {
 }
 
 fn from_export(e: ProbeExport) -> Result<Loaded, InputError> {
+    let channel = e.channel();
     Ok(Loaded {
-        carrier: Carrier::Export,
-        provenance: Provenance {
-            protocol_version: e.protocol_version,
-            probe_build_id: e.probe_build_id.clone(),
-            engine: e.engine.clone(),
-            channel: e.channel(),
+        provenance: Some(Provenance {
+            protocol_version: e.protocol_version.ok_or(InputError::NoVersion)?,
+            probe_build_id: e.probe_build_id,
+            engine: e.engine,
+            channel,
             target: e.target,
-            captured_at: Some(e.captured_at).filter(|c| !c.is_empty()),
+        }),
+        carrier: Carrier::Export {
+            captured_at: e.captured_at,
         },
-        results: e.results,
-        failures: Vec::new(),
+        readings: e.readings,
     })
 }
 
@@ -98,34 +115,42 @@ fn from_recording(bytes: &[u8]) -> Result<Loaded, InputError> {
     let replay = session::replay(bytes).map_err(InputError::Recording)?;
     let provenance = replay
         .ack()
-        .map(|a| Provenance {
-            protocol_version: a.version,
-            probe_build_id: a.probe_build_id.clone(),
-            engine: a.engine.clone(),
-            channel: a.channel(),
-            target: a.target.clone(),
-            captured_at: None,
+        .map(|a| {
+            Ok(Provenance {
+                protocol_version: a.version.ok_or(InputError::NoVersion)?,
+                probe_build_id: a.probe_build_id.clone(),
+                engine: a.engine.clone(),
+                channel: a.channel(),
+                target: a.target.clone(),
+            })
         })
-        .unwrap_or_default();
+        .transpose()?;
     Ok(Loaded {
-        carrier: Carrier::Recording,
+        carrier: Carrier::Recording {
+            failures: replay.failures().map(|(id, f)| (id, f.clone())).collect(),
+        },
         provenance,
-        results: replay.results().cloned().collect(),
-        failures: replay.failures().cloned().collect(),
+        readings: replay.readings().cloned().collect(),
     })
 }
 
-/// A reading as an export file's message: what `probe to-export` writes, and what the reader's
-/// export mode writes from a live read.
-pub fn to_export(loaded: &Loaded, captured_at: &str) -> ProbeExport {
-    let p = &loaded.provenance;
-    ProbeExport {
-        protocol_version: Some(p.protocol_version.unwrap_or(probe::VERSION)),
+/// Readings as an export file's message: what `probe to-export` writes. The protocol version is
+/// the one the readings were captured under, and the capture time is the carrier's, if any.
+pub fn to_export(loaded: &Loaded) -> Result<ProbeExport, ToExportError> {
+    let p = loaded
+        .provenance
+        .as_ref()
+        .ok_or(ToExportError::NoProvenance)?;
+    Ok(ProbeExport {
+        protocol_version: Some(p.protocol_version),
         probe_build_id: p.probe_build_id.clone(),
         engine: p.engine.clone(),
         channel: p.channel.into(),
-        results: loaded.results.clone(),
-        captured_at: captured_at.to_owned(),
+        readings: loaded.readings.clone(),
+        captured_at: match &loaded.carrier {
+            Carrier::Export { captured_at } => captured_at.clone(),
+            Carrier::Recording { .. } => None,
+        },
         target: p.target.clone(),
-    }
+    })
 }

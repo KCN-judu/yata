@@ -66,45 +66,77 @@ fn soul(id: &str, level: u32) -> probe::SoulRecord {
             attribute_code: 7,
             value: 57.0,
         }),
-        subs: vec![],
-        innate: None,
+        subs: Some(probe::SubAttributeValues { items: vec![] }),
+        innate: Some(probe::InnateReading {
+            state: Some(probe::innate_reading::State::None(probe::NoInnate {})),
+        }),
         locked: Some(false),
         discarded: Some(false),
         observed: None,
     }
 }
 
-/// Evidence for every typed field of a soul record, all established.
-fn established() -> Vec<probe::FieldEvidence> {
-    SoulField::ALL
-        .into_iter()
-        .map(|f| probe::FieldEvidence {
-            field: f.schema_name().into(),
-            evidence: probe::Evidence::Established.into(),
+fn established_mapping() -> probe::Mapping {
+    probe::Mapping {
+        evidence: Some(probe::mapping::Evidence::Established(probe::Established {
             basis: "test".into(),
-        })
-        .collect()
+        })),
+    }
+}
+
+fn inherited_mapping() -> probe::Mapping {
+    probe::Mapping {
+        evidence: Some(probe::mapping::Evidence::Inherited(probe::Inherited {})),
+    }
+}
+
+/// A mapping for every typed field of a soul record, all established.
+fn established() -> probe::SoulMappings {
+    let m = || Some(established_mapping());
+    probe::SoulMappings {
+        soul_id: m(),
+        suit_code: m(),
+        star: m(),
+        slot: m(),
+        level: m(),
+        main: m(),
+        subs: m(),
+        innate: m(),
+        locked: m(),
+        discarded: m(),
+    }
+}
+
+/// The soul records of a reading, which the tests below edit in place.
+#[allow(
+    clippy::panic,
+    reason = "test helper: a failure here is the test failing"
+)]
+fn records(r: &mut probe::Reading) -> &mut probe::SoulRecords {
+    let Some(probe::reading::Records::Souls(souls)) = &mut r.records else {
+        panic!("a soul reading")
+    };
+    souls
 }
 
 fn reading(
     account: &str,
     coverage: probe::Coverage,
     souls: Vec<probe::SoulRecord>,
-) -> probe::ReadResult {
-    probe::ReadResult {
-        request_id: 1,
-        scope: probe::Scope::Souls.into(),
+) -> probe::Reading {
+    probe::Reading {
         coverage: coverage.into(),
-        observed_account_id: account.into(),
-        records: Some(probe::read_result::Records::Souls(probe::SoulRecords {
+        observed_account_id: Some(account.into()),
+        records: Some(probe::reading::Records::Souls(probe::SoulRecords {
             souls,
+            recognition: Some(established_mapping()),
+            mappings: Some(established()),
         })),
-        field_evidence: established(),
-        ..probe::ReadResult::default()
+        ..probe::Reading::default()
     }
 }
 
-fn complete(account: &str, souls: Vec<probe::SoulRecord>) -> probe::ReadResult {
+fn complete(account: &str, souls: Vec<probe::SoulRecord>) -> probe::Reading {
     reading(account, probe::Coverage::Complete, souls)
 }
 
@@ -153,7 +185,7 @@ fn mark(profile: ProfileId, soul: &str, mark: Option<Mark>) -> Fact {
     clippy::expect_used,
     reason = "test helper: a failure here is the test failing"
 )]
-fn ingest(log: &mut FactLog, profile: ProfileId, result: &probe::ReadResult) -> u64 {
+fn ingest(log: &mut FactLog, profile: ProfileId, result: &probe::Reading) -> u64 {
     log.ingest(profile, result, provenance(), Origin::Job { job_id: 1 }, 0)
         .expect("ingests")
         .seq
@@ -161,7 +193,12 @@ fn ingest(log: &mut FactLog, profile: ProfileId, result: &probe::ReadResult) -> 
 
 fn souls(inv: &Inventory) -> Vec<(String, u32)> {
     inv.souls()
-        .map(|s| (s.id.as_str().to_owned(), s.record.level.unwrap_or_default()))
+        .map(|s| {
+            (
+                s.id.as_str().to_owned(),
+                s.record.level.value().map_or(0, |l| l.0),
+            )
+        })
         .collect()
 }
 
@@ -264,7 +301,7 @@ fn the_log_copied_into_another_store_folds_to_the_same_state() {
                 };
                 let bytes =
                     yata_daemon::store::blob::open(&acq.digest, stored).expect("blob opens");
-                let result = probe::ReadResult::decode(bytes.as_slice()).expect("a read result");
+                let result = probe::Reading::decode(bytes.as_slice()).expect("a reading");
                 copy.ingest(
                     f.profile,
                     &result,
@@ -476,16 +513,15 @@ fn a_reading_without_an_established_soul_id_is_refused_and_writes_nothing() {
         .expect("profile");
     // What the reader sends today: records, and no typed field established.
     let mut today = complete("p", vec![soul("a", 15)]);
-    today.field_evidence = vec![probe::FieldEvidence {
-        field: "SoulRecord.soul_id".into(),
-        evidence: probe::Evidence::Inherited.into(),
-        basis: "prior tool".into(),
-    }];
+    records(&mut today).mappings = Some(probe::SoulMappings {
+        soul_id: Some(inherited_mapping()),
+        ..probe::SoulMappings::default()
+    });
     let e = log
         .ingest(P, &today, provenance(), Origin::Job { job_id: 1 }, 0)
         .expect_err("unestablished");
     assert_eq!(e.code(), "import.unestablished_identity");
-    today.field_evidence.clear();
+    records(&mut today).mappings = Some(probe::SoulMappings::default());
     let e = log
         .ingest(P, &today, provenance(), Origin::Job { job_id: 2 }, 0)
         .expect_err("unmapped");
@@ -500,10 +536,8 @@ fn a_record_whose_row_fields_are_not_established_is_reported_not_a_row() {
     log.commit(Origin::Maintenance, 0, vec![created(P)])
         .expect("profile");
     let mut r = complete("p", vec![soul("a", 15)]);
-    for e in &mut r.field_evidence {
-        if e.field == "SoulRecord.suit_code" {
-            e.evidence = probe::Evidence::Inherited.into();
-        }
+    if let Some(m) = &mut records(&mut r).mappings {
+        m.suit_code = Some(inherited_mapping());
     }
     let landed = log
         .ingest(P, &r, provenance(), Origin::Job { job_id: 1 }, 0)
@@ -513,24 +547,4 @@ fn a_record_whose_row_fields_are_not_established_is_reported_not_a_row() {
         SoulDefectKind::Unestablished(SoulField::SuitCode)
     );
     assert!(log.inventory(P).expect("inventory").is_empty());
-}
-
-#[test]
-fn a_reading_by_pipe_and_by_file_is_one_blob() {
-    let dir = Scratch::new("request-id");
-    let mut log = dir.log();
-    log.commit(Origin::Maintenance, 0, vec![created(P)])
-        .expect("profile");
-    let by_pipe = complete("p", vec![soul("a", 15)]);
-    let by_file = probe::ReadResult {
-        request_id: 0,
-        ..by_pipe.clone()
-    };
-    let a = log
-        .ingest(P, &by_pipe, provenance(), Origin::Job { job_id: 1 }, 0)
-        .expect("pipe");
-    let b = log
-        .ingest(P, &by_file, provenance(), Origin::Job { job_id: 2 }, 0)
-        .expect("file");
-    assert_eq!(a.digest, b.digest);
 }

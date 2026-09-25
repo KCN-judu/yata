@@ -4,66 +4,92 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
-use yata_core::import::evidence::{BitStatus, GroupKey, Source, SuitLedger, Survey, Unjoined};
-use yata_core::import::observation::{Coverage, SoulField, SoulObservation, SoulReading};
+use yata_core::import::evidence::{
+    BitStatus, Distinct, GroupKey, Outcome, Source, SuitLedger, Survey, Unjoined,
+};
+use yata_core::import::observation::{
+    Coverage, Field, InnateReading, Mapping, SoulField, SoulObservation, SoulReading,
+};
+use yata_protocol::probe::PointerWidth;
 
 use super::input::{Carrier, Loaded};
 
-/// The provenance, each result's coverage and evidence, and each failure.
+fn mapping(m: Option<&Mapping>) -> String {
+    match m {
+        None => "not mapped".to_owned(),
+        Some(Mapping::Inherited) => "inherited".to_owned(),
+        Some(Mapping::Established { basis }) => format!("established ({basis})"),
+    }
+}
+
+/// The provenance, each reading's coverage and mappings, and each failure.
 pub fn summary(loaded: &Loaded, readings: &[SoulReading]) -> String {
-    let p = &loaded.provenance;
     let mut out = String::new();
-    let carrier = match loaded.carrier {
-        Carrier::Recording => "recording",
-        Carrier::Export => "export",
+    let carrier = match &loaded.carrier {
+        Carrier::Recording { .. } => "recording",
+        Carrier::Export { .. } => "export",
     };
-    let version = p
-        .protocol_version
-        .map_or_else(|| "none".to_owned(), |v| format!("{}.{}", v.major, v.minor));
     let _ = writeln!(out, "carrier       {carrier}");
-    let _ = writeln!(out, "protocol      {version}");
-    let _ = writeln!(out, "probe build   {}", or_none(&p.probe_build_id));
-    let _ = writeln!(out, "engine        {}", or_none(&p.engine));
-    let _ = writeln!(out, "channel       {}", p.channel.as_str_name());
-    if let Some(t) = &p.target {
-        let _ = writeln!(
-            out,
-            "target        {} (pid {}, {}-bit)",
-            t.image_name, t.pid, t.pointer_bits
-        );
+    match &loaded.provenance {
+        None => {
+            let _ = writeln!(out, "provenance    none: the reader never acknowledged");
+        }
+        Some(p) => {
+            let v = p.protocol_version;
+            let _ = writeln!(out, "protocol      {}.{}", v.major, v.minor);
+            let _ = writeln!(out, "probe build   {}", or_none(&p.probe_build_id));
+            let _ = writeln!(out, "engine        {}", or_none(&p.engine));
+            let _ = writeln!(out, "channel       {}", p.channel.as_str_name());
+            if let Some(t) = &p.target {
+                let width = match t.pointer_width.and_then(|w| PointerWidth::try_from(w).ok()) {
+                    Some(PointerWidth::PointerWidth32) => "32-bit",
+                    Some(PointerWidth::PointerWidth64) => "64-bit",
+                    Some(PointerWidth::Unspecified) | None => "width unknown",
+                };
+                let _ = writeln!(
+                    out,
+                    "target        {} (pid {}, {width})",
+                    t.image_name, t.pid
+                );
+            }
+        }
     }
-    if let Some(c) = &p.captured_at {
-        let _ = writeln!(out, "captured at   {c}");
-    }
-    for f in &loaded.failures {
-        let e = f.error.clone().unwrap_or_default();
-        let _ = writeln!(
-            out,
-            "failed        request {}: {} {}",
-            f.request_id, e.code, e.message
-        );
+    match &loaded.carrier {
+        Carrier::Export {
+            captured_at: Some(c),
+        } => {
+            let _ = writeln!(out, "captured at   {c}");
+        }
+        Carrier::Export { captured_at: None } => {}
+        Carrier::Recording { failures } => {
+            for (id, f) in failures {
+                let subject = id.map_or_else(
+                    || "session".to_owned(),
+                    |id| format!("request {}", id.get()),
+                );
+                let _ = writeln!(out, "failed        {subject}: {} {}", f.name(), f.message);
+            }
+        }
     }
     for (i, r) in readings.iter().enumerate() {
-        let coverage = match r.coverage {
+        let coverage = match r.coverage() {
             Coverage::Complete => "complete",
             Coverage::Partial => "partial",
-            Coverage::Unstated => "unstated",
         };
-        let observed = r.souls.iter().filter(|s| s.observed.is_some()).count();
+        let observed = r.souls().iter().filter(|s| s.observed.is_some()).count();
         let _ = writeln!(
             out,
             "reading {i}     {} souls, {observed} observed records, coverage {coverage}",
-            r.souls.len()
+            r.souls().len()
         );
-        let recognition = r
-            .recognition
-            .map_or_else(|| "not stated".to_owned(), |e| format!("{e:?}"));
-        let _ = writeln!(out, "  {:<24}{recognition}", "recognition rule");
+        let _ = writeln!(
+            out,
+            "  {:<24}{}",
+            "recognition rule",
+            mapping(r.recognition())
+        );
         for f in SoulField::ALL {
-            let e = r
-                .evidence_of(f)
-                .map_or_else(|| "not mapped".to_owned(), |e| format!("{e:?}"));
-            let _ = writeln!(out, "  {:<24}{e}", f.schema_name());
+            let _ = writeln!(out, "  {:<24}{}", f.name(), mapping(r.mappings().get(f)));
         }
     }
     out
@@ -82,18 +108,16 @@ pub fn survey(s: &Survey) -> String {
         let range = k
             .integer_range
             .map_or_else(String::new, |(lo, hi)| format!("  range {lo}..={hi}"));
+        let distinct = match k.distinct {
+            Distinct::Exactly(n) => n.to_string(),
+            Distinct::AtLeast(n) => format!("{n}+"),
+        };
         let _ = writeln!(
             out,
-            "{:<20} in {:>6}  kinds {}  distinct {}{}{range}  e.g. {}",
+            "{:<20} in {:>6}  kinds {}  distinct {distinct}{range}  e.g. {}",
             k.key,
             k.records,
             counts(&k.kinds),
-            k.distinct,
-            if k.distinct >= yata_core::import::evidence::DISTINCT_CAP {
-                "+"
-            } else {
-                ""
-            },
             k.examples.join(" | ")
         );
     }
@@ -127,34 +151,40 @@ pub fn groups(
     out
 }
 
-/// One soul on one line: its typed fields, its container key, and every observed entry.
+fn field<T>(name: &str, f: &Field<T>, show: impl Fn(&T) -> String) -> Option<String> {
+    match f {
+        Field::Unmapped => None,
+        Field::Mapped { value: None, .. } => Some(format!("{name}=missing")),
+        Field::Mapped { value: Some(v), .. } => Some(format!("{name}={}", show(v))),
+    }
+}
+
+/// One soul on one line: its mapped fields, its container key, and every observed entry.
 pub fn soul_line(s: &SoulObservation) -> String {
-    let mut parts = Vec::new();
-    if let Some(id) = &s.soul_id {
-        parts.push(format!("id={id}"));
-    }
-    for (name, v) in [
-        ("suit", s.suit_code),
-        ("star", s.star),
-        ("slot", s.slot),
-        ("level", s.level),
-    ] {
-        if let Some(v) = v {
-            parts.push(format!("{name}={v}"));
-        }
-    }
+    let parts = [
+        field("id", &s.soul_id, String::clone),
+        field("suit", &s.suit_code, |c| c.0.to_string()),
+        field("star", &s.star, |v| v.0.to_string()),
+        field("slot", &s.slot, |v| v.0.to_string()),
+        field("level", &s.level, |v| v.0.to_string()),
+        field("innate", &s.innate, |i| match i {
+            InnateReading::None => "none".to_owned(),
+            InnateReading::Present(a) => format!("({}, {})", a.code.0, a.value),
+        }),
+    ];
+    let mut out: Vec<String> = parts.into_iter().flatten().collect();
     if let Some(o) = &s.observed {
         if let Some(k) = &o.container_key {
-            parts.push(format!("@{}", k.render()));
+            out.push(format!("@{}", k.render()));
         }
         let entries: Vec<String> = o
             .entries
             .iter()
             .map(|(k, v)| format!("{}: {}", k.render(), v.render()))
             .collect();
-        parts.push(format!("{{{}}}", entries.join(", ")));
+        out.push(format!("{{{}}}", entries.join(", ")));
     }
-    parts.join(" ")
+    out.join(" ")
 }
 
 pub fn crosstab(table: &BTreeMap<(GroupKey, GroupKey), u64>) -> String {
@@ -172,14 +202,22 @@ pub fn crosstab(table: &BTreeMap<(GroupKey, GroupKey), u64>) -> String {
 
 pub fn ledger(l: &SuitLedger) -> String {
     let mut out = String::new();
-    let count = |s: &BitStatus| l.rows.iter().filter(|r| &r.status == s).count();
+    let count = |want: Option<Outcome>| {
+        l.rows
+            .iter()
+            .filter(|r| match &r.status {
+                BitStatus::Unattested => want.is_none(),
+                BitStatus::Attested { outcome, .. } => want == Some(*outcome),
+            })
+            .count()
+    };
     let _ = writeln!(
         out,
         "bits {}: reestablished {}, contradicted {}, unattested {}; unjoined attestations {}",
         l.rows.len(),
-        count(&BitStatus::Reestablished),
-        count(&BitStatus::Contradicted),
-        count(&BitStatus::Unattested),
+        count(Some(Outcome::Reestablished)),
+        count(Some(Outcome::Contradicted)),
+        count(None),
         l.unjoined.len()
     );
     let _ = writeln!(
@@ -188,32 +226,39 @@ pub fn ledger(l: &SuitLedger) -> String {
         if l.retires_inheritance() { "yes" } else { "no" }
     );
     for r in &l.rows {
-        let observed = r
-            .observed
-            .iter()
-            .map(i64::to_string)
-            .collect::<Vec<_>>()
-            .join(",");
-        let _ = writeln!(
-            out,
-            "bit {:>2}  inherited {:>2}  observed {:<8} attestations {}  {:?}",
-            r.bit, r.inherited, observed, r.attestations, r.status
+        let head = format!(
+            "bit {:>2}  inherited {:>2}",
+            r.bit.index(),
+            r.inherited.suit_code()
         );
+        let _ = match &r.status {
+            BitStatus::Unattested => writeln!(out, "{head}  unattested"),
+            BitStatus::Attested {
+                observed,
+                attestations,
+                outcome,
+            } => {
+                let codes: Vec<String> = observed.iter().map(i64::to_string).collect();
+                writeln!(
+                    out,
+                    "{head}  observed {:<8} attestations {attestations}  {outcome:?}",
+                    codes.join(",")
+                )
+            }
+        };
     }
     for u in &l.unjoined {
-        let _ = writeln!(
-            out,
-            "unjoined {}",
-            match u {
-                Unjoined::NoSoul { identity } => format!("{identity}: no soul has it"),
-                Unjoined::Ambiguous { identity, souls } =>
-                    format!("{identity}: {souls} souls have it"),
-                Unjoined::NoSuitValue { identity } =>
-                    format!("{identity}: no integer at the suit source"),
-                Unjoined::NoSuchBit { identity, bit } =>
-                    format!("{identity}: bit {bit} is not a mapped soul bit"),
+        let text = match u {
+            Unjoined::NoSoul { identity } => format!("{identity}: no soul has it"),
+            Unjoined::Ambiguous { identity, souls } => format!("{identity}: {souls} souls have it"),
+            Unjoined::NoSuitValue { identity } => {
+                format!("{identity}: no integer at the suit source")
             }
-        );
+            Unjoined::SuitOutOfRange { identity, value } => {
+                format!("{identity}: {value} minus the offset is out of range")
+            }
+        };
+        let _ = writeln!(out, "unjoined {text}");
     }
     out
 }

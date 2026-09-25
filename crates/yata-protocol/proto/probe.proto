@@ -6,10 +6,9 @@
 // existing tag is never allowed. Every field is public, because the export file is this schema
 // in proto3 JSON.
 //
-// Version 1 is still reserved: the soul record's typed fields are filled only as far as the
-// reader's layout is known, and each carries its evidence (FieldEvidence). What the reader saw
-// travels verbatim beside them (ObservedRecord), so a recording made today can be re-read when
-// more of the layout is known.
+// Version 1 is still reserved. Shapes follow one rule: a state that means nothing cannot be
+// written. A choice between cases is a oneof of messages, an unknown value is an unset optional
+// field, and no number or empty string stands for "none", "unknown", or "all".
 
 syntax = "proto3";
 
@@ -50,7 +49,8 @@ enum Scope {
   SCOPE_SOULS = 1;
 }
 
-// Whether a reading covers its whole scope (fact-format.md, SnapshotAcquired).
+// Whether a reading covers its whole scope (fact-format.md, SnapshotAcquired). Unspecified is
+// refused.
 enum Coverage {
   COVERAGE_UNSPECIFIED = 0;
   COVERAGE_COMPLETE = 1;
@@ -60,12 +60,18 @@ enum Coverage {
 // Opens the session.
 message Handshake {
   ProtocolVersion version = 1;
-  // The engine the daemon believes is running; empty if it has no belief.
-  string expected_engine = 2;
-  // The process to read, chosen by the user after an ambiguous discovery; 0 lets the reader
-  // choose by its own discovery rules.
-  uint32 target_pid = 3;
+  // The engine the daemon believes is running; unset when it has no belief.
+  optional string expected_engine = 2;
+  // Which process to read. Unset is a protocol error.
+  oneof target {
+    // The process the user chose, after an ambiguous discovery.
+    uint32 pid = 3;
+    // Let the reader choose by its discovery rules.
+    Discover discover = 4;
+  }
 }
+
+message Discover {}
 
 message HandshakeAck {
   ProtocolVersion version = 1;
@@ -78,20 +84,26 @@ message HandshakeAck {
   TargetProcess target = 5;
 }
 
+enum PointerWidth {
+  POINTER_WIDTH_UNSPECIFIED = 0;
+  POINTER_WIDTH_32 = 1;
+  POINTER_WIDTH_64 = 2;
+}
+
 // A process the reader considered or attached to. Only what diagnosis needs: never a path, which
-// can carry the user's name.
+// can carry the user's name. An unset optional field is not known.
 message TargetProcess {
+  reserved 5;
+  reserved "pointer_bits";
   uint32 pid = 1;
-  // The executable's file name, such as the one the reader's discovery rules match.
+  // The executable's file name.
   string image_name = 2;
-  // 0 when not known.
-  uint32 parent_pid = 3;
-  // The Windows session the process runs in; 0 when not known.
-  uint32 session_id = 4;
-  // Pointer width of the process: 32 or 64; 0 when not known.
-  uint32 pointer_bits = 5;
-  // Creation time in Unix milliseconds, which tells two runs of one pid apart; 0 when not known.
-  uint64 created_unix_ms = 6;
+  optional uint32 parent_pid = 3;
+  // The Windows session the process runs in; session 0 is a real session.
+  optional uint32 session_id = 4;
+  // Creation time in Unix milliseconds, which tells two runs of one pid apart.
+  optional uint64 created_unix_ms = 6;
+  optional PointerWidth pointer_width = 7;
 }
 
 // Request ids are chosen by the daemon, start at 1, are unique within the session, and are
@@ -113,27 +125,57 @@ message Shutdown {}
 message Progress {
   uint64 request_id = 1;
   uint64 done = 2;
-  // 0 when the total is not known.
-  uint64 total = 3;
+  // Unset when the total is not known.
+  optional uint64 total = 3;
 }
 
-// Codes are stable and `probe.`-prefixed (probe-protocol.md, "Error codes"); the message is
-// English and never parsed.
+// The stable failure codes (probe-protocol.md, "Error codes"). Unspecified is refused.
+enum ProbeErrorCode {
+  PROBE_ERROR_CODE_UNSPECIFIED = 0;
+  PROBE_ERROR_CODE_NOT_FOUND = 1;
+  PROBE_ERROR_CODE_AMBIGUOUS_TARGET = 2;
+  PROBE_ERROR_CODE_ELEVATION_REQUIRED = 3;
+  PROBE_ERROR_CODE_ACCESS_DENIED = 4;
+  PROBE_ERROR_CODE_PROCESS_EXITED = 5;
+  PROBE_ERROR_CODE_UNSUPPORTED_ENVIRONMENT = 6;
+  PROBE_ERROR_CODE_LAYOUT_MISMATCH = 7;
+  PROBE_ERROR_CODE_CANCELLED = 8;
+  PROBE_ERROR_CODE_PROTOCOL_UNSUPPORTED = 9;
+  PROBE_ERROR_CODE_PROTOCOL_ERROR = 10;
+  PROBE_ERROR_CODE_SCOPE_UNSUPPORTED = 11;
+  PROBE_ERROR_CODE_NOT_ATTACHED = 12;
+  PROBE_ERROR_CODE_INTERNAL = 13;
+}
+
+// The message is English and never parsed.
 message ProbeError {
-  string code = 1;
+  reserved 1, 3, 4;
+  reserved "details", "candidates";
+  ProbeErrorCode code = 6;
   string message = 2;
-  bytes details = 3;
-  // For `probe.ambiguous_target` and `probe.not_found`: the processes discovery considered.
-  repeated TargetProcess candidates = 4;
-  // The operating system's error number behind the failure; 0 when there is none.
-  uint32 os_error = 5;
+  // The operating system's error number behind the failure, when there is one.
+  optional uint32 os_error = 5;
+  // What only some codes carry.
+  oneof detail {
+    // For not-found and ambiguous-target: the processes discovery considered.
+    Discovery discovery = 7;
+  }
+}
+
+message Discovery {
+  repeated TargetProcess candidates = 1;
 }
 
 message Failed {
-  // 0 for a session-level failure.
-  uint64 request_id = 1;
+  // What failed: one request, or the whole session.
+  oneof subject {
+    uint64 request_id = 1;
+    SessionLevel session = 3;
+  }
   ProbeError error = 2;
 }
+
+message SessionLevel {}
 
 enum LogLevel {
   LOG_LEVEL_UNSPECIFIED = 0;
@@ -148,64 +190,83 @@ message Log {
   string message = 3;
 }
 
-// The typed records read for one scope.
+// The answer to one request: its id, and the reading, which is the part that is stored and
+// exported, so a reading has one identity however it travelled.
 message ReadResult {
+  reserved 2, 3, 4, 5, 6, 10;
+  reserved "scope", "coverage", "observed_account_id", "field_evidence", "stats", "souls";
   uint64 request_id = 1;
-  Scope scope = 2;
-  Coverage coverage = 3;
-  // The game account the reading belongs to, as the game identifies it; empty if not read.
-  string observed_account_id = 4;
+  Reading reading = 7;
+}
+
+// One reading of one scope. The scope is the case of `records`; unset is refused.
+message Reading {
+  Coverage coverage = 1;
+  // The game account the reading belongs to, when the reader read it.
+  optional string observed_account_id = 2;
+  // What the read covered, for diagnosing a partial or empty result.
+  ReadStats stats = 3;
   oneof records {
     SoulRecords souls = 10;
   }
-  // How the reader knows the layout behind each typed field it fills (probe-protocol.md,
-  // "Evidence"). A typed field with no entry here is never filled.
-  repeated FieldEvidence field_evidence = 5;
-  // What the read covered, for diagnosing a partial or empty result.
-  ReadStats stats = 6;
-}
-
-// How a layout mapping is known. The reader states it; the daemon never raises it.
-enum Evidence {
-  EVIDENCE_UNSPECIFIED = 0;
-  // A hypothesis taken from the prior tool (ADR-0014), not yet re-established by this
-  // project's own recordings.
-  EVIDENCE_INHERITED = 1;
-  // Re-established by this project's own recording or single-variable test in the game, cited
-  // in `basis`.
-  EVIDENCE_ESTABLISHED = 2;
-}
-
-message FieldEvidence {
-  // The typed field, by its name in this schema, such as `SoulRecord.soul_id`. A message name
-  // alone, such as `SoulRecord`, names the rule that recognises an object as that record.
-  string field = 1;
-  Evidence evidence = 2;
-  // Where the evidence is recorded: an experiment or a recording, by name.
-  string basis = 3;
 }
 
 message ReadStats {
-  // Memory regions examined, and how many of them could not be read.
+  // Memory regions examined, and how many of them could not be read whole.
   uint64 regions_scanned = 1;
   uint64 regions_unreadable = 2;
   uint64 bytes_scanned = 3;
-  // Objects that matched a record's recognition rule but failed a layout check, and were left
-  // out of the result.
+  // Objects that matched a record's recognition rule but failed a check, and were left out.
   uint64 candidates_rejected = 4;
 }
 
+// How a layout mapping is known (probe-protocol.md, "Evidence"). Unset is refused.
+message Mapping {
+  oneof evidence {
+    // A hypothesis taken from the prior tool (ADR-0014), not yet re-established.
+    Inherited inherited = 1;
+    // Re-established by this project's own recording or single-variable test.
+    Established established = 2;
+  }
+}
+
+message Inherited {}
+
+message Established {
+  // Where the evidence is recorded: an experiment or a recording, by name.
+  string basis = 1;
+}
+
+// The souls of one reading, and what the reader knows about how it read them.
 message SoulRecords {
   repeated SoulRecord souls = 1;
+  // The rule that recognised these objects as souls; unset when the reader does not say.
+  Mapping recognition = 2;
+  // Which typed fields the reader fills, and how it knows each layout.
+  SoulMappings mappings = 3;
+}
+
+// One entry per typed field of SoulRecord. An unset entry is a field the reader does not map, and
+// that field is unset on every soul. A mapped field unset on one soul is a record that lacks it.
+message SoulMappings {
+  Mapping soul_id = 1;
+  Mapping suit_code = 2;
+  Mapping star = 3;
+  Mapping slot = 4;
+  Mapping level = 5;
+  Mapping main = 6;
+  Mapping subs = 7;
+  Mapping innate = 8;
+  Mapping locked = 9;
+  Mapping discarded = 10;
 }
 
 // One soul, as the game stores it. Nothing is interpreted: codes are the game's codes and values
 // are the game's stored values, in the game's units. Mapping them to the domain is decode, in
 // yata-core.
-//
-// A typed field is set only when the reader's layout maps it, with the evidence stated in
-// ReadResult.field_evidence; unset means not mapped, never zero or false.
 message SoulRecord {
+  reserved 7, 8;
+  reserved "subs_list";
   // The game's identifier for this soul.
   optional string soul_id = 1;
   // The soul set, by the game's suit code.
@@ -215,9 +276,8 @@ message SoulRecord {
   optional uint32 slot = 4;
   optional uint32 level = 5;
   AttributeValue main = 6;
-  repeated SubAttributeValue subs = 7;
-  // Present only on souls that carry a fixed extra attribute.
-  optional AttributeValue innate = 8;
+  SubAttributeValues subs = 12;
+  InnateReading innate = 13;
   optional bool locked = 9;
   optional bool discarded = 10;
   // What the reader saw, verbatim, whether or not a typed field maps it.
@@ -237,6 +297,22 @@ message SubAttributeValue {
   optional uint32 roll_count = 3;
 }
 
+// A soul's sub-attributes as the record holds them; an empty list is a soul with none.
+message SubAttributeValues {
+  repeated SubAttributeValue items = 1;
+}
+
+// A soul's innate attribute as the record holds it. Unset in the oneof is refused.
+message InnateReading {
+  oneof state {
+    // The record says the soul has no innate attribute.
+    NoInnate none = 1;
+    AttributeValue present = 2;
+  }
+}
+
+message NoInnate {}
+
 // A record as the game's runtime holds it, before any field is mapped: every entry, in the
 // runtime's own order, with the runtime's own value kinds. Unknown entries stay here unmapped.
 message ObservedRecord {
@@ -254,7 +330,7 @@ message RawEntry {
 }
 
 // One value as the runtime holds it. The reader decodes only the kinds below; anything else is
-// `unread`, with the runtime's type name.
+// `unread`, with the reason. Unset is refused.
 message RawValue {
   oneof kind {
     RawNull null = 1;
@@ -270,6 +346,7 @@ message RawValue {
 
 message RawNull {}
 
+// Unspecified is refused.
 enum SequenceKind {
   SEQUENCE_KIND_UNSPECIFIED = 0;
   // Mutable.
@@ -279,20 +356,25 @@ enum SequenceKind {
 }
 
 message RawSequence {
+  reserved 3, 4;
+  reserved "truncated", "length";
   SequenceKind kind = 1;
   repeated RawValue items = 2;
-  // The reader's item limit cut the sequence; `length` is its true length.
-  bool truncated = 3;
-  uint64 length = 4;
+  // Set only when the reader's item limit cut the sequence: its true length, above the number of
+  // items.
+  optional uint64 full_length = 5;
 }
 
 message RawMapping {
+  reserved 2, 3;
+  reserved "truncated", "length";
   repeated RawEntry entries = 1;
-  // The reader's entry limit cut the mapping; `length` is its true length.
-  bool truncated = 2;
-  uint64 length = 3;
+  // Set only when the reader's entry limit cut the mapping: its true length, above the number of
+  // entries.
+  optional uint64 full_length = 4;
 }
 
+// Unspecified is refused.
 enum UnreadReason {
   UNREAD_REASON_UNSPECIFIED = 0;
   // A value kind the reader does not decode.
@@ -308,19 +390,22 @@ enum UnreadReason {
 }
 
 message RawUnread {
-  string type_name = 1;
+  // The runtime's name for the value's type; unset when it could not be read.
+  optional string type_name = 1;
   UnreadReason reason = 2;
 }
 
-// A reading written to a file by the reader's export mode (ADR-0008), in proto3 JSON.
+// Readings written to a file by the reader's export mode (ADR-0008), in proto3 JSON.
 message ProbeExport {
+  reserved 5;
+  reserved "results";
   ProtocolVersion protocol_version = 1;
   string probe_build_id = 2;
   string engine = 3;
   Channel channel = 4;
-  repeated ReadResult results = 5;
-  // When the reading was taken, as RFC 3339 in UTC.
-  string captured_at = 6;
+  repeated Reading readings = 8;
+  // When the reading was taken, as RFC 3339 in UTC; unset when it is not known.
+  optional string captured_at = 6;
   // The process read.
   TargetProcess target = 7;
 }

@@ -7,153 +7,257 @@
 //! is the stream verbatim, cut exactly where the stream was cut.
 
 use std::io::{self, Read, Write};
+use std::num::NonZeroU32;
 use std::sync::mpsc;
 use std::thread::JoinHandle;
 use std::time::Duration;
 
 use prost::Message;
-use yata_protocol::discipline::{Breach, Ledger};
+use yata_protocol::discipline::{Breach, Ledger, RequestId};
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
 use yata_protocol::probe::{
-    self, Cancel, Failed, Handshake, HandshakeAck, Log, ProbeError, ProbeMessage, Progress,
-    ProtocolVersion, ReadRequest, ReadResult, Scope, Shutdown, probe_message::Kind,
+    self, Cancel, Discover, Handshake, HandshakeAck, Log, ProbeError, ProbeErrorCode, ProbeMessage,
+    ProtocolVersion, ReadRequest, Reading, Scope, Shutdown, TargetProcess, failed::Subject,
+    handshake, probe_error::Detail, probe_message::Kind,
 };
+
+/// Which process the reader reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Target {
+    /// Let the reader choose by its discovery rules.
+    Discover,
+    /// The process the user chose.
+    Pid(NonZeroU32),
+}
+
+/// A failure the reader reported, as the daemon keeps it: the code is never unspecified.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProbeFailure {
+    pub code: ProbeErrorCode,
+    pub message: String,
+    pub os_error: Option<u32>,
+    /// The processes discovery considered, for not-found and ambiguous-target.
+    pub candidates: Vec<TargetProcess>,
+}
+
+impl ProbeFailure {
+    fn from_wire(e: Option<ProbeError>) -> Result<ProbeFailure, SessionError> {
+        let e = e.ok_or(SessionError::Undecodable(Undecodable::NoError))?;
+        let code = e.code();
+        if code == ProbeErrorCode::Unspecified {
+            return Err(SessionError::Undecodable(Undecodable::UnstatedCode));
+        }
+        Ok(ProbeFailure {
+            code,
+            message: e.message,
+            os_error: e.os_error,
+            candidates: match e.detail {
+                Some(Detail::Discovery(d)) => d.candidates,
+                None => Vec::new(),
+            },
+        })
+    }
+
+    /// The code's stable dotted name.
+    pub fn name(&self) -> &'static str {
+        self.code.name().unwrap_or("probe.unspecified")
+    }
+}
+
+/// What made a frame unreadable as a probe message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Undecodable {
+    /// Not a `ProbeMessage`.
+    Protobuf(String),
+    /// A message, or a oneof inside one, with no case set.
+    NoKind,
+    /// A `Failed` without its error.
+    NoError,
+    /// An error whose code is unspecified.
+    UnstatedCode,
+    /// A result without its reading.
+    NoReading,
+}
 
 /// Why a session cannot go on.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SessionError {
     /// The stream failed.
-    Io(String),
+    Io {
+        kind: io::ErrorKind,
+        message: String,
+    },
     /// The framing failed, or the stream ended inside a frame.
     Frame(FrameError),
-    /// A frame that is not a `ProbeMessage`, or one with no kind.
-    Undecodable(String),
+    Undecodable(Undecodable),
     /// A message only the daemon sends.
     WrongDirection(&'static str),
     /// A message before the `HandshakeAck` that needs one, or a second `HandshakeAck`.
     OutOfOrder(&'static str),
     Breach(Breach),
-    /// The reader speaks a protocol major version this build does not.
-    ProtocolUnsupported(ProtocolVersion),
-    /// The reader answered with `Failed`: for the request, or for the session (request id 0).
-    Failed(ProbeError),
+    /// The reader speaks a protocol major version this build does not, or states none.
+    ProtocolUnsupported(Option<ProtocolVersion>),
+    /// The reader answered the request, or the session, with `Failed`.
+    Failed(ProbeFailure),
     /// The stream ended cleanly with requests unanswered, or before the handshake was answered.
     Closed {
-        open: Vec<u64>,
+        open: Vec<RequestId>,
     },
     /// No frame arrived within the session's wait.
     TimedOut,
+    /// More requests than ids.
+    IdsExhausted,
+}
+
+impl SessionError {
+    fn io(e: &io::Error) -> SessionError {
+        SessionError::Io {
+            kind: e.kind(),
+            message: e.to_string(),
+        }
+    }
 }
 
 /// One checked message from the reader.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Inbound {
     Ack(HandshakeAck),
-    Progress(Progress),
-    Result(ReadResult),
-    Failed(Failed),
+    Progress {
+        id: RequestId,
+        done: u64,
+        total: Option<u64>,
+    },
+    Result {
+        id: RequestId,
+        reading: Box<Reading>,
+    },
+    RequestFailed {
+        id: RequestId,
+        failure: ProbeFailure,
+    },
+    SessionFailed(ProbeFailure),
     Log(Log),
 }
 
-/// The rules for the reader's messages. On replay the daemon's requests are not in the stream,
-/// so a request counts as issued when its id first appears.
-#[derive(Debug, Default)]
+/// Where requests come from: the daemon live, or the stream itself on replay, where a request
+/// counts as issued when its id first appears.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Mode {
+    Live,
+    Replay,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Phase {
+    AwaitingAck,
+    Acked,
+}
+
+/// The rules for the reader's messages.
+#[derive(Debug)]
 pub struct Inbox {
     ledger: Ledger,
-    acked: bool,
-    replay: bool,
-    highest: u64,
+    mode: Mode,
+    phase: Phase,
 }
 
 impl Inbox {
     pub fn live() -> Inbox {
-        Inbox::default()
+        Inbox {
+            ledger: Ledger::new(),
+            mode: Mode::Live,
+            phase: Phase::AwaitingAck,
+        }
     }
 
     pub fn replay() -> Inbox {
         Inbox {
-            replay: true,
-            ..Inbox::default()
+            mode: Mode::Replay,
+            ..Inbox::live()
         }
     }
 
     /// A request the daemon sends.
-    pub fn issue(&mut self, id: u64) -> Result<(), SessionError> {
-        self.ledger.issue(id).map_err(SessionError::Breach)?;
-        self.highest = self.highest.max(id);
-        Ok(())
+    pub fn issue(&mut self, id: RequestId) -> Result<(), SessionError> {
+        self.ledger.issue(id).map_err(SessionError::Breach)
     }
 
     /// Requests issued and not answered.
-    pub fn open(&self) -> Vec<u64> {
+    pub fn open(&self) -> Vec<RequestId> {
         self.ledger.open().collect()
-    }
-
-    pub fn acked(&self) -> bool {
-        self.acked
     }
 
     /// Decode and check one payload.
     pub fn accept(&mut self, payload: &[u8]) -> Result<Inbound, SessionError> {
-        let message =
-            ProbeMessage::decode(payload).map_err(|e| SessionError::Undecodable(e.to_string()))?;
-        let kind = message
+        let message = ProbeMessage::decode(payload)
+            .map_err(|e| SessionError::Undecodable(Undecodable::Protobuf(e.to_string())))?;
+        match message
             .kind
-            .ok_or_else(|| SessionError::Undecodable("a message with no kind".to_owned()))?;
-        match kind {
+            .ok_or(SessionError::Undecodable(Undecodable::NoKind))?
+        {
             Kind::Handshake(_) => Err(SessionError::WrongDirection("Handshake")),
             Kind::ReadRequest(_) => Err(SessionError::WrongDirection("ReadRequest")),
             Kind::Cancel(_) => Err(SessionError::WrongDirection("Cancel")),
             Kind::Shutdown(_) => Err(SessionError::WrongDirection("Shutdown")),
             Kind::Log(l) => Ok(Inbound::Log(l)),
             Kind::HandshakeAck(a) => {
-                if self.acked {
+                if self.phase == Phase::Acked {
                     return Err(SessionError::OutOfOrder("a second HandshakeAck"));
                 }
-                let version = a.version.unwrap_or_default();
-                if !probe::accepts(version) {
-                    return Err(SessionError::ProtocolUnsupported(version));
+                if !a.version.is_some_and(probe::accepts) {
+                    return Err(SessionError::ProtocolUnsupported(a.version));
                 }
-                self.acked = true;
+                self.phase = Phase::Acked;
                 Ok(Inbound::Ack(a))
             }
-            Kind::Failed(f) if f.request_id == 0 => Ok(Inbound::Failed(f)),
+            Kind::Failed(f) => match f.subject {
+                Some(Subject::Session(_)) => {
+                    Ok(Inbound::SessionFailed(ProbeFailure::from_wire(f.error)?))
+                }
+                Some(Subject::RequestId(id)) => {
+                    let id = self.about(id)?;
+                    let failure = ProbeFailure::from_wire(f.error)?;
+                    self.ledger.answer(id).map_err(SessionError::Breach)?;
+                    Ok(Inbound::RequestFailed { id, failure })
+                }
+                None => Err(SessionError::Undecodable(Undecodable::NoKind)),
+            },
             Kind::Progress(p) => {
-                self.before(p.request_id)?;
-                self.ledger
-                    .progress(p.request_id)
-                    .map_err(SessionError::Breach)?;
-                Ok(Inbound::Progress(p))
+                let id = self.about(p.request_id)?;
+                self.ledger.progress(id).map_err(SessionError::Breach)?;
+                Ok(Inbound::Progress {
+                    id,
+                    done: p.done,
+                    total: p.total,
+                })
             }
             Kind::ReadResult(r) => {
-                self.before(r.request_id)?;
-                self.ledger
-                    .answer(r.request_id)
-                    .map_err(SessionError::Breach)?;
-                Ok(Inbound::Result(r))
-            }
-            Kind::Failed(f) => {
-                self.before(f.request_id)?;
-                self.ledger
-                    .answer(f.request_id)
-                    .map_err(SessionError::Breach)?;
-                Ok(Inbound::Failed(f))
+                let id = self.about(r.request_id)?;
+                let reading = r
+                    .reading
+                    .ok_or(SessionError::Undecodable(Undecodable::NoReading))?;
+                self.ledger.answer(id).map_err(SessionError::Breach)?;
+                Ok(Inbound::Result {
+                    id,
+                    reading: Box::new(reading),
+                })
             }
         }
     }
 
-    /// A message about a request: only after the handshake, and on replay the first sight of an
-    /// id issues it.
-    fn before(&mut self, id: u64) -> Result<(), SessionError> {
-        if !self.acked {
+    /// The id of a message about a request: only after the handshake, and on replay the first
+    /// sight of an id issues it.
+    fn about(&mut self, id: u64) -> Result<RequestId, SessionError> {
+        if self.phase == Phase::AwaitingAck {
             return Err(SessionError::OutOfOrder(
                 "a request message before HandshakeAck",
             ));
         }
-        if self.replay && id > self.highest {
+        let id = RequestId::new(id).map_err(SessionError::Breach)?;
+        if self.mode == Mode::Replay && self.ledger.highest().is_none_or(|h| id > h) {
             self.issue(id)?;
         }
-        Ok(())
+        Ok(id)
     }
 }
 
@@ -171,16 +275,18 @@ impl Replay {
         })
     }
 
-    pub fn results(&self) -> impl Iterator<Item = &ReadResult> {
+    pub fn readings(&self) -> impl Iterator<Item = &Reading> {
         self.messages.iter().filter_map(|m| match m {
-            Inbound::Result(r) => Some(r),
+            Inbound::Result { reading, .. } => Some(&**reading),
             _ => None,
         })
     }
 
-    pub fn failures(&self) -> impl Iterator<Item = &Failed> {
+    /// Every failure: `None` for the session, the request's id otherwise.
+    pub fn failures(&self) -> impl Iterator<Item = (Option<RequestId>, &ProbeFailure)> {
         self.messages.iter().filter_map(|m| match m {
-            Inbound::Failed(f) => Some(f),
+            Inbound::SessionFailed(f) => Some((None, f)),
+            Inbound::RequestFailed { id, failure } => Some((Some(*id), failure)),
             _ => None,
         })
     }
@@ -219,18 +325,22 @@ enum Event {
     End(Result<(), SessionError>),
 }
 
+/// The incoming side: frames still arriving, or the end the stream reached.
+enum Stream {
+    Open(mpsc::Receiver<Event>),
+    Ended(Result<(), SessionError>),
+}
+
 /// A live session. A thread pumps the incoming stream into frames, so the daemon can write a
 /// `Cancel` while a request is running.
 pub struct Session {
     outgoing: Box<dyn Write + Send>,
-    events: mpsc::Receiver<Event>,
-    pump: Option<JoinHandle<()>>,
+    stream: Stream,
+    pump: JoinHandle<()>,
     inbox: Inbox,
-    next_id: u64,
+    next_id: Option<RequestId>,
     wait: Option<Duration>,
-    ended: Option<Result<(), SessionError>>,
-    /// `Log` messages received, in order.
-    pub logs: Vec<Log>,
+    logs: Vec<Log>,
 }
 
 impl Session {
@@ -244,12 +354,11 @@ impl Session {
         let pump = std::thread::spawn(move || pump(incoming, recorder, &tx));
         Session {
             outgoing: Box::new(outgoing),
-            events,
-            pump: Some(pump),
+            stream: Stream::Open(events),
+            pump,
             inbox: Inbox::live(),
-            next_id: 1,
+            next_id: Some(RequestId::FIRST),
             wait: None,
-            ended: None,
             logs: Vec::new(),
         }
     }
@@ -260,21 +369,29 @@ impl Session {
         self
     }
 
-    /// Open the session. `target_pid` 0 lets the reader choose the process.
-    pub fn handshake(&mut self, target_pid: u32) -> Result<HandshakeAck, SessionError> {
+    /// The `Log` messages received so far, in order.
+    pub fn logs(&self) -> &[Log] {
+        &self.logs
+    }
+
+    /// Open the session.
+    pub fn handshake(&mut self, target: Target) -> Result<HandshakeAck, SessionError> {
         self.send(Kind::Handshake(Handshake {
             version: Some(probe::VERSION),
-            expected_engine: String::new(),
-            target_pid,
+            expected_engine: None,
+            target: Some(match target {
+                Target::Discover => handshake::Target::Discover(Discover {}),
+                Target::Pid(pid) => handshake::Target::Pid(pid.get()),
+            }),
         }))?;
         loop {
             match self.next()? {
                 Inbound::Ack(a) => return Ok(a),
-                Inbound::Failed(f) => {
-                    return Err(SessionError::Failed(f.error.unwrap_or_default()));
-                }
+                Inbound::SessionFailed(f) => return Err(SessionError::Failed(f)),
                 Inbound::Log(l) => self.logs.push(l),
-                Inbound::Progress(_) | Inbound::Result(_) => {
+                Inbound::Progress { .. }
+                | Inbound::Result { .. }
+                | Inbound::RequestFailed { .. } => {
                     return Err(SessionError::OutOfOrder(
                         "a request message before HandshakeAck",
                     ));
@@ -283,31 +400,33 @@ impl Session {
         }
     }
 
-    /// Read one scope. `observe` sees each `Progress` and may ask for a cancel.
+    /// Read one scope. `observe` sees each progress `(done, total)` and may ask for a cancel.
     pub fn read(
         &mut self,
         scope: Scope,
-        mut observe: impl FnMut(&Progress) -> Step,
-    ) -> Result<ReadResult, SessionError> {
-        let id = self.next_id;
-        self.next_id += 1;
+        mut observe: impl FnMut(u64, Option<u64>) -> Step,
+    ) -> Result<Reading, SessionError> {
+        let id = self.next_id.ok_or(SessionError::IdsExhausted)?;
+        self.next_id = id.next();
         self.inbox.issue(id)?;
         self.send(Kind::ReadRequest(ReadRequest {
-            request_id: id,
+            request_id: id.get(),
             scope: scope.into(),
         }))?;
         let mut cancelled = false;
         loop {
             match self.next()? {
-                Inbound::Progress(p) => {
-                    if observe(&p) == Step::Cancel && !cancelled {
+                Inbound::Progress { done, total, .. } => {
+                    if observe(done, total) == Step::Cancel && !cancelled {
                         cancelled = true;
-                        self.send(Kind::Cancel(Cancel { request_id: id }))?;
+                        self.send(Kind::Cancel(Cancel {
+                            request_id: id.get(),
+                        }))?;
                     }
                 }
-                Inbound::Result(r) => return Ok(r),
-                Inbound::Failed(f) => {
-                    return Err(SessionError::Failed(f.error.unwrap_or_default()));
+                Inbound::Result { reading, .. } => return Ok(*reading),
+                Inbound::RequestFailed { failure, .. } | Inbound::SessionFailed(failure) => {
+                    return Err(SessionError::Failed(failure));
                 }
                 Inbound::Log(l) => self.logs.push(l),
                 // The inbox refuses a second HandshakeAck before it gets here.
@@ -321,19 +440,18 @@ impl Session {
     pub fn shutdown(mut self) -> Result<(), SessionError> {
         let sent = match self.write(Kind::Shutdown(Shutdown {})) {
             Err(e) if e.kind() == io::ErrorKind::BrokenPipe => Ok(()),
-            other => other.map_err(|e| SessionError::Io(e.to_string())),
+            other => other.map_err(|e| SessionError::io(&e)),
         };
         let Session {
             outgoing,
-            events,
+            stream,
             pump,
-            ended,
             ..
         } = self;
         drop(outgoing);
-        let end = match ended {
-            Some(end) => end,
-            None => loop {
+        let end = match stream {
+            Stream::Ended(end) => end,
+            Stream::Open(events) => loop {
                 match events.recv() {
                     Ok(Event::Frame(_)) => continue,
                     Ok(Event::End(end)) => break end,
@@ -341,45 +459,43 @@ impl Session {
                 }
             },
         };
-        if let Some(p) = pump {
-            let _ = p.join();
-        }
+        let _ = pump.join();
         sent.and(end)
     }
 
     fn send(&mut self, kind: Kind) -> Result<(), SessionError> {
-        self.write(kind)
-            .map_err(|e| SessionError::Io(e.to_string()))
+        self.write(kind).map_err(|e| SessionError::io(&e))
     }
 
     fn write(&mut self, kind: Kind) -> io::Result<()> {
         let payload = ProbeMessage { kind: Some(kind) }.encode_to_vec();
-        // Every message this session builds is far below the frame limit and never empty.
         let bytes = frame::encode(&payload).map_err(|e| io::Error::other(format!("{e:?}")))?;
         self.outgoing.write_all(&bytes)?;
         self.outgoing.flush()
     }
 
     fn next(&mut self) -> Result<Inbound, SessionError> {
-        if let Some(end) = &self.ended {
-            return Err(self.after_end(end.clone()));
-        }
+        let events = match &self.stream {
+            Stream::Ended(end) => return Err(self.after_end(end.clone())),
+            Stream::Open(events) => events,
+        };
         let event = match self.wait {
-            Some(w) => self.events.recv_timeout(w).map_err(|e| match e {
+            Some(w) => events.recv_timeout(w).map_err(|e| match e {
                 mpsc::RecvTimeoutError::Timeout => SessionError::TimedOut,
                 mpsc::RecvTimeoutError::Disconnected => SessionError::Closed {
                     open: self.inbox.open(),
                 },
             })?,
-            None => self.events.recv().map_err(|_| SessionError::Closed {
+            None => events.recv().map_err(|_| SessionError::Closed {
                 open: self.inbox.open(),
             })?,
         };
         match event {
             Event::Frame(payload) => self.inbox.accept(&payload),
             Event::End(end) => {
-                self.ended = Some(end.clone());
-                Err(self.after_end(end))
+                let e = self.after_end(end.clone());
+                self.stream = Stream::Ended(end);
+                Err(e)
             }
         }
     }
@@ -409,13 +525,13 @@ fn pump(
             Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
             // A pipe whose writer has gone reads as broken on Windows: that is the end of stream.
             Err(e) if e.kind() == io::ErrorKind::BrokenPipe => break Ok(()),
-            Err(e) => break Err(SessionError::Io(e.to_string())),
+            Err(e) => break Err(SessionError::io(&e)),
         };
         let bytes = &buffer[..n];
         if let Some(r) = recorder.as_mut()
             && let Err(e) = r.write_all(bytes).and_then(|()| r.flush())
         {
-            break Err(SessionError::Io(format!("recorder: {e}")));
+            break Err(SessionError::io(&e));
         }
         decoder.push(bytes);
         loop {
