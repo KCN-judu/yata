@@ -151,8 +151,9 @@ pub fn import_failure(e: &ImportError) -> pb::error::Kind {
         ImportError::NoSections => Kind::ImportNormalizationFailed(pb::ImportNormalizationFailed {
             problem: problem(e),
         }),
+        // The daemon supplied the wrong original bytes: its own inconsistency, not the file's.
         ImportError::OriginalMismatch { .. } => {
-            Kind::ImportMalformedSource(pb::ImportMalformedSource {
+            Kind::InternalImportMismatch(pb::InternalImportMismatch {
                 problem: problem(e),
             })
         }
@@ -639,6 +640,20 @@ mod tests {
         );
         let account = pb::error::Kind::ImportAccountMismatch(pb::ImportAccountMismatch::default());
         assert_eq!(account.code(), "import.account_mismatch");
+    }
+
+    #[test]
+    fn the_fact_log_refuses_a_snapshot_by_whose_fault_it_is() {
+        use yata_core::fact::Digest;
+        let mismatch = ImportError::OriginalMismatch {
+            stated: Digest([1; 32]),
+            found: Digest([2; 32]),
+        };
+        assert_eq!(import_failure(&mismatch).code(), "internal.import_mismatch");
+        assert_eq!(
+            import_failure(&ImportError::NoSections).code(),
+            "import.normalization_failed"
+        );
     }
 
     #[test]

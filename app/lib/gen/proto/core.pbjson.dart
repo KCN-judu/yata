@@ -2538,6 +2538,15 @@ const Error$json = {
       '9': 0,
       '10': 'internalPageWithoutSoul'
     },
+    {
+      '1': 'internal_import_mismatch',
+      '3': 104,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.InternalImportMismatch',
+      '9': 0,
+      '10': 'internalImportMismatch'
+    },
   ],
   '8': [
     {'1': 'kind'},
@@ -2639,10 +2648,12 @@ final $typed_data.Uint8List errorDescriptor = $convert.base64Decode(
     'b25nEmcKG2ludGVybmFsX3Jlc3BvbnNlX3Rvb19sYXJnZRhmIAEoCzImLnlhdGEuY29yZS52MS'
     '5JbnRlcm5hbFJlc3BvbnNlVG9vTGFyZ2VIAFIYaW50ZXJuYWxSZXNwb25zZVRvb0xhcmdlEmQK'
     'GmludGVybmFsX3BhZ2Vfd2l0aG91dF9zb3VsGGcgASgLMiUueWF0YS5jb3JlLnYxLkludGVybm'
-    'FsUGFnZVdpdGhvdXRTb3VsSABSF2ludGVybmFsUGFnZVdpdGhvdXRTb3VsQgYKBGtpbmRKBAgB'
-    'EAJKBAgDEARKBAg8EEFSBGNvZGVSB2RldGFpbHNSF2ltcG9ydF9wcm9maWxlX21pc21hdGNoUh'
-    'hpbXBvcnRfbWFsZm9ybWVkX3JlYWRpbmdSGGltcG9ydF9yZWFkaW5nX3Rvb19sYXJnZVIdaW1w'
-    'b3J0X3VuZXN0YWJsaXNoZWRfaWRlbnRpdHlSFWltcG9ydF9kdXBsaWNhdGVfc291bA==');
+    'FsUGFnZVdpdGhvdXRTb3VsSABSF2ludGVybmFsUGFnZVdpdGhvdXRTb3VsEmAKGGludGVybmFs'
+    'X2ltcG9ydF9taXNtYXRjaBhoIAEoCzIkLnlhdGEuY29yZS52MS5JbnRlcm5hbEltcG9ydE1pc2'
+    '1hdGNoSABSFmludGVybmFsSW1wb3J0TWlzbWF0Y2hCBgoEa2luZEoECAEQAkoECAMQBEoECDwQ'
+    'QVIEY29kZVIHZGV0YWlsc1IXaW1wb3J0X3Byb2ZpbGVfbWlzbWF0Y2hSGGltcG9ydF9tYWxmb3'
+    'JtZWRfcmVhZGluZ1IYaW1wb3J0X3JlYWRpbmdfdG9vX2xhcmdlUh1pbXBvcnRfdW5lc3RhYmxp'
+    'c2hlZF9pZGVudGl0eVIVaW1wb3J0X2R1cGxpY2F0ZV9zb3Vs');
 
 @$core.Deprecated('Use sessionFailedDescriptor instead')
 const SessionFailed$json = {
@@ -3420,6 +3431,19 @@ const InternalPageWithoutSoul$json = {
 final $typed_data.Uint8List internalPageWithoutSoulDescriptor =
     $convert.base64Decode(
         'ChdJbnRlcm5hbFBhZ2VXaXRob3V0U291bBIXCgdzb3VsX2lkGAEgASgJUgZzb3VsSWQ=');
+
+@$core.Deprecated('Use internalImportMismatchDescriptor instead')
+const InternalImportMismatch$json = {
+  '1': 'InternalImportMismatch',
+  '2': [
+    {'1': 'problem', '3': 1, '4': 1, '5': 9, '10': 'problem'},
+  ],
+};
+
+/// Descriptor for `InternalImportMismatch`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List internalImportMismatchDescriptor =
+    $convert.base64Decode(
+        'ChZJbnRlcm5hbEltcG9ydE1pc21hdGNoEhgKB3Byb2JsZW0YASABKAlSB3Byb2JsZW0=');
 
 @$core.Deprecated('Use sessionMalformedFrameDescriptor instead')
 const SessionMalformedFrame$json = {

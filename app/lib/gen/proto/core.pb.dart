@@ -5030,6 +5030,7 @@ enum Error_Kind {
   internalQrTooLong,
   internalResponseTooLarge,
   internalPageWithoutSoul,
+  internalImportMismatch,
   notSet
 }
 
@@ -5086,6 +5087,7 @@ class Error extends $pb.GeneratedMessage {
     InternalQrTooLong? internalQrTooLong,
     InternalResponseTooLarge? internalResponseTooLarge,
     InternalPageWithoutSoul? internalPageWithoutSoul,
+    InternalImportMismatch? internalImportMismatch,
   }) {
     final result = Error._();
     if (message != null) result.message = message;
@@ -5171,6 +5173,8 @@ class Error extends $pb.GeneratedMessage {
       result.internalResponseTooLarge = internalResponseTooLarge;
     if (internalPageWithoutSoul != null)
       result.internalPageWithoutSoul = internalPageWithoutSoul;
+    if (internalImportMismatch != null)
+      result.internalImportMismatch = internalImportMismatch;
     return result;
   }
 
@@ -5234,6 +5238,7 @@ class Error extends $pb.GeneratedMessage {
     101: Error_Kind.internalQrTooLong,
     102: Error_Kind.internalResponseTooLarge,
     103: Error_Kind.internalPageWithoutSoul,
+    104: Error_Kind.internalImportMismatch,
     0: Error_Kind.notSet
   };
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
@@ -5290,7 +5295,8 @@ class Error extends $pb.GeneratedMessage {
       100,
       101,
       102,
-      103
+      103,
+      104
     ])
     ..aOS(2, _omitFieldNames ? '' : 'message')
     ..aOM<SessionProtocolUnsupported>(
@@ -5414,6 +5420,9 @@ class Error extends $pb.GeneratedMessage {
     ..aOM<InternalPageWithoutSoul>(
         103, _omitFieldNames ? '' : 'internalPageWithoutSoul',
         subBuilder: InternalPageWithoutSoul.$_createMessage)
+    ..aOM<InternalImportMismatch>(
+        104, _omitFieldNames ? '' : 'internalImportMismatch',
+        subBuilder: InternalImportMismatch.$_createMessage)
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
@@ -5486,6 +5495,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(101)
   @$pb.TagNumber(102)
   @$pb.TagNumber(103)
+  @$pb.TagNumber(104)
   Error_Kind whichKind() => _Error_KindByTag[$_whichOneof(0)]!;
   @$pb.TagNumber(10)
   @$pb.TagNumber(11)
@@ -5537,6 +5547,7 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(101)
   @$pb.TagNumber(102)
   @$pb.TagNumber(103)
+  @$pb.TagNumber(104)
   void clearKind() => $_clearField($_whichOneof(0));
 
   @$pb.TagNumber(2)
@@ -6118,6 +6129,18 @@ class Error extends $pb.GeneratedMessage {
   void clearInternalPageWithoutSoul() => $_clearField(103);
   @$pb.TagNumber(103)
   InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(50);
+
+  @$pb.TagNumber(104)
+  InternalImportMismatch get internalImportMismatch => $_getN(51);
+  @$pb.TagNumber(104)
+  set internalImportMismatch(InternalImportMismatch value) =>
+      $_setField(104, value);
+  @$pb.TagNumber(104)
+  $core.bool hasInternalImportMismatch() => $_has(51);
+  @$pb.TagNumber(104)
+  void clearInternalImportMismatch() => $_clearField(104);
+  @$pb.TagNumber(104)
+  InternalImportMismatch ensureInternalImportMismatch() => $_ensure(51);
 }
 
 enum SessionFailed_Kind {
@@ -9350,6 +9373,67 @@ class InternalPageWithoutSoul extends $pb.GeneratedMessage {
   $core.bool hasSoulId() => $_has(0);
   @$pb.TagNumber(1)
   void clearSoulId() => $_clearField(1);
+}
+
+/// The daemon paired a snapshot with other original bytes than the file its provenance names: a
+/// daemon bug, not a defect of the file.
+class InternalImportMismatch extends $pb.GeneratedMessage {
+  factory InternalImportMismatch({
+    $core.String? problem,
+  }) {
+    final result = InternalImportMismatch._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  InternalImportMismatch._();
+
+  factory InternalImportMismatch.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalImportMismatch()..mergeFromBuffer(data, registry);
+  factory InternalImportMismatch.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      InternalImportMismatch()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'InternalImportMismatch',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: InternalImportMismatch.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalImportMismatch clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  InternalImportMismatch copyWith(
+          void Function(InternalImportMismatch) updates) =>
+      super.copyWith((message) => updates(message as InternalImportMismatch))
+          as InternalImportMismatch;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use InternalImportMismatch() / InternalImportMismatch.new instead')
+  static InternalImportMismatch create() => InternalImportMismatch._();
+  static $pb.GeneratedMessage $_createMessage() => InternalImportMismatch._();
+  @$core.override
+  InternalImportMismatch createEmptyInstance() => InternalImportMismatch._();
+  @$core.pragma('dart2js:noInline')
+  static InternalImportMismatch getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<InternalImportMismatch>(
+          InternalImportMismatch.$_createMessage);
+  static InternalImportMismatch? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
 }
 
 class SessionMalformedFrame extends $pb.GeneratedMessage {

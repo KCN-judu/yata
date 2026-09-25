@@ -43,8 +43,9 @@ reader's `import.*` codes replaced by the import failure taxonomy of ADR-0031
 capabilities, derived from the sections it holds (`Profile.capabilities`, tag
 3), and `store.retired_format` (tag 90) for a store in a format no build reads;
 then, on 2026-09-26, `import.account_mismatch` (tag 58) for a file of another
-account than the profile's. Version 1 stays reserved until commands and jobs are
-in the file; until then a tag may still change.
+account than the profile's, and `internal.import_mismatch` (tag 104) for an
+import paired with other original bytes. Version 1 stays reserved until commands
+and jobs are in the file; until then a tag may still change.
 
 | Version | Status   | Date       | What it introduced                                                                                                        | Refused below |
 | ------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------- |

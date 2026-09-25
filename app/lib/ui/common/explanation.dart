@@ -141,7 +141,8 @@ Explanation _request(AppLocalizations l, pb.Error_Kind kind) => switch (kind) {
   pb.Error_Kind.internalPanic ||
   pb.Error_Kind.internalQrTooLong ||
   pb.Error_Kind.internalResponseTooLarge ||
-  pb.Error_Kind.internalPageWithoutSoul => Explanation(l.causeInternal, l.remedyInternal),
+  pb.Error_Kind.internalPageWithoutSoul ||
+  pb.Error_Kind.internalImportMismatch => Explanation(l.causeInternal, l.remedyInternal),
   pb.Error_Kind.notSet => Explanation(l.causeUnknown, l.remedyUnknown),
 };
 

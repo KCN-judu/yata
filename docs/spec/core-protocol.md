@@ -358,6 +358,7 @@ The codes of `Error` today:
 | `internal.qr_too_long`            | a scheme code too long for the largest QR code the daemon draws                    |
 | `internal.response_too_large`     | a page that would exceed the frame limit                                           |
 | `internal.page_without_soul`      | a session page naming a soul the projection does not hold                          |
+| `internal.import_mismatch`        | an import paired a snapshot with other original bytes than the file it names       |
 
 The `import.*` codes are the failure taxonomy of ADR-0031, rule 6, one per stage
 that refuses a file whole ([snapshot-ir.md](snapshot-ir.md)). No request imports

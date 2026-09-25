@@ -724,6 +724,7 @@ message Error {
     InternalQrTooLong internal_qr_too_long = 101;
     InternalResponseTooLarge internal_response_too_large = 102;
     InternalPageWithoutSoul internal_page_without_soul = 103;
+    InternalImportMismatch internal_import_mismatch = 104;
   }
 }
 
@@ -924,6 +925,11 @@ message InternalResponseTooLarge {
 // A page row whose soul is not among the souls the page was selected from: a daemon bug.
 message InternalPageWithoutSoul {
   string soul_id = 1;
+}
+// The daemon paired a snapshot with other original bytes than the file its provenance names: a
+// daemon bug, not a defect of the file.
+message InternalImportMismatch {
+  string problem = 1;
 }
 
 message SessionMalformedFrame {
