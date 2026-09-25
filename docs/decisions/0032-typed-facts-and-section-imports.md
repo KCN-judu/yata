@@ -127,3 +127,10 @@ two blobs per distinct import.
 import fact, the section rule, the retired format), `architecture/overview.md`
 (the fact log and the store), `project/status.md`, and `evidence/testing.md`.
 PRP-0006 is accepted.
+
+## Amendment 2026-09-26
+
+[ADR-0033](0033-an-import-is-bound-to-its-profiles-account.md) replaces rule 8:
+`SnapshotImported` records the account a snapshot states, and an import whose
+account differs from the profile's known account is refused. It also moves the
+store format to 3 and retires format 2 as rule 3 retires format 1.
