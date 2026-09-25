@@ -29,6 +29,8 @@ commands:
                                           the development fixture instead of an empty projection
   check <store.sqlite3>                   run SQLite's full integrity check on a store
   log <store.sqlite3>                     print every commit of a store's fact log, readably
+  import check <snapshot.json>            import a snapshot file without storing it, and report its
+                                          souls, the records left out, and the souls' legality
   query                                   answer EvaluateQuery frames on stdin, one result frame
                                           each on stdout, until stdin ends
   scheme dump <code>                      print a scheme code's payload as hex
@@ -62,6 +64,16 @@ fn main() -> ExitCode {
         ["check", _] => check(path(1)),
         ["log", _] => dump_log(path(1)),
         ["query"] => serve_queries(),
+        ["import", "check", _] => match yata_daemon::import::read_path(path(2)) {
+            Ok(imported) => {
+                print!("{}", yata_daemon::import::format_check(&imported));
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("import.failed: {e:?}");
+                ExitCode::FAILURE
+            }
+        },
         ["scheme", "dump", _] => report(read_code(path(2)).map(|p| format_dump(&p))),
         ["scheme", "diff", _, _] => report(
             read_code(path(2)).and_then(|a| read_code(path(3)).map(|b| format_diff(&diff(&a, &b)))),

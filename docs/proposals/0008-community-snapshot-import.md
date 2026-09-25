@@ -67,8 +67,13 @@ readable at all, or to refuse it with a format-version bump.
 
 ## Implementation and evidence
 
-None yet. The shape of `mumu-snapshot-v1` comes from a sample file the
-maintainer supplied (`spec/import-format.md`, "Evidence").
+Parsing is implemented: `FormatTag` and the format-independent souls in
+`yata-core::import::snapshot`, header detection and the `mumu-snapshot-v1`
+module in `yata-daemon::import`, and `yata-daemon import check`. Tests:
+`import::snapshot::tests`, `yata-daemon` `import::tests`. The provenance fact
+and the import job into the store are not. The shape of `mumu-snapshot-v1` comes
+from a sample file the maintainer supplied (`spec/import-format.md`,
+"Evidence").
 
 ## Open questions
 
@@ -81,13 +86,21 @@ and its tests when it is implemented:
   `fixedAttribute: true`, once on each boss-set soul.
 - A set is identified by its Chinese name, `setId`, which maps to a suit code.
 
+The maintainer decided on 2026-09-25, and `spec/import-format.md` ("Import")
+states it:
+
+- Every sub-attribute's strengthening count is required; a soul without one is
+  left out.
+- A file whose `completeness` is not `"complete"` is refused.
+- The innate attribute's value is not kept.
+
 These stay open:
 
-- Which fields does the importer require? A CSV-converted file may leave
-  `enhancementCount` null.
 - What may `initialSubstatCount` and `equippedState` hold? They are null
-  throughout the sample.
-- What does `completeness` other than `"complete"` mean, and is it refused?
+  throughout the sample, and the importer does not read them.
+- The provenance fact: what `SnapshotAcquired` records for an imported file, and
+  what becomes of the reader-shaped fields (`channel`, `source`, the probe build
+  and version).
 
 ## Outcome
 

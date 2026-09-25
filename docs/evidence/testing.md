@@ -374,10 +374,25 @@ Test data is the recorded session, so no test builds a soul by hand.
 | icons resolve in ADR-0017's order                                                                                                     | `state/icons_test.dart`                    |
 | navigation; inventory data, empty, and failure states with cause and remedy; an unknown code shows its tag; the core banner; QR       | `ui/ui_test.dart`                          |
 
+## Import — `yata-core::import::snapshot`, `yata-daemon::import`
+
+| Claim in [spec/import-format.md](../spec/import-format.md)                                                           | Tests                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| a parsed soul becomes a domain soul; the innate entry decides the kind; positions count from 1; each defect is named | `import::snapshot::tests`                                                                               |
+| set names and suit codes are one to one                                                                              | `soul::set::tests::names_and_codes_are_one_to_one`, `a_name_no_set_has_is_refused`                      |
+| a file becomes domain souls in display units; the innate entry is not a sub-attribute                                | `import::tests::a_file_becomes_domain_souls_in_display_units`, `the_innate_entry_becomes_the_boss_kind` |
+| the header decides the format; an unknown header, a non-object, and a non-JSON file are refused                      | `import::tests::only_a_known_header_is_read`                                                            |
+| a file that is not complete, or that lists one soul twice, is refused whole                                          | `import::tests::a_file_that_is_not_complete_is_refused`, `two_records_of_one_soul_refuse_the_file`      |
+| a bad record is left out and named, the rest kept; an empty inventory is an inventory                                | `import::tests::a_bad_record_is_left_out_and_named`, `an_empty_inventory_is_an_inventory`               |
+
+The tests use synthetic files. The maintainer's sample file stays local; on it,
+`import check` imports every soul and `mechanics::assess` finds none illegal
+(2026-09-25).
+
 ## Not covered
 
 Acquisition probabilities (§ Acquisition) and 奉纳 rates are specified and not
 implemented.
 
-The community snapshot formats have no importer yet, so nothing tests it
-(PRP-0008).
+Storing an imported file in the fact log is not implemented (PRP-0008), so
+nothing tests it.

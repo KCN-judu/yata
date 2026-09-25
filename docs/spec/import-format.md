@@ -12,7 +12,8 @@ only from such a file, in a community snapshot format, and that the project does
 not name or recommend any program that produces one. This page describes each
 format by its shape, one section per format.
 
-The daemon does not parse these formats yet. PRP-0008 designs the importer, and
+The daemon parses these formats (`yata-daemon import check <file>` reports what
+a file holds). Storing an import in the fact log is PRP-0008, and
 [project/status.md](../project/status.md) tracks it.
 
 ## Evidence
@@ -98,10 +99,51 @@ What the sample shows beyond the types:
 - An `Innate` entry appears exactly once on each soul of a boss set and on no
   other soul. Its value is `0.08` or `0.16`.
 - No soul has a lock or discard field.
+- Read with the units below, every soul of the sample is legal by
+  `mechanics::assess`: no violation, undecided rule, or warning. The attribute
+  table, the units, the positions, and the strengthening counts are consistent
+  with `soul-mechanics.md`.
 
-Each `AttributeName` names one `SoulAttribute`. The importer states that table,
-decides which fields it requires, and decides what the fields that are null
-throughout the sample may hold (PRP-0008).
+### Import
+
+```text
+AttributeName → SoulAttribute                 unit
+  attack_flat   → AtkFlat                     as written
+  attack_rate   → AtkPercent                  × 100 (a fraction to percentage points)
+  defense_flat  → DefFlat                     as written
+  defense_rate  → DefPercent                  × 100
+  hp_flat       → HpFlat                      as written
+  hp_rate       → HpPercent                   × 100
+  speed         → Spd                         as written
+  crit_rate     → Crit                        × 100
+  crit_damage   → CritDmg                     × 100
+  effect_hit    → EffectHit                   × 100
+  effect_resist → EffectRes                   × 100
+```
+
+The file is refused whole when:
+
+- its `completeness` is anything but `"complete"`;
+- `completeness`, `capturedAt`, or `hero_equips` is missing or of the wrong
+  kind;
+- two souls have one `id`.
+
+A soul is left out, and named by its position, when:
+
+- a field of the shape is missing or of the wrong kind; `enhancementCount` must
+  be present, as a count or as null;
+- an attribute name is not in the table above;
+- a `subAttributes` entry carries `fixedAttribute` with any value but `true`;
+- it is not a domain soul (`yata-core::import::snapshot::SoulDefect`): an empty
+  id, a set name no set has (`SoulSet::from_name`), a position, star, or level
+  out of range, a negative or non-finite value, more than one innate entry, or
+  an innate attribute outside the six;
+- a `Rolled` entry's `enhancementCount` is null. Every sub-attribute's count is
+  required (the maintainer, 2026-09-25).
+
+The innate entry's value is read and not kept: `SoulKind::Boss` carries the
+attribute only (the maintainer, 2026-09-25). `initialSubstatCount` and
+`equippedState` are not read.
 
 ### CSV template
 
@@ -122,7 +164,7 @@ id,set,slot,star,level,main_type,main_value,sub1_type,sub1_value,sub1_rolls,sub2
 | `level`                       | 0–15                                                                      |
 | `main_type`, `main_value`     | the main attribute: an `AttributeName` and its value                      |
 | `subN_type`, `subN_value`     | a sub-attribute, in the order the game shows them; both empty when absent |
-| `subN_rolls`                  | how many times it was strengthened, 0–5; optional                         |
+| `subN_rolls`                  | how many times it was strengthened, 0–5; required with the sub-attribute  |
 | `innate_type`, `innate_value` | the innate attribute (固有属性); both empty for an ordinary soul          |
 
 Values are written in the format's units: a rate as a fraction (`0.15` for 15%),
@@ -146,8 +188,8 @@ innate_type, innate_value  → subAttributes: one Innate after the Rolled ones,
 
 The rows become `hero_equips`. The file's `format` is `"mumu-snapshot-v1"`, its
 `completeness` is `"complete"` when the CSV lists every soul, and its
-`capturedAt` is written by hand. Whether the importer accepts a sub-attribute
-whose `enhancementCount` is null is decided with the importer (PRP-0008).
+`capturedAt` is written by hand. A soul with an empty `subN_rolls` is left out
+on import (above).
 
 ## Related
 

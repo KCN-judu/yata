@@ -1212,6 +1212,7 @@ dependencies = [
  "qrcodegen",
  "rqrr",
  "rusqlite",
+ "serde_json",
  "sha2",
  "yata-core",
  "yata-protocol",

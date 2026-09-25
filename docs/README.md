@@ -255,6 +255,8 @@ What changed for someone. Append-only; one fragment per change.
 - [changes/unreleased/2026-09-ci-platforms-and-release.md](changes/unreleased/2026-09-ci-platforms-and-release.md)
   — CI fails on a missing tool, runs per shipping platform, and packages the
   daemon unsigned
+- [changes/unreleased/2026-09-snapshot-import.md](changes/unreleased/2026-09-snapshot-import.md)
+  — the daemon reads a snapshot file of the first community format
 - [changes/unreleased/2026-09-no-game-reader.md](changes/unreleased/2026-09-no-game-reader.md)
   — Yata no longer reads the game; the inventory comes from a file the user
   supplies
