@@ -282,32 +282,47 @@ code spelled out as a string anywhere else in the daemon or the application.
 
 The codes of `Error` today:
 
-| Code                           | When                                                                               |
-| ------------------------------ | ---------------------------------------------------------------------------------- |
-| `session.protocol_unsupported` | `OpenSession` from a higher major, or with no version                              |
-| `session.not_open`             | a request before `OpenSession`                                                     |
-| `session.already_open`         | a second `OpenSession`                                                             |
-| `session.invalid_request_id`   | a request id of zero                                                               |
-| `session.unknown_request`      | a request of no kind this daemon knows                                             |
-| `query.unknown_profile`        | a profile id the projection does not hold, or not spelled as one                   |
-| `query.stale_revision`         | a later page of a scan whose revision has moved                                    |
-| `query.malformed`              | a `SessionQuery` with no query or no position                                      |
-| the other `query.*` codes      | the query's check and evaluation refused it ([query.md](query.md), "Errors")       |
-| `decode.no_input`              | `DecodeSchemeCode` with neither text nor image                                     |
-| `decode.malformed_text`        | the text is not a scheme code's transport (`scheme-code.md`, § Transport)          |
-| `decode.unknown_format`        | the payload is not a scheme code                                                   |
-| `decode.malformed_layout`      | the payload's header or records do not parse                                       |
-| `decode.malformed_scheme`      | a record does not read as a selection                                              |
-| `decode.image_invalid`         | the image is not a PNG this reader accepts                                         |
-| `decode.no_qr_code`            | the image holds no QR code                                                         |
-| `decode.several_qr_codes`      | the image holds more than one                                                      |
-| `decode.qr_unreadable`         | the QR code does not decode to text                                                |
-| `import.*`, `command.*`        | the fact log refused a reading or a command ([fact-format.md](fact-format.md))     |
-| `store.*`                      | the store could not be opened, read, or written ([fact-format.md](fact-format.md)) |
-| `internal.panic`               | a query's evaluation panicked                                                      |
-| `internal.qr_too_long`         | a scheme code too long for the largest QR code the daemon draws                    |
-| `internal.response_too_large`  | a page that would exceed the frame limit                                           |
-| `internal.page_without_soul`   | a session page naming a soul the projection does not hold                          |
+| Code                              | When                                                                               |
+| --------------------------------- | ---------------------------------------------------------------------------------- |
+| `session.protocol_unsupported`    | `OpenSession` from a higher major, or with no version                              |
+| `session.not_open`                | a request before `OpenSession`                                                     |
+| `session.already_open`            | a second `OpenSession`                                                             |
+| `session.invalid_request_id`      | a request id of zero                                                               |
+| `session.unknown_request`         | a request of no kind this daemon knows                                             |
+| `query.unknown_profile`           | a profile id the projection does not hold, or not spelled as one                   |
+| `query.stale_revision`            | a later page of a scan whose revision has moved                                    |
+| `query.malformed`                 | a `SessionQuery` with no query or no position                                      |
+| the other `query.*` codes         | the query's check and evaluation refused it ([query.md](query.md), "Errors")       |
+| `decode.no_input`                 | `DecodeSchemeCode` with neither text nor image                                     |
+| `decode.malformed_text`           | the text is not a scheme code's transport (`scheme-code.md`, § Transport)          |
+| `decode.unknown_format`           | the payload is not a scheme code                                                   |
+| `decode.malformed_layout`         | the payload's header or records do not parse                                       |
+| `decode.malformed_scheme`         | a record does not read as a selection                                              |
+| `decode.image_invalid`            | the image is not a PNG this reader accepts                                         |
+| `decode.no_qr_code`               | the image holds no QR code                                                         |
+| `decode.several_qr_codes`         | the image holds more than one                                                      |
+| `decode.qr_unreadable`            | the QR code does not decode to text                                                |
+| `import.unknown_format`           | no format recognises an imported file's header                                     |
+| `import.ambiguous_format`         | more than one format recognises it                                                 |
+| `import.unsupported_version`      | the format is known, and the file's version of it is not one this build reads      |
+| `import.malformed_source`         | the file is not the syntax or shape of a snapshot, or is over the file limit       |
+| `import.normalization_failed`     | what the file normalized to breaks the snapshot IR's own rules                     |
+| `import.unsupported_source_value` | a file-level value the format does not define                                      |
+| `import.inconsistent_reference`   | a record names another that the snapshot does not hold                             |
+| `import.admission_refused`        | the domain refused what the snapshot holds                                         |
+| `command.*`                       | the fact log refused a command ([fact-format.md](fact-format.md))                  |
+| `store.*`                         | the store could not be opened, read, or written ([fact-format.md](fact-format.md)) |
+| `internal.panic`                  | a query's evaluation panicked                                                      |
+| `internal.qr_too_long`            | a scheme code too long for the largest QR code the daemon draws                    |
+| `internal.response_too_large`     | a page that would exceed the frame limit                                           |
+| `internal.page_without_soul`      | a session page naming a soul the projection does not hold                          |
+
+The `import.*` codes are the failure taxonomy of ADR-0031, rule 6, one per stage
+that refuses a file whole ([snapshot-ir.md](snapshot-ir.md)). No request imports
+a file yet; the codes exist so that the refusals of the import boundary have
+their cause, remedy, and debug record before the command that carries them does.
+The reader's codes left with it (ADR-0030; the alias table in
+[protocol-versions.md](protocol-versions.md)).
 
 The codes of `SessionFailed`: `session.malformed_frame` (the framing broke),
 `session.malformed_message` (a payload is not a `ClientMessage`), and

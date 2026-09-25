@@ -601,6 +601,11 @@ message QrMatrix {
 message Error {
   reserved 1, 3;
   reserved "code", "details";
+  // The reader's import codes, retired with it (ADR-0030; protocol-versions.md, "Error-code
+  // aliases").
+  reserved 60 to 64;
+  reserved "import_profile_mismatch", "import_malformed_reading", "import_reading_too_large",
+    "import_unestablished_identity", "import_duplicate_soul";
   string message = 2;
   oneof kind {
     SessionProtocolUnsupported session_protocol_unsupported = 10;
@@ -630,11 +635,16 @@ message Error {
     DecodeSeveralQrCodes decode_several_qr_codes = 47;
     DecodeQrUnreadable decode_qr_unreadable = 48;
 
-    ImportProfileMismatch import_profile_mismatch = 60;
-    ImportMalformedReading import_malformed_reading = 61;
-    ImportReadingTooLarge import_reading_too_large = 62;
-    ImportUnestablishedIdentity import_unestablished_identity = 63;
-    ImportDuplicateSoul import_duplicate_soul = 64;
+    // An imported file (snapshot-ir.md; ADR-0031, rule 6): refused whole, typed by the stage
+    // that refused it.
+    ImportUnknownFormat import_unknown_format = 50;
+    ImportAmbiguousFormat import_ambiguous_format = 51;
+    ImportUnsupportedVersion import_unsupported_version = 52;
+    ImportMalformedSource import_malformed_source = 53;
+    ImportNormalizationFailed import_normalization_failed = 54;
+    ImportUnsupportedSourceValue import_unsupported_source_value = 55;
+    ImportInconsistentReference import_inconsistent_reference = 56;
+    ImportAdmissionRefused import_admission_refused = 57;
 
     CommandRefused command_refused = 70;
     CommandTooLarge command_too_large = 71;
@@ -759,20 +769,45 @@ message DecodeQrUnreadable {
   string problem = 1;
 }
 
-message ImportProfileMismatch {
+// No format recognises the file's header.
+message ImportUnknownFormat {
+  // The format the file names, when it names one.
+  optional string stated = 1;
+}
+// More than one format recognises the header.
+message ImportAmbiguousFormat {
+  // The formats that do, by tag.
+  repeated string formats = 1;
+}
+// The format is known and the file's version of it is not one this build reads.
+message ImportUnsupportedVersion {
+  string format = 1;
+  // The version as the file states it.
+  string version = 2;
+}
+// Not the syntax or shape of any snapshot: not JSON, over the file limit, a file-level field
+// missing or of the wrong kind.
+message ImportMalformedSource {
   string problem = 1;
 }
-message ImportMalformedReading {
+// The file parsed, and what it normalized to breaks the snapshot IR's own rules: a count over its
+// limit, an id twice.
+message ImportNormalizationFailed {
   string problem = 1;
 }
-message ImportReadingTooLarge {
+// A file-level value the format does not define.
+message ImportUnsupportedSourceValue {
+  // The field, as the format names it, and its value.
+  string field = 1;
+  string value = 2;
+}
+// A record names another that the snapshot does not hold.
+message ImportInconsistentReference {
   string problem = 1;
 }
-message ImportUnestablishedIdentity {
-  string evidence = 1;
-}
-message ImportDuplicateSoul {
-  string soul_id = 1;
+// The domain refused what the snapshot holds.
+message ImportAdmissionRefused {
+  string problem = 1;
 }
 
 message CommandRefused {

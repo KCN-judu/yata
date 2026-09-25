@@ -2154,49 +2154,76 @@ const Error$json = {
       '10': 'decodeQrUnreadable'
     },
     {
-      '1': 'import_profile_mismatch',
-      '3': 60,
+      '1': 'import_unknown_format',
+      '3': 50,
       '4': 1,
       '5': 11,
-      '6': '.yata.core.v1.ImportProfileMismatch',
+      '6': '.yata.core.v1.ImportUnknownFormat',
       '9': 0,
-      '10': 'importProfileMismatch'
+      '10': 'importUnknownFormat'
     },
     {
-      '1': 'import_malformed_reading',
-      '3': 61,
+      '1': 'import_ambiguous_format',
+      '3': 51,
       '4': 1,
       '5': 11,
-      '6': '.yata.core.v1.ImportMalformedReading',
+      '6': '.yata.core.v1.ImportAmbiguousFormat',
       '9': 0,
-      '10': 'importMalformedReading'
+      '10': 'importAmbiguousFormat'
     },
     {
-      '1': 'import_reading_too_large',
-      '3': 62,
+      '1': 'import_unsupported_version',
+      '3': 52,
       '4': 1,
       '5': 11,
-      '6': '.yata.core.v1.ImportReadingTooLarge',
+      '6': '.yata.core.v1.ImportUnsupportedVersion',
       '9': 0,
-      '10': 'importReadingTooLarge'
+      '10': 'importUnsupportedVersion'
     },
     {
-      '1': 'import_unestablished_identity',
-      '3': 63,
+      '1': 'import_malformed_source',
+      '3': 53,
       '4': 1,
       '5': 11,
-      '6': '.yata.core.v1.ImportUnestablishedIdentity',
+      '6': '.yata.core.v1.ImportMalformedSource',
       '9': 0,
-      '10': 'importUnestablishedIdentity'
+      '10': 'importMalformedSource'
     },
     {
-      '1': 'import_duplicate_soul',
-      '3': 64,
+      '1': 'import_normalization_failed',
+      '3': 54,
       '4': 1,
       '5': 11,
-      '6': '.yata.core.v1.ImportDuplicateSoul',
+      '6': '.yata.core.v1.ImportNormalizationFailed',
       '9': 0,
-      '10': 'importDuplicateSoul'
+      '10': 'importNormalizationFailed'
+    },
+    {
+      '1': 'import_unsupported_source_value',
+      '3': 55,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.ImportUnsupportedSourceValue',
+      '9': 0,
+      '10': 'importUnsupportedSourceValue'
+    },
+    {
+      '1': 'import_inconsistent_reference',
+      '3': 56,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.ImportInconsistentReference',
+      '9': 0,
+      '10': 'importInconsistentReference'
+    },
+    {
+      '1': 'import_admission_refused',
+      '3': 57,
+      '4': 1,
+      '5': 11,
+      '6': '.yata.core.v1.ImportAdmissionRefused',
+      '9': 0,
+      '10': 'importAdmissionRefused'
     },
     {
       '1': 'command_refused',
@@ -2349,8 +2376,17 @@ const Error$json = {
   '9': [
     {'1': 1, '2': 2},
     {'1': 3, '2': 4},
+    {'1': 60, '2': 65},
   ],
-  '10': ['code', 'details'],
+  '10': [
+    'code',
+    'details',
+    'import_profile_mismatch',
+    'import_malformed_reading',
+    'import_reading_too_large',
+    'import_unestablished_identity',
+    'import_duplicate_soul'
+  ],
 };
 
 /// Descriptor for `Error`. Decode as a `google.protobuf.DescriptorProto`.
@@ -2393,40 +2429,48 @@ final $typed_data.Uint8List errorDescriptor = $convert.base64Decode(
     'gAUg5kZWNvZGVOb1FyQ29kZRJbChdkZWNvZGVfc2V2ZXJhbF9xcl9jb2RlcxgvIAEoCzIiLnlh'
     'dGEuY29yZS52MS5EZWNvZGVTZXZlcmFsUXJDb2Rlc0gAUhRkZWNvZGVTZXZlcmFsUXJDb2Rlcx'
     'JUChRkZWNvZGVfcXJfdW5yZWFkYWJsZRgwIAEoCzIgLnlhdGEuY29yZS52MS5EZWNvZGVRclVu'
-    'cmVhZGFibGVIAFISZGVjb2RlUXJVbnJlYWRhYmxlEl0KF2ltcG9ydF9wcm9maWxlX21pc21hdG'
-    'NoGDwgASgLMiMueWF0YS5jb3JlLnYxLkltcG9ydFByb2ZpbGVNaXNtYXRjaEgAUhVpbXBvcnRQ'
-    'cm9maWxlTWlzbWF0Y2gSYAoYaW1wb3J0X21hbGZvcm1lZF9yZWFkaW5nGD0gASgLMiQueWF0YS'
-    '5jb3JlLnYxLkltcG9ydE1hbGZvcm1lZFJlYWRpbmdIAFIWaW1wb3J0TWFsZm9ybWVkUmVhZGlu'
-    'ZxJeChhpbXBvcnRfcmVhZGluZ190b29fbGFyZ2UYPiABKAsyIy55YXRhLmNvcmUudjEuSW1wb3'
-    'J0UmVhZGluZ1Rvb0xhcmdlSABSFWltcG9ydFJlYWRpbmdUb29MYXJnZRJvCh1pbXBvcnRfdW5l'
-    'c3RhYmxpc2hlZF9pZGVudGl0eRg/IAEoCzIpLnlhdGEuY29yZS52MS5JbXBvcnRVbmVzdGFibG'
-    'lzaGVkSWRlbnRpdHlIAFIbaW1wb3J0VW5lc3RhYmxpc2hlZElkZW50aXR5ElcKFWltcG9ydF9k'
-    'dXBsaWNhdGVfc291bBhAIAEoCzIhLnlhdGEuY29yZS52MS5JbXBvcnREdXBsaWNhdGVTb3VsSA'
-    'BSE2ltcG9ydER1cGxpY2F0ZVNvdWwSRwoPY29tbWFuZF9yZWZ1c2VkGEYgASgLMhwueWF0YS5j'
-    'b3JlLnYxLkNvbW1hbmRSZWZ1c2VkSABSDmNvbW1hbmRSZWZ1c2VkEksKEWNvbW1hbmRfdG9vX2'
-    'xhcmdlGEcgASgLMh0ueWF0YS5jb3JlLnYxLkNvbW1hbmRUb29MYXJnZUgAUg9jb21tYW5kVG9v'
-    'TGFyZ2USQQoNc3RvcmVfZmFpbHVyZRhQIAEoCzIaLnlhdGEuY29yZS52MS5TdG9yZUZhaWx1cm'
-    'VIAFIMc3RvcmVGYWlsdXJlEksKEXN0b3JlX2ludmFsaWRfbG9nGFEgASgLMh0ueWF0YS5jb3Jl'
-    'LnYxLlN0b3JlSW52YWxpZExvZ0gAUg9zdG9yZUludmFsaWRMb2cSTgoSc3RvcmVfbmV3ZXJfZm'
-    '9ybWF0GFIgASgLMh4ueWF0YS5jb3JlLnYxLlN0b3JlTmV3ZXJGb3JtYXRIAFIQc3RvcmVOZXdl'
-    'ckZvcm1hdBJaChZzdG9yZV9tYWxmb3JtZWRfY29tbWl0GFMgASgLMiIueWF0YS5jb3JlLnYxLl'
-    'N0b3JlTWFsZm9ybWVkQ29tbWl0SABSFHN0b3JlTWFsZm9ybWVkQ29tbWl0EkEKDXN0b3JlX21p'
-    'c3NpbmcYVCABKAsyGi55YXRhLmNvcmUudjEuU3RvcmVNaXNzaW5nSABSDHN0b3JlTWlzc2luZx'
-    'JSChRzdG9yZV9ub3RfYV9kYXRhYmFzZRhVIAEoCzIfLnlhdGEuY29yZS52MS5TdG9yZU5vdEFE'
-    'YXRhYmFzZUgAUhFzdG9yZU5vdEFEYXRhYmFzZRJBCg1zdG9yZV9mb3JlaWduGFYgASgLMhoueW'
-    'F0YS5jb3JlLnYxLlN0b3JlRm9yZWlnbkgAUgxzdG9yZUZvcmVpZ24SWwoXc3RvcmVfbm9fZm9y'
-    'bWF0X3ZlcnNpb24YVyABKAsyIi55YXRhLmNvcmUudjEuU3RvcmVOb0Zvcm1hdFZlcnNpb25IAF'
-    'IUc3RvcmVOb0Zvcm1hdFZlcnNpb24SQQoNc3RvcmVfZGFtYWdlZBhYIAEoCzIaLnlhdGEuY29y'
-    'ZS52MS5TdG9yZURhbWFnZWRIAFIMc3RvcmVEYW1hZ2VkElMKE3N0b3JlX3VuaW5pdGlhbGl6ZW'
-    'QYWSABKAsyIC55YXRhLmNvcmUudjEuU3RvcmVVbmluaXRpYWxpemVkSABSEnN0b3JlVW5pbml0'
-    'aWFsaXplZBJECg5pbnRlcm5hbF9wYW5pYxhkIAEoCzIbLnlhdGEuY29yZS52MS5JbnRlcm5hbF'
-    'BhbmljSABSDWludGVybmFsUGFuaWMSUgoUaW50ZXJuYWxfcXJfdG9vX2xvbmcYZSABKAsyHy55'
-    'YXRhLmNvcmUudjEuSW50ZXJuYWxRclRvb0xvbmdIAFIRaW50ZXJuYWxRclRvb0xvbmcSZwobaW'
-    '50ZXJuYWxfcmVzcG9uc2VfdG9vX2xhcmdlGGYgASgLMiYueWF0YS5jb3JlLnYxLkludGVybmFs'
-    'UmVzcG9uc2VUb29MYXJnZUgAUhhpbnRlcm5hbFJlc3BvbnNlVG9vTGFyZ2USZAoaaW50ZXJuYW'
-    'xfcGFnZV93aXRob3V0X3NvdWwYZyABKAsyJS55YXRhLmNvcmUudjEuSW50ZXJuYWxQYWdlV2l0'
-    'aG91dFNvdWxIAFIXaW50ZXJuYWxQYWdlV2l0aG91dFNvdWxCBgoEa2luZEoECAEQAkoECAMQBF'
-    'IEY29kZVIHZGV0YWlscw==');
+    'cmVhZGFibGVIAFISZGVjb2RlUXJVbnJlYWRhYmxlElcKFWltcG9ydF91bmtub3duX2Zvcm1hdB'
+    'gyIAEoCzIhLnlhdGEuY29yZS52MS5JbXBvcnRVbmtub3duRm9ybWF0SABSE2ltcG9ydFVua25v'
+    'd25Gb3JtYXQSXQoXaW1wb3J0X2FtYmlndW91c19mb3JtYXQYMyABKAsyIy55YXRhLmNvcmUudj'
+    'EuSW1wb3J0QW1iaWd1b3VzRm9ybWF0SABSFWltcG9ydEFtYmlndW91c0Zvcm1hdBJmChppbXBv'
+    'cnRfdW5zdXBwb3J0ZWRfdmVyc2lvbhg0IAEoCzImLnlhdGEuY29yZS52MS5JbXBvcnRVbnN1cH'
+    'BvcnRlZFZlcnNpb25IAFIYaW1wb3J0VW5zdXBwb3J0ZWRWZXJzaW9uEl0KF2ltcG9ydF9tYWxm'
+    'b3JtZWRfc291cmNlGDUgASgLMiMueWF0YS5jb3JlLnYxLkltcG9ydE1hbGZvcm1lZFNvdXJjZU'
+    'gAUhVpbXBvcnRNYWxmb3JtZWRTb3VyY2USaQobaW1wb3J0X25vcm1hbGl6YXRpb25fZmFpbGVk'
+    'GDYgASgLMicueWF0YS5jb3JlLnYxLkltcG9ydE5vcm1hbGl6YXRpb25GYWlsZWRIAFIZaW1wb3'
+    'J0Tm9ybWFsaXphdGlvbkZhaWxlZBJzCh9pbXBvcnRfdW5zdXBwb3J0ZWRfc291cmNlX3ZhbHVl'
+    'GDcgASgLMioueWF0YS5jb3JlLnYxLkltcG9ydFVuc3VwcG9ydGVkU291cmNlVmFsdWVIAFIcaW'
+    '1wb3J0VW5zdXBwb3J0ZWRTb3VyY2VWYWx1ZRJvCh1pbXBvcnRfaW5jb25zaXN0ZW50X3JlZmVy'
+    'ZW5jZRg4IAEoCzIpLnlhdGEuY29yZS52MS5JbXBvcnRJbmNvbnNpc3RlbnRSZWZlcmVuY2VIAF'
+    'IbaW1wb3J0SW5jb25zaXN0ZW50UmVmZXJlbmNlEmAKGGltcG9ydF9hZG1pc3Npb25fcmVmdXNl'
+    'ZBg5IAEoCzIkLnlhdGEuY29yZS52MS5JbXBvcnRBZG1pc3Npb25SZWZ1c2VkSABSFmltcG9ydE'
+    'FkbWlzc2lvblJlZnVzZWQSRwoPY29tbWFuZF9yZWZ1c2VkGEYgASgLMhwueWF0YS5jb3JlLnYx'
+    'LkNvbW1hbmRSZWZ1c2VkSABSDmNvbW1hbmRSZWZ1c2VkEksKEWNvbW1hbmRfdG9vX2xhcmdlGE'
+    'cgASgLMh0ueWF0YS5jb3JlLnYxLkNvbW1hbmRUb29MYXJnZUgAUg9jb21tYW5kVG9vTGFyZ2US'
+    'QQoNc3RvcmVfZmFpbHVyZRhQIAEoCzIaLnlhdGEuY29yZS52MS5TdG9yZUZhaWx1cmVIAFIMc3'
+    'RvcmVGYWlsdXJlEksKEXN0b3JlX2ludmFsaWRfbG9nGFEgASgLMh0ueWF0YS5jb3JlLnYxLlN0'
+    'b3JlSW52YWxpZExvZ0gAUg9zdG9yZUludmFsaWRMb2cSTgoSc3RvcmVfbmV3ZXJfZm9ybWF0GF'
+    'IgASgLMh4ueWF0YS5jb3JlLnYxLlN0b3JlTmV3ZXJGb3JtYXRIAFIQc3RvcmVOZXdlckZvcm1h'
+    'dBJaChZzdG9yZV9tYWxmb3JtZWRfY29tbWl0GFMgASgLMiIueWF0YS5jb3JlLnYxLlN0b3JlTW'
+    'FsZm9ybWVkQ29tbWl0SABSFHN0b3JlTWFsZm9ybWVkQ29tbWl0EkEKDXN0b3JlX21pc3NpbmcY'
+    'VCABKAsyGi55YXRhLmNvcmUudjEuU3RvcmVNaXNzaW5nSABSDHN0b3JlTWlzc2luZxJSChRzdG'
+    '9yZV9ub3RfYV9kYXRhYmFzZRhVIAEoCzIfLnlhdGEuY29yZS52MS5TdG9yZU5vdEFEYXRhYmFz'
+    'ZUgAUhFzdG9yZU5vdEFEYXRhYmFzZRJBCg1zdG9yZV9mb3JlaWduGFYgASgLMhoueWF0YS5jb3'
+    'JlLnYxLlN0b3JlRm9yZWlnbkgAUgxzdG9yZUZvcmVpZ24SWwoXc3RvcmVfbm9fZm9ybWF0X3Zl'
+    'cnNpb24YVyABKAsyIi55YXRhLmNvcmUudjEuU3RvcmVOb0Zvcm1hdFZlcnNpb25IAFIUc3Rvcm'
+    'VOb0Zvcm1hdFZlcnNpb24SQQoNc3RvcmVfZGFtYWdlZBhYIAEoCzIaLnlhdGEuY29yZS52MS5T'
+    'dG9yZURhbWFnZWRIAFIMc3RvcmVEYW1hZ2VkElMKE3N0b3JlX3VuaW5pdGlhbGl6ZWQYWSABKA'
+    'syIC55YXRhLmNvcmUudjEuU3RvcmVVbmluaXRpYWxpemVkSABSEnN0b3JlVW5pbml0aWFsaXpl'
+    'ZBJECg5pbnRlcm5hbF9wYW5pYxhkIAEoCzIbLnlhdGEuY29yZS52MS5JbnRlcm5hbFBhbmljSA'
+    'BSDWludGVybmFsUGFuaWMSUgoUaW50ZXJuYWxfcXJfdG9vX2xvbmcYZSABKAsyHy55YXRhLmNv'
+    'cmUudjEuSW50ZXJuYWxRclRvb0xvbmdIAFIRaW50ZXJuYWxRclRvb0xvbmcSZwobaW50ZXJuYW'
+    'xfcmVzcG9uc2VfdG9vX2xhcmdlGGYgASgLMiYueWF0YS5jb3JlLnYxLkludGVybmFsUmVzcG9u'
+    'c2VUb29MYXJnZUgAUhhpbnRlcm5hbFJlc3BvbnNlVG9vTGFyZ2USZAoaaW50ZXJuYWxfcGFnZV'
+    '93aXRob3V0X3NvdWwYZyABKAsyJS55YXRhLmNvcmUudjEuSW50ZXJuYWxQYWdlV2l0aG91dFNv'
+    'dWxIAFIXaW50ZXJuYWxQYWdlV2l0aG91dFNvdWxCBgoEa2luZEoECAEQAkoECAMQBEoECDwQQV'
+    'IEY29kZVIHZGV0YWlsc1IXaW1wb3J0X3Byb2ZpbGVfbWlzbWF0Y2hSGGltcG9ydF9tYWxmb3Jt'
+    'ZWRfcmVhZGluZ1IYaW1wb3J0X3JlYWRpbmdfdG9vX2xhcmdlUh1pbXBvcnRfdW5lc3RhYmxpc2'
+    'hlZF9pZGVudGl0eVIVaW1wb3J0X2R1cGxpY2F0ZV9zb3Vs');
 
 @$core.Deprecated('Use sessionFailedDescriptor instead')
 const SessionFailed$json = {
@@ -2881,71 +2925,117 @@ final $typed_data.Uint8List decodeQrUnreadableDescriptor =
     $convert.base64Decode(
         'ChJEZWNvZGVRclVucmVhZGFibGUSGAoHcHJvYmxlbRgBIAEoCVIHcHJvYmxlbQ==');
 
-@$core.Deprecated('Use importProfileMismatchDescriptor instead')
-const ImportProfileMismatch$json = {
-  '1': 'ImportProfileMismatch',
+@$core.Deprecated('Use importUnknownFormatDescriptor instead')
+const ImportUnknownFormat$json = {
+  '1': 'ImportUnknownFormat',
+  '2': [
+    {'1': 'stated', '3': 1, '4': 1, '5': 9, '9': 0, '10': 'stated', '17': true},
+  ],
+  '8': [
+    {'1': '_stated'},
+  ],
+};
+
+/// Descriptor for `ImportUnknownFormat`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importUnknownFormatDescriptor = $convert.base64Decode(
+    'ChNJbXBvcnRVbmtub3duRm9ybWF0EhsKBnN0YXRlZBgBIAEoCUgAUgZzdGF0ZWSIAQFCCQoHX3'
+    'N0YXRlZA==');
+
+@$core.Deprecated('Use importAmbiguousFormatDescriptor instead')
+const ImportAmbiguousFormat$json = {
+  '1': 'ImportAmbiguousFormat',
+  '2': [
+    {'1': 'formats', '3': 1, '4': 3, '5': 9, '10': 'formats'},
+  ],
+};
+
+/// Descriptor for `ImportAmbiguousFormat`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importAmbiguousFormatDescriptor =
+    $convert.base64Decode(
+        'ChVJbXBvcnRBbWJpZ3VvdXNGb3JtYXQSGAoHZm9ybWF0cxgBIAMoCVIHZm9ybWF0cw==');
+
+@$core.Deprecated('Use importUnsupportedVersionDescriptor instead')
+const ImportUnsupportedVersion$json = {
+  '1': 'ImportUnsupportedVersion',
+  '2': [
+    {'1': 'format', '3': 1, '4': 1, '5': 9, '10': 'format'},
+    {'1': 'version', '3': 2, '4': 1, '5': 9, '10': 'version'},
+  ],
+};
+
+/// Descriptor for `ImportUnsupportedVersion`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importUnsupportedVersionDescriptor =
+    $convert.base64Decode(
+        'ChhJbXBvcnRVbnN1cHBvcnRlZFZlcnNpb24SFgoGZm9ybWF0GAEgASgJUgZmb3JtYXQSGAoHdm'
+        'Vyc2lvbhgCIAEoCVIHdmVyc2lvbg==');
+
+@$core.Deprecated('Use importMalformedSourceDescriptor instead')
+const ImportMalformedSource$json = {
+  '1': 'ImportMalformedSource',
   '2': [
     {'1': 'problem', '3': 1, '4': 1, '5': 9, '10': 'problem'},
   ],
 };
 
-/// Descriptor for `ImportProfileMismatch`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List importProfileMismatchDescriptor =
+/// Descriptor for `ImportMalformedSource`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importMalformedSourceDescriptor =
     $convert.base64Decode(
-        'ChVJbXBvcnRQcm9maWxlTWlzbWF0Y2gSGAoHcHJvYmxlbRgBIAEoCVIHcHJvYmxlbQ==');
+        'ChVJbXBvcnRNYWxmb3JtZWRTb3VyY2USGAoHcHJvYmxlbRgBIAEoCVIHcHJvYmxlbQ==');
 
-@$core.Deprecated('Use importMalformedReadingDescriptor instead')
-const ImportMalformedReading$json = {
-  '1': 'ImportMalformedReading',
+@$core.Deprecated('Use importNormalizationFailedDescriptor instead')
+const ImportNormalizationFailed$json = {
+  '1': 'ImportNormalizationFailed',
   '2': [
     {'1': 'problem', '3': 1, '4': 1, '5': 9, '10': 'problem'},
   ],
 };
 
-/// Descriptor for `ImportMalformedReading`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List importMalformedReadingDescriptor =
+/// Descriptor for `ImportNormalizationFailed`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importNormalizationFailedDescriptor =
     $convert.base64Decode(
-        'ChZJbXBvcnRNYWxmb3JtZWRSZWFkaW5nEhgKB3Byb2JsZW0YASABKAlSB3Byb2JsZW0=');
+        'ChlJbXBvcnROb3JtYWxpemF0aW9uRmFpbGVkEhgKB3Byb2JsZW0YASABKAlSB3Byb2JsZW0=');
 
-@$core.Deprecated('Use importReadingTooLargeDescriptor instead')
-const ImportReadingTooLarge$json = {
-  '1': 'ImportReadingTooLarge',
+@$core.Deprecated('Use importUnsupportedSourceValueDescriptor instead')
+const ImportUnsupportedSourceValue$json = {
+  '1': 'ImportUnsupportedSourceValue',
+  '2': [
+    {'1': 'field', '3': 1, '4': 1, '5': 9, '10': 'field'},
+    {'1': 'value', '3': 2, '4': 1, '5': 9, '10': 'value'},
+  ],
+};
+
+/// Descriptor for `ImportUnsupportedSourceValue`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importUnsupportedSourceValueDescriptor =
+    $convert.base64Decode(
+        'ChxJbXBvcnRVbnN1cHBvcnRlZFNvdXJjZVZhbHVlEhQKBWZpZWxkGAEgASgJUgVmaWVsZBIUCg'
+        'V2YWx1ZRgCIAEoCVIFdmFsdWU=');
+
+@$core.Deprecated('Use importInconsistentReferenceDescriptor instead')
+const ImportInconsistentReference$json = {
+  '1': 'ImportInconsistentReference',
   '2': [
     {'1': 'problem', '3': 1, '4': 1, '5': 9, '10': 'problem'},
   ],
 };
 
-/// Descriptor for `ImportReadingTooLarge`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List importReadingTooLargeDescriptor =
+/// Descriptor for `ImportInconsistentReference`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importInconsistentReferenceDescriptor =
     $convert.base64Decode(
-        'ChVJbXBvcnRSZWFkaW5nVG9vTGFyZ2USGAoHcHJvYmxlbRgBIAEoCVIHcHJvYmxlbQ==');
+        'ChtJbXBvcnRJbmNvbnNpc3RlbnRSZWZlcmVuY2USGAoHcHJvYmxlbRgBIAEoCVIHcHJvYmxlbQ'
+        '==');
 
-@$core.Deprecated('Use importUnestablishedIdentityDescriptor instead')
-const ImportUnestablishedIdentity$json = {
-  '1': 'ImportUnestablishedIdentity',
+@$core.Deprecated('Use importAdmissionRefusedDescriptor instead')
+const ImportAdmissionRefused$json = {
+  '1': 'ImportAdmissionRefused',
   '2': [
-    {'1': 'evidence', '3': 1, '4': 1, '5': 9, '10': 'evidence'},
+    {'1': 'problem', '3': 1, '4': 1, '5': 9, '10': 'problem'},
   ],
 };
 
-/// Descriptor for `ImportUnestablishedIdentity`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List importUnestablishedIdentityDescriptor =
+/// Descriptor for `ImportAdmissionRefused`. Decode as a `google.protobuf.DescriptorProto`.
+final $typed_data.Uint8List importAdmissionRefusedDescriptor =
     $convert.base64Decode(
-        'ChtJbXBvcnRVbmVzdGFibGlzaGVkSWRlbnRpdHkSGgoIZXZpZGVuY2UYASABKAlSCGV2aWRlbm'
-        'Nl');
-
-@$core.Deprecated('Use importDuplicateSoulDescriptor instead')
-const ImportDuplicateSoul$json = {
-  '1': 'ImportDuplicateSoul',
-  '2': [
-    {'1': 'soul_id', '3': 1, '4': 1, '5': 9, '10': 'soulId'},
-  ],
-};
-
-/// Descriptor for `ImportDuplicateSoul`. Decode as a `google.protobuf.DescriptorProto`.
-final $typed_data.Uint8List importDuplicateSoulDescriptor =
-    $convert.base64Decode(
-        'ChNJbXBvcnREdXBsaWNhdGVTb3VsEhcKB3NvdWxfaWQYASABKAlSBnNvdWxJZA==');
+        'ChZJbXBvcnRBZG1pc3Npb25SZWZ1c2VkEhgKB3Byb2JsZW0YASABKAlSB3Byb2JsZW0=');
 
 @$core.Deprecated('Use commandRefusedDescriptor instead')
 const CommandRefused$json = {

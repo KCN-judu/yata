@@ -4768,11 +4768,14 @@ enum Error_Kind {
   decodeNoQrCode,
   decodeSeveralQrCodes,
   decodeQrUnreadable,
-  importProfileMismatch,
-  importMalformedReading,
-  importReadingTooLarge,
-  importUnestablishedIdentity,
-  importDuplicateSoul,
+  importUnknownFormat,
+  importAmbiguousFormat,
+  importUnsupportedVersion,
+  importMalformedSource,
+  importNormalizationFailed,
+  importUnsupportedSourceValue,
+  importInconsistentReference,
+  importAdmissionRefused,
   commandRefused,
   commandTooLarge,
   storeFailure,
@@ -4819,11 +4822,14 @@ class Error extends $pb.GeneratedMessage {
     DecodeNoQrCode? decodeNoQrCode,
     DecodeSeveralQrCodes? decodeSeveralQrCodes,
     DecodeQrUnreadable? decodeQrUnreadable,
-    ImportProfileMismatch? importProfileMismatch,
-    ImportMalformedReading? importMalformedReading,
-    ImportReadingTooLarge? importReadingTooLarge,
-    ImportUnestablishedIdentity? importUnestablishedIdentity,
-    ImportDuplicateSoul? importDuplicateSoul,
+    ImportUnknownFormat? importUnknownFormat,
+    ImportAmbiguousFormat? importAmbiguousFormat,
+    ImportUnsupportedVersion? importUnsupportedVersion,
+    ImportMalformedSource? importMalformedSource,
+    ImportNormalizationFailed? importNormalizationFailed,
+    ImportUnsupportedSourceValue? importUnsupportedSourceValue,
+    ImportInconsistentReference? importInconsistentReference,
+    ImportAdmissionRefused? importAdmissionRefused,
     CommandRefused? commandRefused,
     CommandTooLarge? commandTooLarge,
     StoreFailure? storeFailure,
@@ -4884,16 +4890,22 @@ class Error extends $pb.GeneratedMessage {
       result.decodeSeveralQrCodes = decodeSeveralQrCodes;
     if (decodeQrUnreadable != null)
       result.decodeQrUnreadable = decodeQrUnreadable;
-    if (importProfileMismatch != null)
-      result.importProfileMismatch = importProfileMismatch;
-    if (importMalformedReading != null)
-      result.importMalformedReading = importMalformedReading;
-    if (importReadingTooLarge != null)
-      result.importReadingTooLarge = importReadingTooLarge;
-    if (importUnestablishedIdentity != null)
-      result.importUnestablishedIdentity = importUnestablishedIdentity;
-    if (importDuplicateSoul != null)
-      result.importDuplicateSoul = importDuplicateSoul;
+    if (importUnknownFormat != null)
+      result.importUnknownFormat = importUnknownFormat;
+    if (importAmbiguousFormat != null)
+      result.importAmbiguousFormat = importAmbiguousFormat;
+    if (importUnsupportedVersion != null)
+      result.importUnsupportedVersion = importUnsupportedVersion;
+    if (importMalformedSource != null)
+      result.importMalformedSource = importMalformedSource;
+    if (importNormalizationFailed != null)
+      result.importNormalizationFailed = importNormalizationFailed;
+    if (importUnsupportedSourceValue != null)
+      result.importUnsupportedSourceValue = importUnsupportedSourceValue;
+    if (importInconsistentReference != null)
+      result.importInconsistentReference = importInconsistentReference;
+    if (importAdmissionRefused != null)
+      result.importAdmissionRefused = importAdmissionRefused;
     if (commandRefused != null) result.commandRefused = commandRefused;
     if (commandTooLarge != null) result.commandTooLarge = commandTooLarge;
     if (storeFailure != null) result.storeFailure = storeFailure;
@@ -4952,11 +4964,14 @@ class Error extends $pb.GeneratedMessage {
     46: Error_Kind.decodeNoQrCode,
     47: Error_Kind.decodeSeveralQrCodes,
     48: Error_Kind.decodeQrUnreadable,
-    60: Error_Kind.importProfileMismatch,
-    61: Error_Kind.importMalformedReading,
-    62: Error_Kind.importReadingTooLarge,
-    63: Error_Kind.importUnestablishedIdentity,
-    64: Error_Kind.importDuplicateSoul,
+    50: Error_Kind.importUnknownFormat,
+    51: Error_Kind.importAmbiguousFormat,
+    52: Error_Kind.importUnsupportedVersion,
+    53: Error_Kind.importMalformedSource,
+    54: Error_Kind.importNormalizationFailed,
+    55: Error_Kind.importUnsupportedSourceValue,
+    56: Error_Kind.importInconsistentReference,
+    57: Error_Kind.importAdmissionRefused,
     70: Error_Kind.commandRefused,
     71: Error_Kind.commandTooLarge,
     80: Error_Kind.storeFailure,
@@ -5004,11 +5019,14 @@ class Error extends $pb.GeneratedMessage {
       46,
       47,
       48,
-      60,
-      61,
-      62,
-      63,
-      64,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
       70,
       71,
       80,
@@ -5084,20 +5102,29 @@ class Error extends $pb.GeneratedMessage {
         subBuilder: DecodeSeveralQrCodes.$_createMessage)
     ..aOM<DecodeQrUnreadable>(48, _omitFieldNames ? '' : 'decodeQrUnreadable',
         subBuilder: DecodeQrUnreadable.$_createMessage)
-    ..aOM<ImportProfileMismatch>(
-        60, _omitFieldNames ? '' : 'importProfileMismatch',
-        subBuilder: ImportProfileMismatch.$_createMessage)
-    ..aOM<ImportMalformedReading>(
-        61, _omitFieldNames ? '' : 'importMalformedReading',
-        subBuilder: ImportMalformedReading.$_createMessage)
-    ..aOM<ImportReadingTooLarge>(
-        62, _omitFieldNames ? '' : 'importReadingTooLarge',
-        subBuilder: ImportReadingTooLarge.$_createMessage)
-    ..aOM<ImportUnestablishedIdentity>(
-        63, _omitFieldNames ? '' : 'importUnestablishedIdentity',
-        subBuilder: ImportUnestablishedIdentity.$_createMessage)
-    ..aOM<ImportDuplicateSoul>(64, _omitFieldNames ? '' : 'importDuplicateSoul',
-        subBuilder: ImportDuplicateSoul.$_createMessage)
+    ..aOM<ImportUnknownFormat>(50, _omitFieldNames ? '' : 'importUnknownFormat',
+        subBuilder: ImportUnknownFormat.$_createMessage)
+    ..aOM<ImportAmbiguousFormat>(
+        51, _omitFieldNames ? '' : 'importAmbiguousFormat',
+        subBuilder: ImportAmbiguousFormat.$_createMessage)
+    ..aOM<ImportUnsupportedVersion>(
+        52, _omitFieldNames ? '' : 'importUnsupportedVersion',
+        subBuilder: ImportUnsupportedVersion.$_createMessage)
+    ..aOM<ImportMalformedSource>(
+        53, _omitFieldNames ? '' : 'importMalformedSource',
+        subBuilder: ImportMalformedSource.$_createMessage)
+    ..aOM<ImportNormalizationFailed>(
+        54, _omitFieldNames ? '' : 'importNormalizationFailed',
+        subBuilder: ImportNormalizationFailed.$_createMessage)
+    ..aOM<ImportUnsupportedSourceValue>(
+        55, _omitFieldNames ? '' : 'importUnsupportedSourceValue',
+        subBuilder: ImportUnsupportedSourceValue.$_createMessage)
+    ..aOM<ImportInconsistentReference>(
+        56, _omitFieldNames ? '' : 'importInconsistentReference',
+        subBuilder: ImportInconsistentReference.$_createMessage)
+    ..aOM<ImportAdmissionRefused>(
+        57, _omitFieldNames ? '' : 'importAdmissionRefused',
+        subBuilder: ImportAdmissionRefused.$_createMessage)
     ..aOM<CommandRefused>(70, _omitFieldNames ? '' : 'commandRefused',
         subBuilder: CommandRefused.$_createMessage)
     ..aOM<CommandTooLarge>(71, _omitFieldNames ? '' : 'commandTooLarge',
@@ -5180,11 +5207,14 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(46)
   @$pb.TagNumber(47)
   @$pb.TagNumber(48)
-  @$pb.TagNumber(60)
-  @$pb.TagNumber(61)
-  @$pb.TagNumber(62)
-  @$pb.TagNumber(63)
-  @$pb.TagNumber(64)
+  @$pb.TagNumber(50)
+  @$pb.TagNumber(51)
+  @$pb.TagNumber(52)
+  @$pb.TagNumber(53)
+  @$pb.TagNumber(54)
+  @$pb.TagNumber(55)
+  @$pb.TagNumber(56)
+  @$pb.TagNumber(57)
   @$pb.TagNumber(70)
   @$pb.TagNumber(71)
   @$pb.TagNumber(80)
@@ -5226,11 +5256,14 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(46)
   @$pb.TagNumber(47)
   @$pb.TagNumber(48)
-  @$pb.TagNumber(60)
-  @$pb.TagNumber(61)
-  @$pb.TagNumber(62)
-  @$pb.TagNumber(63)
-  @$pb.TagNumber(64)
+  @$pb.TagNumber(50)
+  @$pb.TagNumber(51)
+  @$pb.TagNumber(52)
+  @$pb.TagNumber(53)
+  @$pb.TagNumber(54)
+  @$pb.TagNumber(55)
+  @$pb.TagNumber(56)
+  @$pb.TagNumber(57)
   @$pb.TagNumber(70)
   @$pb.TagNumber(71)
   @$pb.TagNumber(80)
@@ -5529,243 +5562,282 @@ class Error extends $pb.GeneratedMessage {
   @$pb.TagNumber(48)
   DecodeQrUnreadable ensureDecodeQrUnreadable() => $_ensure(24);
 
-  @$pb.TagNumber(60)
-  ImportProfileMismatch get importProfileMismatch => $_getN(25);
-  @$pb.TagNumber(60)
-  set importProfileMismatch(ImportProfileMismatch value) =>
-      $_setField(60, value);
-  @$pb.TagNumber(60)
-  $core.bool hasImportProfileMismatch() => $_has(25);
-  @$pb.TagNumber(60)
-  void clearImportProfileMismatch() => $_clearField(60);
-  @$pb.TagNumber(60)
-  ImportProfileMismatch ensureImportProfileMismatch() => $_ensure(25);
+  /// An imported file (snapshot-ir.md; ADR-0031, rule 6): refused whole, typed by the stage
+  /// that refused it.
+  @$pb.TagNumber(50)
+  ImportUnknownFormat get importUnknownFormat => $_getN(25);
+  @$pb.TagNumber(50)
+  set importUnknownFormat(ImportUnknownFormat value) => $_setField(50, value);
+  @$pb.TagNumber(50)
+  $core.bool hasImportUnknownFormat() => $_has(25);
+  @$pb.TagNumber(50)
+  void clearImportUnknownFormat() => $_clearField(50);
+  @$pb.TagNumber(50)
+  ImportUnknownFormat ensureImportUnknownFormat() => $_ensure(25);
 
-  @$pb.TagNumber(61)
-  ImportMalformedReading get importMalformedReading => $_getN(26);
-  @$pb.TagNumber(61)
-  set importMalformedReading(ImportMalformedReading value) =>
-      $_setField(61, value);
-  @$pb.TagNumber(61)
-  $core.bool hasImportMalformedReading() => $_has(26);
-  @$pb.TagNumber(61)
-  void clearImportMalformedReading() => $_clearField(61);
-  @$pb.TagNumber(61)
-  ImportMalformedReading ensureImportMalformedReading() => $_ensure(26);
+  @$pb.TagNumber(51)
+  ImportAmbiguousFormat get importAmbiguousFormat => $_getN(26);
+  @$pb.TagNumber(51)
+  set importAmbiguousFormat(ImportAmbiguousFormat value) =>
+      $_setField(51, value);
+  @$pb.TagNumber(51)
+  $core.bool hasImportAmbiguousFormat() => $_has(26);
+  @$pb.TagNumber(51)
+  void clearImportAmbiguousFormat() => $_clearField(51);
+  @$pb.TagNumber(51)
+  ImportAmbiguousFormat ensureImportAmbiguousFormat() => $_ensure(26);
 
-  @$pb.TagNumber(62)
-  ImportReadingTooLarge get importReadingTooLarge => $_getN(27);
-  @$pb.TagNumber(62)
-  set importReadingTooLarge(ImportReadingTooLarge value) =>
-      $_setField(62, value);
-  @$pb.TagNumber(62)
-  $core.bool hasImportReadingTooLarge() => $_has(27);
-  @$pb.TagNumber(62)
-  void clearImportReadingTooLarge() => $_clearField(62);
-  @$pb.TagNumber(62)
-  ImportReadingTooLarge ensureImportReadingTooLarge() => $_ensure(27);
+  @$pb.TagNumber(52)
+  ImportUnsupportedVersion get importUnsupportedVersion => $_getN(27);
+  @$pb.TagNumber(52)
+  set importUnsupportedVersion(ImportUnsupportedVersion value) =>
+      $_setField(52, value);
+  @$pb.TagNumber(52)
+  $core.bool hasImportUnsupportedVersion() => $_has(27);
+  @$pb.TagNumber(52)
+  void clearImportUnsupportedVersion() => $_clearField(52);
+  @$pb.TagNumber(52)
+  ImportUnsupportedVersion ensureImportUnsupportedVersion() => $_ensure(27);
 
-  @$pb.TagNumber(63)
-  ImportUnestablishedIdentity get importUnestablishedIdentity => $_getN(28);
-  @$pb.TagNumber(63)
-  set importUnestablishedIdentity(ImportUnestablishedIdentity value) =>
-      $_setField(63, value);
-  @$pb.TagNumber(63)
-  $core.bool hasImportUnestablishedIdentity() => $_has(28);
-  @$pb.TagNumber(63)
-  void clearImportUnestablishedIdentity() => $_clearField(63);
-  @$pb.TagNumber(63)
-  ImportUnestablishedIdentity ensureImportUnestablishedIdentity() =>
-      $_ensure(28);
+  @$pb.TagNumber(53)
+  ImportMalformedSource get importMalformedSource => $_getN(28);
+  @$pb.TagNumber(53)
+  set importMalformedSource(ImportMalformedSource value) =>
+      $_setField(53, value);
+  @$pb.TagNumber(53)
+  $core.bool hasImportMalformedSource() => $_has(28);
+  @$pb.TagNumber(53)
+  void clearImportMalformedSource() => $_clearField(53);
+  @$pb.TagNumber(53)
+  ImportMalformedSource ensureImportMalformedSource() => $_ensure(28);
 
-  @$pb.TagNumber(64)
-  ImportDuplicateSoul get importDuplicateSoul => $_getN(29);
-  @$pb.TagNumber(64)
-  set importDuplicateSoul(ImportDuplicateSoul value) => $_setField(64, value);
-  @$pb.TagNumber(64)
-  $core.bool hasImportDuplicateSoul() => $_has(29);
-  @$pb.TagNumber(64)
-  void clearImportDuplicateSoul() => $_clearField(64);
-  @$pb.TagNumber(64)
-  ImportDuplicateSoul ensureImportDuplicateSoul() => $_ensure(29);
+  @$pb.TagNumber(54)
+  ImportNormalizationFailed get importNormalizationFailed => $_getN(29);
+  @$pb.TagNumber(54)
+  set importNormalizationFailed(ImportNormalizationFailed value) =>
+      $_setField(54, value);
+  @$pb.TagNumber(54)
+  $core.bool hasImportNormalizationFailed() => $_has(29);
+  @$pb.TagNumber(54)
+  void clearImportNormalizationFailed() => $_clearField(54);
+  @$pb.TagNumber(54)
+  ImportNormalizationFailed ensureImportNormalizationFailed() => $_ensure(29);
+
+  @$pb.TagNumber(55)
+  ImportUnsupportedSourceValue get importUnsupportedSourceValue => $_getN(30);
+  @$pb.TagNumber(55)
+  set importUnsupportedSourceValue(ImportUnsupportedSourceValue value) =>
+      $_setField(55, value);
+  @$pb.TagNumber(55)
+  $core.bool hasImportUnsupportedSourceValue() => $_has(30);
+  @$pb.TagNumber(55)
+  void clearImportUnsupportedSourceValue() => $_clearField(55);
+  @$pb.TagNumber(55)
+  ImportUnsupportedSourceValue ensureImportUnsupportedSourceValue() =>
+      $_ensure(30);
+
+  @$pb.TagNumber(56)
+  ImportInconsistentReference get importInconsistentReference => $_getN(31);
+  @$pb.TagNumber(56)
+  set importInconsistentReference(ImportInconsistentReference value) =>
+      $_setField(56, value);
+  @$pb.TagNumber(56)
+  $core.bool hasImportInconsistentReference() => $_has(31);
+  @$pb.TagNumber(56)
+  void clearImportInconsistentReference() => $_clearField(56);
+  @$pb.TagNumber(56)
+  ImportInconsistentReference ensureImportInconsistentReference() =>
+      $_ensure(31);
+
+  @$pb.TagNumber(57)
+  ImportAdmissionRefused get importAdmissionRefused => $_getN(32);
+  @$pb.TagNumber(57)
+  set importAdmissionRefused(ImportAdmissionRefused value) =>
+      $_setField(57, value);
+  @$pb.TagNumber(57)
+  $core.bool hasImportAdmissionRefused() => $_has(32);
+  @$pb.TagNumber(57)
+  void clearImportAdmissionRefused() => $_clearField(57);
+  @$pb.TagNumber(57)
+  ImportAdmissionRefused ensureImportAdmissionRefused() => $_ensure(32);
 
   @$pb.TagNumber(70)
-  CommandRefused get commandRefused => $_getN(30);
+  CommandRefused get commandRefused => $_getN(33);
   @$pb.TagNumber(70)
   set commandRefused(CommandRefused value) => $_setField(70, value);
   @$pb.TagNumber(70)
-  $core.bool hasCommandRefused() => $_has(30);
+  $core.bool hasCommandRefused() => $_has(33);
   @$pb.TagNumber(70)
   void clearCommandRefused() => $_clearField(70);
   @$pb.TagNumber(70)
-  CommandRefused ensureCommandRefused() => $_ensure(30);
+  CommandRefused ensureCommandRefused() => $_ensure(33);
 
   @$pb.TagNumber(71)
-  CommandTooLarge get commandTooLarge => $_getN(31);
+  CommandTooLarge get commandTooLarge => $_getN(34);
   @$pb.TagNumber(71)
   set commandTooLarge(CommandTooLarge value) => $_setField(71, value);
   @$pb.TagNumber(71)
-  $core.bool hasCommandTooLarge() => $_has(31);
+  $core.bool hasCommandTooLarge() => $_has(34);
   @$pb.TagNumber(71)
   void clearCommandTooLarge() => $_clearField(71);
   @$pb.TagNumber(71)
-  CommandTooLarge ensureCommandTooLarge() => $_ensure(31);
+  CommandTooLarge ensureCommandTooLarge() => $_ensure(34);
 
   @$pb.TagNumber(80)
-  StoreFailure get storeFailure => $_getN(32);
+  StoreFailure get storeFailure => $_getN(35);
   @$pb.TagNumber(80)
   set storeFailure(StoreFailure value) => $_setField(80, value);
   @$pb.TagNumber(80)
-  $core.bool hasStoreFailure() => $_has(32);
+  $core.bool hasStoreFailure() => $_has(35);
   @$pb.TagNumber(80)
   void clearStoreFailure() => $_clearField(80);
   @$pb.TagNumber(80)
-  StoreFailure ensureStoreFailure() => $_ensure(32);
+  StoreFailure ensureStoreFailure() => $_ensure(35);
 
   @$pb.TagNumber(81)
-  StoreInvalidLog get storeInvalidLog => $_getN(33);
+  StoreInvalidLog get storeInvalidLog => $_getN(36);
   @$pb.TagNumber(81)
   set storeInvalidLog(StoreInvalidLog value) => $_setField(81, value);
   @$pb.TagNumber(81)
-  $core.bool hasStoreInvalidLog() => $_has(33);
+  $core.bool hasStoreInvalidLog() => $_has(36);
   @$pb.TagNumber(81)
   void clearStoreInvalidLog() => $_clearField(81);
   @$pb.TagNumber(81)
-  StoreInvalidLog ensureStoreInvalidLog() => $_ensure(33);
+  StoreInvalidLog ensureStoreInvalidLog() => $_ensure(36);
 
   @$pb.TagNumber(82)
-  StoreNewerFormat get storeNewerFormat => $_getN(34);
+  StoreNewerFormat get storeNewerFormat => $_getN(37);
   @$pb.TagNumber(82)
   set storeNewerFormat(StoreNewerFormat value) => $_setField(82, value);
   @$pb.TagNumber(82)
-  $core.bool hasStoreNewerFormat() => $_has(34);
+  $core.bool hasStoreNewerFormat() => $_has(37);
   @$pb.TagNumber(82)
   void clearStoreNewerFormat() => $_clearField(82);
   @$pb.TagNumber(82)
-  StoreNewerFormat ensureStoreNewerFormat() => $_ensure(34);
+  StoreNewerFormat ensureStoreNewerFormat() => $_ensure(37);
 
   @$pb.TagNumber(83)
-  StoreMalformedCommit get storeMalformedCommit => $_getN(35);
+  StoreMalformedCommit get storeMalformedCommit => $_getN(38);
   @$pb.TagNumber(83)
   set storeMalformedCommit(StoreMalformedCommit value) => $_setField(83, value);
   @$pb.TagNumber(83)
-  $core.bool hasStoreMalformedCommit() => $_has(35);
+  $core.bool hasStoreMalformedCommit() => $_has(38);
   @$pb.TagNumber(83)
   void clearStoreMalformedCommit() => $_clearField(83);
   @$pb.TagNumber(83)
-  StoreMalformedCommit ensureStoreMalformedCommit() => $_ensure(35);
+  StoreMalformedCommit ensureStoreMalformedCommit() => $_ensure(38);
 
   @$pb.TagNumber(84)
-  StoreMissing get storeMissing => $_getN(36);
+  StoreMissing get storeMissing => $_getN(39);
   @$pb.TagNumber(84)
   set storeMissing(StoreMissing value) => $_setField(84, value);
   @$pb.TagNumber(84)
-  $core.bool hasStoreMissing() => $_has(36);
+  $core.bool hasStoreMissing() => $_has(39);
   @$pb.TagNumber(84)
   void clearStoreMissing() => $_clearField(84);
   @$pb.TagNumber(84)
-  StoreMissing ensureStoreMissing() => $_ensure(36);
+  StoreMissing ensureStoreMissing() => $_ensure(39);
 
   @$pb.TagNumber(85)
-  StoreNotADatabase get storeNotADatabase => $_getN(37);
+  StoreNotADatabase get storeNotADatabase => $_getN(40);
   @$pb.TagNumber(85)
   set storeNotADatabase(StoreNotADatabase value) => $_setField(85, value);
   @$pb.TagNumber(85)
-  $core.bool hasStoreNotADatabase() => $_has(37);
+  $core.bool hasStoreNotADatabase() => $_has(40);
   @$pb.TagNumber(85)
   void clearStoreNotADatabase() => $_clearField(85);
   @$pb.TagNumber(85)
-  StoreNotADatabase ensureStoreNotADatabase() => $_ensure(37);
+  StoreNotADatabase ensureStoreNotADatabase() => $_ensure(40);
 
   @$pb.TagNumber(86)
-  StoreForeign get storeForeign => $_getN(38);
+  StoreForeign get storeForeign => $_getN(41);
   @$pb.TagNumber(86)
   set storeForeign(StoreForeign value) => $_setField(86, value);
   @$pb.TagNumber(86)
-  $core.bool hasStoreForeign() => $_has(38);
+  $core.bool hasStoreForeign() => $_has(41);
   @$pb.TagNumber(86)
   void clearStoreForeign() => $_clearField(86);
   @$pb.TagNumber(86)
-  StoreForeign ensureStoreForeign() => $_ensure(38);
+  StoreForeign ensureStoreForeign() => $_ensure(41);
 
   @$pb.TagNumber(87)
-  StoreNoFormatVersion get storeNoFormatVersion => $_getN(39);
+  StoreNoFormatVersion get storeNoFormatVersion => $_getN(42);
   @$pb.TagNumber(87)
   set storeNoFormatVersion(StoreNoFormatVersion value) => $_setField(87, value);
   @$pb.TagNumber(87)
-  $core.bool hasStoreNoFormatVersion() => $_has(39);
+  $core.bool hasStoreNoFormatVersion() => $_has(42);
   @$pb.TagNumber(87)
   void clearStoreNoFormatVersion() => $_clearField(87);
   @$pb.TagNumber(87)
-  StoreNoFormatVersion ensureStoreNoFormatVersion() => $_ensure(39);
+  StoreNoFormatVersion ensureStoreNoFormatVersion() => $_ensure(42);
 
   @$pb.TagNumber(88)
-  StoreDamaged get storeDamaged => $_getN(40);
+  StoreDamaged get storeDamaged => $_getN(43);
   @$pb.TagNumber(88)
   set storeDamaged(StoreDamaged value) => $_setField(88, value);
   @$pb.TagNumber(88)
-  $core.bool hasStoreDamaged() => $_has(40);
+  $core.bool hasStoreDamaged() => $_has(43);
   @$pb.TagNumber(88)
   void clearStoreDamaged() => $_clearField(88);
   @$pb.TagNumber(88)
-  StoreDamaged ensureStoreDamaged() => $_ensure(40);
+  StoreDamaged ensureStoreDamaged() => $_ensure(43);
 
   @$pb.TagNumber(89)
-  StoreUninitialized get storeUninitialized => $_getN(41);
+  StoreUninitialized get storeUninitialized => $_getN(44);
   @$pb.TagNumber(89)
   set storeUninitialized(StoreUninitialized value) => $_setField(89, value);
   @$pb.TagNumber(89)
-  $core.bool hasStoreUninitialized() => $_has(41);
+  $core.bool hasStoreUninitialized() => $_has(44);
   @$pb.TagNumber(89)
   void clearStoreUninitialized() => $_clearField(89);
   @$pb.TagNumber(89)
-  StoreUninitialized ensureStoreUninitialized() => $_ensure(41);
+  StoreUninitialized ensureStoreUninitialized() => $_ensure(44);
 
   @$pb.TagNumber(100)
-  InternalPanic get internalPanic => $_getN(42);
+  InternalPanic get internalPanic => $_getN(45);
   @$pb.TagNumber(100)
   set internalPanic(InternalPanic value) => $_setField(100, value);
   @$pb.TagNumber(100)
-  $core.bool hasInternalPanic() => $_has(42);
+  $core.bool hasInternalPanic() => $_has(45);
   @$pb.TagNumber(100)
   void clearInternalPanic() => $_clearField(100);
   @$pb.TagNumber(100)
-  InternalPanic ensureInternalPanic() => $_ensure(42);
+  InternalPanic ensureInternalPanic() => $_ensure(45);
 
   @$pb.TagNumber(101)
-  InternalQrTooLong get internalQrTooLong => $_getN(43);
+  InternalQrTooLong get internalQrTooLong => $_getN(46);
   @$pb.TagNumber(101)
   set internalQrTooLong(InternalQrTooLong value) => $_setField(101, value);
   @$pb.TagNumber(101)
-  $core.bool hasInternalQrTooLong() => $_has(43);
+  $core.bool hasInternalQrTooLong() => $_has(46);
   @$pb.TagNumber(101)
   void clearInternalQrTooLong() => $_clearField(101);
   @$pb.TagNumber(101)
-  InternalQrTooLong ensureInternalQrTooLong() => $_ensure(43);
+  InternalQrTooLong ensureInternalQrTooLong() => $_ensure(46);
 
   @$pb.TagNumber(102)
-  InternalResponseTooLarge get internalResponseTooLarge => $_getN(44);
+  InternalResponseTooLarge get internalResponseTooLarge => $_getN(47);
   @$pb.TagNumber(102)
   set internalResponseTooLarge(InternalResponseTooLarge value) =>
       $_setField(102, value);
   @$pb.TagNumber(102)
-  $core.bool hasInternalResponseTooLarge() => $_has(44);
+  $core.bool hasInternalResponseTooLarge() => $_has(47);
   @$pb.TagNumber(102)
   void clearInternalResponseTooLarge() => $_clearField(102);
   @$pb.TagNumber(102)
-  InternalResponseTooLarge ensureInternalResponseTooLarge() => $_ensure(44);
+  InternalResponseTooLarge ensureInternalResponseTooLarge() => $_ensure(47);
 
   @$pb.TagNumber(103)
-  InternalPageWithoutSoul get internalPageWithoutSoul => $_getN(45);
+  InternalPageWithoutSoul get internalPageWithoutSoul => $_getN(48);
   @$pb.TagNumber(103)
   set internalPageWithoutSoul(InternalPageWithoutSoul value) =>
       $_setField(103, value);
   @$pb.TagNumber(103)
-  $core.bool hasInternalPageWithoutSoul() => $_has(45);
+  $core.bool hasInternalPageWithoutSoul() => $_has(48);
   @$pb.TagNumber(103)
   void clearInternalPageWithoutSoul() => $_clearField(103);
   @$pb.TagNumber(103)
-  InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(45);
+  InternalPageWithoutSoul ensureInternalPageWithoutSoul() => $_ensure(48);
 }
 
 enum SessionFailed_Kind {
@@ -7489,302 +7561,518 @@ class DecodeQrUnreadable extends $pb.GeneratedMessage {
   void clearProblem() => $_clearField(1);
 }
 
-class ImportProfileMismatch extends $pb.GeneratedMessage {
-  factory ImportProfileMismatch({
-    $core.String? problem,
+/// No format recognises the file's header.
+class ImportUnknownFormat extends $pb.GeneratedMessage {
+  factory ImportUnknownFormat({
+    $core.String? stated,
   }) {
-    final result = ImportProfileMismatch._();
-    if (problem != null) result.problem = problem;
+    final result = ImportUnknownFormat._();
+    if (stated != null) result.stated = stated;
     return result;
   }
 
-  ImportProfileMismatch._();
+  ImportUnknownFormat._();
 
-  factory ImportProfileMismatch.fromBuffer($core.List<$core.int> data,
+  factory ImportUnknownFormat.fromBuffer($core.List<$core.int> data,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportProfileMismatch()..mergeFromBuffer(data, registry);
-  factory ImportProfileMismatch.fromJson($core.String json,
+      ImportUnknownFormat()..mergeFromBuffer(data, registry);
+  factory ImportUnknownFormat.fromJson($core.String json,
           [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportProfileMismatch()..mergeFromJson(json, registry);
+      ImportUnknownFormat()..mergeFromJson(json, registry);
 
   static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ImportProfileMismatch',
+      _omitMessageNames ? '' : 'ImportUnknownFormat',
       package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: ImportProfileMismatch.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'problem')
+      createEmptyInstance: ImportUnknownFormat.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'stated')
     ..hasRequiredFields = false;
 
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportProfileMismatch clone() => deepCopy();
+  ImportUnknownFormat clone() => deepCopy();
   @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportProfileMismatch copyWith(
-          void Function(ImportProfileMismatch) updates) =>
-      super.copyWith((message) => updates(message as ImportProfileMismatch))
-          as ImportProfileMismatch;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  @$core.Deprecated(
-      'Use ImportProfileMismatch() / ImportProfileMismatch.new instead')
-  static ImportProfileMismatch create() => ImportProfileMismatch._();
-  static $pb.GeneratedMessage $_createMessage() => ImportProfileMismatch._();
-  @$core.override
-  ImportProfileMismatch createEmptyInstance() => ImportProfileMismatch._();
-  @$core.pragma('dart2js:noInline')
-  static ImportProfileMismatch getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ImportProfileMismatch>(
-          ImportProfileMismatch.$_createMessage);
-  static ImportProfileMismatch? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get problem => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set problem($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasProblem() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearProblem() => $_clearField(1);
-}
-
-class ImportMalformedReading extends $pb.GeneratedMessage {
-  factory ImportMalformedReading({
-    $core.String? problem,
-  }) {
-    final result = ImportMalformedReading._();
-    if (problem != null) result.problem = problem;
-    return result;
-  }
-
-  ImportMalformedReading._();
-
-  factory ImportMalformedReading.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportMalformedReading()..mergeFromBuffer(data, registry);
-  factory ImportMalformedReading.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportMalformedReading()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ImportMalformedReading',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: ImportMalformedReading.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'problem')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportMalformedReading clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportMalformedReading copyWith(
-          void Function(ImportMalformedReading) updates) =>
-      super.copyWith((message) => updates(message as ImportMalformedReading))
-          as ImportMalformedReading;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  @$core.Deprecated(
-      'Use ImportMalformedReading() / ImportMalformedReading.new instead')
-  static ImportMalformedReading create() => ImportMalformedReading._();
-  static $pb.GeneratedMessage $_createMessage() => ImportMalformedReading._();
-  @$core.override
-  ImportMalformedReading createEmptyInstance() => ImportMalformedReading._();
-  @$core.pragma('dart2js:noInline')
-  static ImportMalformedReading getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ImportMalformedReading>(
-          ImportMalformedReading.$_createMessage);
-  static ImportMalformedReading? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get problem => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set problem($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasProblem() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearProblem() => $_clearField(1);
-}
-
-class ImportReadingTooLarge extends $pb.GeneratedMessage {
-  factory ImportReadingTooLarge({
-    $core.String? problem,
-  }) {
-    final result = ImportReadingTooLarge._();
-    if (problem != null) result.problem = problem;
-    return result;
-  }
-
-  ImportReadingTooLarge._();
-
-  factory ImportReadingTooLarge.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportReadingTooLarge()..mergeFromBuffer(data, registry);
-  factory ImportReadingTooLarge.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportReadingTooLarge()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ImportReadingTooLarge',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: ImportReadingTooLarge.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'problem')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportReadingTooLarge clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportReadingTooLarge copyWith(
-          void Function(ImportReadingTooLarge) updates) =>
-      super.copyWith((message) => updates(message as ImportReadingTooLarge))
-          as ImportReadingTooLarge;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  @$core.Deprecated(
-      'Use ImportReadingTooLarge() / ImportReadingTooLarge.new instead')
-  static ImportReadingTooLarge create() => ImportReadingTooLarge._();
-  static $pb.GeneratedMessage $_createMessage() => ImportReadingTooLarge._();
-  @$core.override
-  ImportReadingTooLarge createEmptyInstance() => ImportReadingTooLarge._();
-  @$core.pragma('dart2js:noInline')
-  static ImportReadingTooLarge getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ImportReadingTooLarge>(
-          ImportReadingTooLarge.$_createMessage);
-  static ImportReadingTooLarge? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get problem => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set problem($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasProblem() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearProblem() => $_clearField(1);
-}
-
-class ImportUnestablishedIdentity extends $pb.GeneratedMessage {
-  factory ImportUnestablishedIdentity({
-    $core.String? evidence,
-  }) {
-    final result = ImportUnestablishedIdentity._();
-    if (evidence != null) result.evidence = evidence;
-    return result;
-  }
-
-  ImportUnestablishedIdentity._();
-
-  factory ImportUnestablishedIdentity.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportUnestablishedIdentity()..mergeFromBuffer(data, registry);
-  factory ImportUnestablishedIdentity.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportUnestablishedIdentity()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ImportUnestablishedIdentity',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: ImportUnestablishedIdentity.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'evidence')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportUnestablishedIdentity clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportUnestablishedIdentity copyWith(
-          void Function(ImportUnestablishedIdentity) updates) =>
-      super.copyWith(
-              (message) => updates(message as ImportUnestablishedIdentity))
-          as ImportUnestablishedIdentity;
-
-  @$core.override
-  $pb.BuilderInfo get info_ => _i;
-
-  @$core.pragma('dart2js:noInline')
-  @$core.Deprecated(
-      'Use ImportUnestablishedIdentity() / ImportUnestablishedIdentity.new instead')
-  static ImportUnestablishedIdentity create() =>
-      ImportUnestablishedIdentity._();
-  static $pb.GeneratedMessage $_createMessage() =>
-      ImportUnestablishedIdentity._();
-  @$core.override
-  ImportUnestablishedIdentity createEmptyInstance() =>
-      ImportUnestablishedIdentity._();
-  @$core.pragma('dart2js:noInline')
-  static ImportUnestablishedIdentity getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ImportUnestablishedIdentity>(
-          ImportUnestablishedIdentity.$_createMessage);
-  static ImportUnestablishedIdentity? _defaultInstance;
-
-  @$pb.TagNumber(1)
-  $core.String get evidence => $_getSZ(0);
-  @$pb.TagNumber(1)
-  set evidence($core.String value) => $_setString(0, value);
-  @$pb.TagNumber(1)
-  $core.bool hasEvidence() => $_has(0);
-  @$pb.TagNumber(1)
-  void clearEvidence() => $_clearField(1);
-}
-
-class ImportDuplicateSoul extends $pb.GeneratedMessage {
-  factory ImportDuplicateSoul({
-    $core.String? soulId,
-  }) {
-    final result = ImportDuplicateSoul._();
-    if (soulId != null) result.soulId = soulId;
-    return result;
-  }
-
-  ImportDuplicateSoul._();
-
-  factory ImportDuplicateSoul.fromBuffer($core.List<$core.int> data,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportDuplicateSoul()..mergeFromBuffer(data, registry);
-  factory ImportDuplicateSoul.fromJson($core.String json,
-          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
-      ImportDuplicateSoul()..mergeFromJson(json, registry);
-
-  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
-      _omitMessageNames ? '' : 'ImportDuplicateSoul',
-      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
-      createEmptyInstance: ImportDuplicateSoul.$_createMessage)
-    ..aOS(1, _omitFieldNames ? '' : 'soulId')
-    ..hasRequiredFields = false;
-
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportDuplicateSoul clone() => deepCopy();
-  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
-  ImportDuplicateSoul copyWith(void Function(ImportDuplicateSoul) updates) =>
-      super.copyWith((message) => updates(message as ImportDuplicateSoul))
-          as ImportDuplicateSoul;
+  ImportUnknownFormat copyWith(void Function(ImportUnknownFormat) updates) =>
+      super.copyWith((message) => updates(message as ImportUnknownFormat))
+          as ImportUnknownFormat;
 
   @$core.override
   $pb.BuilderInfo get info_ => _i;
 
   @$core.pragma('dart2js:noInline')
   @$core
-      .Deprecated('Use ImportDuplicateSoul() / ImportDuplicateSoul.new instead')
-  static ImportDuplicateSoul create() => ImportDuplicateSoul._();
-  static $pb.GeneratedMessage $_createMessage() => ImportDuplicateSoul._();
+      .Deprecated('Use ImportUnknownFormat() / ImportUnknownFormat.new instead')
+  static ImportUnknownFormat create() => ImportUnknownFormat._();
+  static $pb.GeneratedMessage $_createMessage() => ImportUnknownFormat._();
   @$core.override
-  ImportDuplicateSoul createEmptyInstance() => ImportDuplicateSoul._();
+  ImportUnknownFormat createEmptyInstance() => ImportUnknownFormat._();
   @$core.pragma('dart2js:noInline')
-  static ImportDuplicateSoul getDefault() => _defaultInstance ??=
-      $pb.GeneratedMessage.$_defaultFor<ImportDuplicateSoul>(
-          ImportDuplicateSoul.$_createMessage);
-  static ImportDuplicateSoul? _defaultInstance;
+  static ImportUnknownFormat getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportUnknownFormat>(
+          ImportUnknownFormat.$_createMessage);
+  static ImportUnknownFormat? _defaultInstance;
+
+  /// The format the file names, when it names one.
+  @$pb.TagNumber(1)
+  $core.String get stated => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set stated($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasStated() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearStated() => $_clearField(1);
+}
+
+/// More than one format recognises the header.
+class ImportAmbiguousFormat extends $pb.GeneratedMessage {
+  factory ImportAmbiguousFormat({
+    $core.Iterable<$core.String>? formats,
+  }) {
+    final result = ImportAmbiguousFormat._();
+    if (formats != null) result.formats.addAll(formats);
+    return result;
+  }
+
+  ImportAmbiguousFormat._();
+
+  factory ImportAmbiguousFormat.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportAmbiguousFormat()..mergeFromBuffer(data, registry);
+  factory ImportAmbiguousFormat.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportAmbiguousFormat()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportAmbiguousFormat',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportAmbiguousFormat.$_createMessage)
+    ..pPS(1, _omitFieldNames ? '' : 'formats')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportAmbiguousFormat clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportAmbiguousFormat copyWith(
+          void Function(ImportAmbiguousFormat) updates) =>
+      super.copyWith((message) => updates(message as ImportAmbiguousFormat))
+          as ImportAmbiguousFormat;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportAmbiguousFormat() / ImportAmbiguousFormat.new instead')
+  static ImportAmbiguousFormat create() => ImportAmbiguousFormat._();
+  static $pb.GeneratedMessage $_createMessage() => ImportAmbiguousFormat._();
+  @$core.override
+  ImportAmbiguousFormat createEmptyInstance() => ImportAmbiguousFormat._();
+  @$core.pragma('dart2js:noInline')
+  static ImportAmbiguousFormat getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportAmbiguousFormat>(
+          ImportAmbiguousFormat.$_createMessage);
+  static ImportAmbiguousFormat? _defaultInstance;
+
+  /// The formats that do, by tag.
+  @$pb.TagNumber(1)
+  $pb.PbList<$core.String> get formats => $_getList(0);
+}
+
+/// The format is known and the file's version of it is not one this build reads.
+class ImportUnsupportedVersion extends $pb.GeneratedMessage {
+  factory ImportUnsupportedVersion({
+    $core.String? format,
+    $core.String? version,
+  }) {
+    final result = ImportUnsupportedVersion._();
+    if (format != null) result.format = format;
+    if (version != null) result.version = version;
+    return result;
+  }
+
+  ImportUnsupportedVersion._();
+
+  factory ImportUnsupportedVersion.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportUnsupportedVersion()..mergeFromBuffer(data, registry);
+  factory ImportUnsupportedVersion.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportUnsupportedVersion()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportUnsupportedVersion',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportUnsupportedVersion.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'format')
+    ..aOS(2, _omitFieldNames ? '' : 'version')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportUnsupportedVersion clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportUnsupportedVersion copyWith(
+          void Function(ImportUnsupportedVersion) updates) =>
+      super.copyWith((message) => updates(message as ImportUnsupportedVersion))
+          as ImportUnsupportedVersion;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportUnsupportedVersion() / ImportUnsupportedVersion.new instead')
+  static ImportUnsupportedVersion create() => ImportUnsupportedVersion._();
+  static $pb.GeneratedMessage $_createMessage() => ImportUnsupportedVersion._();
+  @$core.override
+  ImportUnsupportedVersion createEmptyInstance() =>
+      ImportUnsupportedVersion._();
+  @$core.pragma('dart2js:noInline')
+  static ImportUnsupportedVersion getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportUnsupportedVersion>(
+          ImportUnsupportedVersion.$_createMessage);
+  static ImportUnsupportedVersion? _defaultInstance;
 
   @$pb.TagNumber(1)
-  $core.String get soulId => $_getSZ(0);
+  $core.String get format => $_getSZ(0);
   @$pb.TagNumber(1)
-  set soulId($core.String value) => $_setString(0, value);
+  set format($core.String value) => $_setString(0, value);
   @$pb.TagNumber(1)
-  $core.bool hasSoulId() => $_has(0);
+  $core.bool hasFormat() => $_has(0);
   @$pb.TagNumber(1)
-  void clearSoulId() => $_clearField(1);
+  void clearFormat() => $_clearField(1);
+
+  /// The version as the file states it.
+  @$pb.TagNumber(2)
+  $core.String get version => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set version($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasVersion() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearVersion() => $_clearField(2);
+}
+
+/// Not the syntax or shape of any snapshot: not JSON, over the file limit, a file-level field
+/// missing or of the wrong kind.
+class ImportMalformedSource extends $pb.GeneratedMessage {
+  factory ImportMalformedSource({
+    $core.String? problem,
+  }) {
+    final result = ImportMalformedSource._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportMalformedSource._();
+
+  factory ImportMalformedSource.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportMalformedSource()..mergeFromBuffer(data, registry);
+  factory ImportMalformedSource.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportMalformedSource()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportMalformedSource',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportMalformedSource.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportMalformedSource clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportMalformedSource copyWith(
+          void Function(ImportMalformedSource) updates) =>
+      super.copyWith((message) => updates(message as ImportMalformedSource))
+          as ImportMalformedSource;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportMalformedSource() / ImportMalformedSource.new instead')
+  static ImportMalformedSource create() => ImportMalformedSource._();
+  static $pb.GeneratedMessage $_createMessage() => ImportMalformedSource._();
+  @$core.override
+  ImportMalformedSource createEmptyInstance() => ImportMalformedSource._();
+  @$core.pragma('dart2js:noInline')
+  static ImportMalformedSource getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportMalformedSource>(
+          ImportMalformedSource.$_createMessage);
+  static ImportMalformedSource? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+/// The file parsed, and what it normalized to breaks the snapshot IR's own rules: a count over its
+/// limit, an id twice.
+class ImportNormalizationFailed extends $pb.GeneratedMessage {
+  factory ImportNormalizationFailed({
+    $core.String? problem,
+  }) {
+    final result = ImportNormalizationFailed._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportNormalizationFailed._();
+
+  factory ImportNormalizationFailed.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportNormalizationFailed()..mergeFromBuffer(data, registry);
+  factory ImportNormalizationFailed.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportNormalizationFailed()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportNormalizationFailed',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportNormalizationFailed.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportNormalizationFailed clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportNormalizationFailed copyWith(
+          void Function(ImportNormalizationFailed) updates) =>
+      super.copyWith((message) => updates(message as ImportNormalizationFailed))
+          as ImportNormalizationFailed;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportNormalizationFailed() / ImportNormalizationFailed.new instead')
+  static ImportNormalizationFailed create() => ImportNormalizationFailed._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ImportNormalizationFailed._();
+  @$core.override
+  ImportNormalizationFailed createEmptyInstance() =>
+      ImportNormalizationFailed._();
+  @$core.pragma('dart2js:noInline')
+  static ImportNormalizationFailed getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportNormalizationFailed>(
+          ImportNormalizationFailed.$_createMessage);
+  static ImportNormalizationFailed? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+/// A file-level value the format does not define.
+class ImportUnsupportedSourceValue extends $pb.GeneratedMessage {
+  factory ImportUnsupportedSourceValue({
+    $core.String? field_1,
+    $core.String? value,
+  }) {
+    final result = ImportUnsupportedSourceValue._();
+    if (field_1 != null) result.field_1 = field_1;
+    if (value != null) result.value = value;
+    return result;
+  }
+
+  ImportUnsupportedSourceValue._();
+
+  factory ImportUnsupportedSourceValue.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportUnsupportedSourceValue()..mergeFromBuffer(data, registry);
+  factory ImportUnsupportedSourceValue.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportUnsupportedSourceValue()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportUnsupportedSourceValue',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportUnsupportedSourceValue.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'field')
+    ..aOS(2, _omitFieldNames ? '' : 'value')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportUnsupportedSourceValue clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportUnsupportedSourceValue copyWith(
+          void Function(ImportUnsupportedSourceValue) updates) =>
+      super.copyWith(
+              (message) => updates(message as ImportUnsupportedSourceValue))
+          as ImportUnsupportedSourceValue;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportUnsupportedSourceValue() / ImportUnsupportedSourceValue.new instead')
+  static ImportUnsupportedSourceValue create() =>
+      ImportUnsupportedSourceValue._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ImportUnsupportedSourceValue._();
+  @$core.override
+  ImportUnsupportedSourceValue createEmptyInstance() =>
+      ImportUnsupportedSourceValue._();
+  @$core.pragma('dart2js:noInline')
+  static ImportUnsupportedSourceValue getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportUnsupportedSourceValue>(
+          ImportUnsupportedSourceValue.$_createMessage);
+  static ImportUnsupportedSourceValue? _defaultInstance;
+
+  /// The field, as the format names it, and its value.
+  @$pb.TagNumber(1)
+  $core.String get field_1 => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set field_1($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasField_1() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearField_1() => $_clearField(1);
+
+  @$pb.TagNumber(2)
+  $core.String get value => $_getSZ(1);
+  @$pb.TagNumber(2)
+  set value($core.String value) => $_setString(1, value);
+  @$pb.TagNumber(2)
+  $core.bool hasValue() => $_has(1);
+  @$pb.TagNumber(2)
+  void clearValue() => $_clearField(2);
+}
+
+/// A record names another that the snapshot does not hold.
+class ImportInconsistentReference extends $pb.GeneratedMessage {
+  factory ImportInconsistentReference({
+    $core.String? problem,
+  }) {
+    final result = ImportInconsistentReference._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportInconsistentReference._();
+
+  factory ImportInconsistentReference.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportInconsistentReference()..mergeFromBuffer(data, registry);
+  factory ImportInconsistentReference.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportInconsistentReference()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportInconsistentReference',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportInconsistentReference.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportInconsistentReference clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportInconsistentReference copyWith(
+          void Function(ImportInconsistentReference) updates) =>
+      super.copyWith(
+              (message) => updates(message as ImportInconsistentReference))
+          as ImportInconsistentReference;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportInconsistentReference() / ImportInconsistentReference.new instead')
+  static ImportInconsistentReference create() =>
+      ImportInconsistentReference._();
+  static $pb.GeneratedMessage $_createMessage() =>
+      ImportInconsistentReference._();
+  @$core.override
+  ImportInconsistentReference createEmptyInstance() =>
+      ImportInconsistentReference._();
+  @$core.pragma('dart2js:noInline')
+  static ImportInconsistentReference getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportInconsistentReference>(
+          ImportInconsistentReference.$_createMessage);
+  static ImportInconsistentReference? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
+}
+
+/// The domain refused what the snapshot holds.
+class ImportAdmissionRefused extends $pb.GeneratedMessage {
+  factory ImportAdmissionRefused({
+    $core.String? problem,
+  }) {
+    final result = ImportAdmissionRefused._();
+    if (problem != null) result.problem = problem;
+    return result;
+  }
+
+  ImportAdmissionRefused._();
+
+  factory ImportAdmissionRefused.fromBuffer($core.List<$core.int> data,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportAdmissionRefused()..mergeFromBuffer(data, registry);
+  factory ImportAdmissionRefused.fromJson($core.String json,
+          [$pb.ExtensionRegistry registry = $pb.ExtensionRegistry.EMPTY]) =>
+      ImportAdmissionRefused()..mergeFromJson(json, registry);
+
+  static final $pb.BuilderInfo _i = $pb.BuilderInfo(
+      _omitMessageNames ? '' : 'ImportAdmissionRefused',
+      package: const $pb.PackageName(_omitMessageNames ? '' : 'yata.core.v1'),
+      createEmptyInstance: ImportAdmissionRefused.$_createMessage)
+    ..aOS(1, _omitFieldNames ? '' : 'problem')
+    ..hasRequiredFields = false;
+
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportAdmissionRefused clone() => deepCopy();
+  @$core.Deprecated('See https://github.com/google/protobuf.dart/issues/998.')
+  ImportAdmissionRefused copyWith(
+          void Function(ImportAdmissionRefused) updates) =>
+      super.copyWith((message) => updates(message as ImportAdmissionRefused))
+          as ImportAdmissionRefused;
+
+  @$core.override
+  $pb.BuilderInfo get info_ => _i;
+
+  @$core.pragma('dart2js:noInline')
+  @$core.Deprecated(
+      'Use ImportAdmissionRefused() / ImportAdmissionRefused.new instead')
+  static ImportAdmissionRefused create() => ImportAdmissionRefused._();
+  static $pb.GeneratedMessage $_createMessage() => ImportAdmissionRefused._();
+  @$core.override
+  ImportAdmissionRefused createEmptyInstance() => ImportAdmissionRefused._();
+  @$core.pragma('dart2js:noInline')
+  static ImportAdmissionRefused getDefault() => _defaultInstance ??=
+      $pb.GeneratedMessage.$_defaultFor<ImportAdmissionRefused>(
+          ImportAdmissionRefused.$_createMessage);
+  static ImportAdmissionRefused? _defaultInstance;
+
+  @$pb.TagNumber(1)
+  $core.String get problem => $_getSZ(0);
+  @$pb.TagNumber(1)
+  set problem($core.String value) => $_setString(0, value);
+  @$pb.TagNumber(1)
+  $core.bool hasProblem() => $_has(0);
+  @$pb.TagNumber(1)
+  void clearProblem() => $_clearField(1);
 }
 
 class CommandRefused extends $pb.GeneratedMessage {

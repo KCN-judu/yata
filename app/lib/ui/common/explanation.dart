@@ -86,25 +86,37 @@ Explanation _request(AppLocalizations l, pb.Error_Kind kind) => switch (kind) {
     l.causeDecodeQrUnreadable,
     l.remedyDecodeQrUnreadable,
   ),
-  pb.Error_Kind.importProfileMismatch => Explanation(
-    l.causeImportProfileMismatch,
-    l.remedyImportProfileMismatch,
+  pb.Error_Kind.importUnknownFormat => Explanation(
+    l.causeImportUnknownFormat,
+    l.remedyImportUnknownFormat,
   ),
-  pb.Error_Kind.importMalformedReading => Explanation(
-    l.causeImportMalformedReading,
-    l.remedyImportMalformedReading,
+  pb.Error_Kind.importAmbiguousFormat => Explanation(
+    l.causeImportAmbiguousFormat,
+    l.remedyImportAmbiguousFormat,
   ),
-  pb.Error_Kind.importReadingTooLarge => Explanation(
-    l.causeImportReadingTooLarge,
-    l.remedyImportReadingTooLarge,
+  pb.Error_Kind.importUnsupportedVersion => Explanation(
+    l.causeImportUnsupportedVersion,
+    l.remedyImportUnsupportedVersion,
   ),
-  pb.Error_Kind.importUnestablishedIdentity => Explanation(
-    l.causeImportUnestablishedIdentity,
-    l.remedyImportUnestablishedIdentity,
+  pb.Error_Kind.importMalformedSource => Explanation(
+    l.causeImportMalformedSource,
+    l.remedyImportMalformedSource,
   ),
-  pb.Error_Kind.importDuplicateSoul => Explanation(
-    l.causeImportDuplicateSoul,
-    l.remedyImportDuplicateSoul,
+  pb.Error_Kind.importNormalizationFailed => Explanation(
+    l.causeImportNormalizationFailed,
+    l.remedyImportNormalizationFailed,
+  ),
+  pb.Error_Kind.importUnsupportedSourceValue => Explanation(
+    l.causeImportUnsupportedSourceValue,
+    l.remedyImportUnsupportedSourceValue,
+  ),
+  pb.Error_Kind.importInconsistentReference => Explanation(
+    l.causeImportInconsistentReference,
+    l.remedyImportInconsistentReference,
+  ),
+  pb.Error_Kind.importAdmissionRefused => Explanation(
+    l.causeImportAdmissionRefused,
+    l.remedyImportAdmissionRefused,
   ),
   pb.Error_Kind.commandRefused => Explanation(l.causeCommandRefused, l.remedyCommandRefused),
   pb.Error_Kind.commandTooLarge => Explanation(l.causeCommandTooLarge, l.remedyCommandTooLarge),

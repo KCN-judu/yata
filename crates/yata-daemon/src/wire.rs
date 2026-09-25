@@ -7,6 +7,7 @@
 //! is mapped in one place.
 
 use yata_core::fact::{ProfileId, Revision, Seq};
+use yata_core::import::ir::IrError;
 use yata_core::scheme::code::{DiscardScheme, SchemeCode, StrengtheningPlan};
 use yata_core::scheme::selection::{
     LevelBand, SetBit, SetChoice, SoulSelection, SubAttributeMode, SubCount,
@@ -14,6 +15,7 @@ use yata_core::scheme::selection::{
 use yata_core::soul::{Soul, SoulKind};
 use yata_protocol::core as pb;
 
+use crate::import::{Format, ImportError as FileError};
 use crate::qr::QrMatrix;
 use crate::query::convert::{wire_attribute, wire_slot};
 use crate::store::fact::FactError;
@@ -137,20 +139,90 @@ pub fn commit_failure(e: &CommitError) -> pb::error::Kind {
     }
 }
 
-/// Why a snapshot could not be imported. The codes still carry the reader's word, "reading";
-/// they name the same failures of an imported snapshot.
+/// Why the fact log refused a snapshot: by the stage that refused it, as a file is (ADR-0031,
+/// rule 6).
 pub fn import_failure(e: &ImportError) -> pb::error::Kind {
     use pb::error::Kind;
     match e {
-        ImportError::NoSections
-        | ImportError::OriginalMismatch { .. }
-        | ImportError::Refused(_) => Kind::ImportMalformedReading(pb::ImportMalformedReading {
+        // An import of nothing: the snapshot holds no section of the IR.
+        ImportError::NoSections => Kind::ImportNormalizationFailed(pb::ImportNormalizationFailed {
             problem: problem(e),
         }),
-        ImportError::Blob(f) => Kind::ImportReadingTooLarge(pb::ImportReadingTooLarge {
+        ImportError::OriginalMismatch { .. } => {
+            Kind::ImportMalformedSource(pb::ImportMalformedSource {
+                problem: problem(e),
+            })
+        }
+        ImportError::Refused(f) => ir_failure(f),
+        ImportError::Blob(f) => Kind::ImportMalformedSource(pb::ImportMalformedSource {
             problem: problem(f),
         }),
         ImportError::Commit(f) => commit_failure(f),
+    }
+}
+
+/// Why a snapshot breaks the IR's own rules (`snapshot-ir.md`): a reference that names nothing,
+/// or anything else the normalized snapshot may not hold. Shared by every path that checks an IR.
+pub fn ir_failure(e: &IrError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        IrError::InconsistentReference { .. } | IrError::PresetsWithoutSouls => {
+            Kind::ImportInconsistentReference(pb::ImportInconsistentReference {
+                problem: problem(e),
+            })
+        }
+        IrError::TooMany { .. }
+        | IrError::TooManySubs { .. }
+        | IrError::DuplicateId { .. }
+        | IrError::DuplicateCurrency(_) => {
+            Kind::ImportNormalizationFailed(pb::ImportNormalizationFailed {
+                problem: problem(e),
+            })
+        }
+    }
+}
+
+/// A format's name, as `spec/import-format.md` and `spec/snapshot-ir.md` spell it.
+fn format_name(f: &Format) -> &'static str {
+    match f {
+        Format::YataSnapshot => "yata-snapshot",
+        Format::Community(tag) => tag.name(),
+    }
+}
+
+/// Why an imported file was refused whole, by the stage that refused it (ADR-0031, rule 6).
+pub fn import_file_failure(e: &FileError) -> pb::error::Kind {
+    use pb::error::Kind;
+    match e {
+        FileError::UnknownFormat { stated } => Kind::ImportUnknownFormat(pb::ImportUnknownFormat {
+            stated: stated.clone(),
+        }),
+        FileError::AmbiguousFormat { formats } => {
+            Kind::ImportAmbiguousFormat(pb::ImportAmbiguousFormat {
+                formats: formats.iter().map(|f| format_name(f).to_owned()).collect(),
+            })
+        }
+        FileError::UnsupportedVersion { found } => {
+            Kind::ImportUnsupportedVersion(pb::ImportUnsupportedVersion {
+                format: format_name(&Format::YataSnapshot).to_owned(),
+                version: format!("{}.{}", found.major, found.minor),
+            })
+        }
+        // Over the file limit, not JSON, a file-level field missing, or a yata-snapshot whose
+        // body is not a snapshot: nothing of the file is a snapshot yet.
+        FileError::TooLarge { .. }
+        | FileError::MalformedSource { .. }
+        | FileError::Decode(_)
+        | FileError::Shape { .. } => Kind::ImportMalformedSource(pb::ImportMalformedSource {
+            problem: problem(e),
+        }),
+        FileError::UnsupportedSourceValue { field, value } => {
+            Kind::ImportUnsupportedSourceValue(pb::ImportUnsupportedSourceValue {
+                field: (*field).to_owned(),
+                value: value.clone(),
+            })
+        }
+        FileError::Ir(f) => ir_failure(f),
     }
 }
 
@@ -356,6 +428,7 @@ mod tests {
     };
 
     use super::*;
+    use pb::error::Kind;
 
     fn a_soul(kind: SoulKind) -> Soul {
         Soul {
@@ -409,6 +482,91 @@ mod tests {
         assert_eq!(client.code(), "client.daemon_not_found");
         let store = pb::error::Kind::StoreNotADatabase(pb::StoreNotADatabase::default());
         assert_eq!(store.code(), "store.not_a_database");
+    }
+
+    #[test]
+    fn each_import_refusal_has_the_code_of_its_stage() {
+        use yata_core::import::ir::{FormatTag, SchemaVersion, SectionKind, SourceId};
+
+        let id = || SourceId::new("s-1").expect("an id");
+        let cases = [
+            (
+                FileError::UnknownFormat { stated: None },
+                "import.unknown_format",
+            ),
+            (
+                FileError::UnsupportedVersion {
+                    found: SchemaVersion { major: 2, minor: 0 },
+                },
+                "import.unsupported_version",
+            ),
+            (
+                FileError::AmbiguousFormat {
+                    formats: vec![
+                        Format::YataSnapshot,
+                        Format::Community(FormatTag::MumuSnapshotV1),
+                    ],
+                },
+                "import.ambiguous_format",
+            ),
+            (FileError::TooLarge { bytes: 1 }, "import.malformed_source"),
+            (
+                FileError::MalformedSource {
+                    reason: "not JSON".to_owned(),
+                },
+                "import.malformed_source",
+            ),
+            (
+                FileError::Shape {
+                    field: "data",
+                    problem: crate::import::Problem::Missing,
+                },
+                "import.malformed_source",
+            ),
+            (
+                FileError::UnsupportedSourceValue {
+                    field: "scope",
+                    value: "x".to_owned(),
+                },
+                "import.unsupported_source_value",
+            ),
+            (
+                FileError::Ir(IrError::InconsistentReference {
+                    preset: 0,
+                    position: 0,
+                    soul: id(),
+                }),
+                "import.inconsistent_reference",
+            ),
+            (
+                FileError::Ir(IrError::PresetsWithoutSouls),
+                "import.inconsistent_reference",
+            ),
+            (
+                FileError::Ir(IrError::DuplicateId {
+                    section: SectionKind::Souls,
+                    id: id(),
+                }),
+                "import.normalization_failed",
+            ),
+            (
+                FileError::Ir(IrError::TooMany {
+                    section: SectionKind::Souls,
+                    count: 2,
+                    limit: 1,
+                }),
+                "import.normalization_failed",
+            ),
+        ];
+        for (e, code) in cases {
+            assert_eq!(import_file_failure(&e).code(), code, "{e:?}");
+        }
+        let Kind::ImportUnknownFormat(record) = import_file_failure(&FileError::UnknownFormat {
+            stated: Some("other".to_owned()),
+        }) else {
+            panic!("an unknown format");
+        };
+        assert_eq!(record.stated.as_deref(), Some("other"));
     }
 
     #[test]
