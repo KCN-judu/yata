@@ -332,13 +332,11 @@ nothing.
 | the scoring functions a query returns             | `scoring.md`                                     |
 | which commands exist and what each means          | the feature scope, per feature                   |
 | the daemon's subcommands and exit codes           | ADR-0004 rule 9, and the toolchain pages         |
-| the probe channel                                 | [probe-protocol.md](probe-protocol.md)           |
 
 ## Related
 
 - Why the boundary is a process:
   [ADR-0004](../decisions/0004-core-process-boundary.md)
-- The probe's wire: [probe-protocol.md](probe-protocol.md)
 - Assigned protocol versions: [protocol-versions.md](protocol-versions.md)
 - Where the crate lives:
   [../architecture/overview.md](../architecture/overview.md)

@@ -25,7 +25,7 @@ field of a fact.
 | ------------------ | ------------------ | ------------------------------------------------------------------ | ----------------------- |
 | `meta`             | fixed keys         | store format version, store id                                     | yes                     |
 | `log`              | `seq: u64`         | one encoded commit                                                 | yes                     |
-| `blobs`            | `digest: [u8; 32]` | raw snapshot bytes, compressed                                     | yes, prunable by policy |
+| `blobs`            | `digest: [u8; 32]` | snapshot and file bytes, compressed                                | yes, prunable by policy |
 | `projection_cache` | `seq: u64`         | the fold code version and a serialized projection as of that `seq` | no                      |
 
 The tables, and every statement that touches them, exist only in `yata-store`,
@@ -88,7 +88,7 @@ Commit {
   ```
 
   Locking a soul that is already locked is `Unchanged`. An import is a job, not
-  a command: it carries no base and always appends its acquisition.
+  a command: it carries no base and always appends its `SnapshotImported`.
 
 - **`recorded_at` never orders anything.** Order is `seq`. A clock that jumps
   backwards changes a displayed time, never a result.
@@ -99,8 +99,8 @@ Commit {
   the commit to the projection first; a commit the fold refuses is never
   written, so the rules that refuse a command are the rules that would refuse
   the log. A commit is a no-op when the projection's state after it equals the
-  state before it. An acquisition always adds to the state, so importing the
-  same bytes twice writes two commits.
+  state before it. An import always adds to the state, so importing the same
+  snapshot twice writes two commits.
 - **A commit's bytes carry its `seq`**, which must equal the row it is stored
   under. An encoded commit is at most 1 MiB, written or read.
 
@@ -108,24 +108,25 @@ Commit {
 
 ```text
 Fact {
-  profile : ProfileId     // every fact is scoped to one GameProfile
-  kind    : FactKind      // the tag
-  version : u16           // the format version of this kind's payload
-  payload : bytes         // the kind's body at that version
+  subject : Profile(ProfileId)   // a oneof; the store subject is kept for compaction
+  body    : one case per kind and version, e.g. SnapshotImportedV1(SnapshotImported)
 }
 ```
 
-**Every fact carries a `ProfileId`** (`feature-scope.md`). There are no global
-facts: a setting that looks global is per profile, and two profiles never share
-a fact.
+**The kind and version are the body's case** (ADR-0032, PRP-0006 option A). A
+payload cannot be filed under another kind, because the case is its type.
 
-**`version` is per kind, not per store.** Changing the payload of `SoulMarked`
-bumps `SoulMarked`'s version and nothing else.
+**Every fact today is about one profile** (`feature-scope.md`). There are no
+global facts: a setting that looks global is per profile, and two profiles never
+share a fact. The subject is a `oneof` so that `BlobsPruned`, which names blobs
+shared across profiles, can be about the store instead; that case is added with
+compaction.
 
 ## Fact kinds
 
-The catalogue below is the set that exists today. A new kind is additive; a
-changed payload is a new version of the same kind (see "Reading old facts").
+The catalogue below is the set that exists today. A changed payload is a new
+version of the same kind, and a new kind or version moves the store format (see
+"Reading old facts").
 
 ### Profile
 
@@ -144,42 +145,56 @@ The account segment in `SchemeAccountLearned` is account-derived data. It is
 stored because encoding needs it, and like every fact it never leaves the
 machine except in a backup the user makes; the daemon never logs it.
 
-### Acquisition
+### Imports
 
-| Kind                | Payload                                                                                                                                  | Meaning                                             |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| `SnapshotAcquired`  | blob digest, scope, coverage, channel, source (`Live` or `ExportFile`), probe build id, probe protocol version, observed game account id | one read from the game landed                       |
-| `SnapshotRetracted` | blob digest, reason                                                                                                                      | a landed snapshot is withdrawn; the fold ignores it |
+| Kind                | Payload                                                   | Meaning                                            |
+| ------------------- | --------------------------------------------------------- | -------------------------------------------------- |
+| `SnapshotImported`  | snapshot digest, original digest, source format, sections | one imported file landed (ADR-0032, rule 4)        |
+| `SnapshotRetracted` | snapshot digest, reason                                   | every current import of that snapshot is withdrawn |
 
-`scope` names what was read: `Souls`, `GameAssets`, and further scopes as the
-probe gains them. `coverage` is `Complete` or `Partial`, and it carries the rule
-the legacy design left to importer discipline:
+```text
+SnapshotImported {
+  snapshot : Digest          -- the blob of the IR's canonical binary encoding (spec/snapshot-ir.md)
+  original : Digest          -- the blob of the file as imported
+  source   : SourceFormat    -- YataSnapshot(version) | Community(FormatTag)
+  sections : Sections        -- SectionKind → Completeness; at least one entry, each kind once
+}
+```
 
-- A **complete** snapshot of a scope _supersedes_ every earlier snapshot of the
-  same `(profile, scope)`. A soul absent from it is absent from the account.
-- A **partial** snapshot supersedes nothing. A soul absent from it is _not
-  observed_, never _absent_. The fold overlays a partial on the live complete
-  snapshot for the souls it contains.
+**Sections are independent** (ADR-0031, rule 7; ADR-0032, rule 6). For each
+`(profile, section)`, the live imports are the ones not withdrawn that list the
+section, in log order:
 
-The **live snapshot** of a `(profile, scope)` is the latest complete,
-non-retracted one; the projection is built from it, the partials after it, and
-the non-acquisition facts.
+- The **base** is the last live import whose completeness for the section is
+  `Complete`. It _supersedes_ every earlier import of that section. A soul
+  absent from the base is absent from the account.
+- The **layers** are the live imports after the base, whose completeness for the
+  section is `Partial` or `Unstated`. They supersede nothing. A soul absent from
+  a layer is _not observed_, never _absent_; the inventory overlays each layer
+  on the base for the souls it contains.
+- With **no base**, every live import of the section is a layer, oldest first.
+- An import that **does not list a section** is not part of it. Importing a file
+  that holds only the guild changes nothing about the souls.
 
-**An import never crosses profiles.** If a snapshot's observed game account id
-differs from the one its target profile already knows, the import is refused
-with `import.profile_mismatch` and nothing is committed. The account a profile
-knows is the one named in `ProfileCreated`, else the observed account of its
-earliest acquisition that carries one and is not retracted. A reading that did
-not read the account is never a mismatch.
+What a profile holds of each section follows, and is the input of the capability
+table (`spec/snapshot-ir.md`, "Capabilities"):
 
-**No complete snapshot yet.** Until a `(profile, scope)` has a live complete
-snapshot, every non-retracted partial one is live, oldest first, and the
-inventory holds only the souls they observed.
+```text
+held(p)[k] = Complete                         if section k has a base
+           = max { completeness of layers }   if it has layers only
+           -- absent                          if it has neither
+```
 
 **What a retraction withdraws.** `SnapshotRetracted` withdraws every earlier
-acquisition of that blob in the same profile. A later acquisition of the same
-bytes is a new observation and stands. A retraction that withdraws nothing — the
-blob was never acquired in that profile, or already withdrawn — does not apply.
+import of that snapshot in the same profile, every section of it. A later import
+of the same snapshot is a new observation and stands. A retraction that
+withdraws nothing — the snapshot was never imported in that profile, or already
+withdrawn — does not apply.
+
+**No account check.** A format-1 acquisition carried the account it was read
+from, and an import of another account's reading was refused. The snapshot IR
+states no account, so a format-2 import is not checked against one (ADR-0032,
+rule 8).
 
 ### User decisions
 
@@ -195,7 +210,7 @@ These are the only durable things the user authors about the inventory
 | `ParamSetActivated` | param set id, version                   | the scoring parameter set this profile uses         |
 
 Soul identity is `(profile, game soul id)`. The store never invents a soul id; a
-decision about a soul the live snapshot no longer contains is kept, and applies
+decision about a soul the live imports no longer contain is kept, and applies
 again if the soul reappears.
 
 `SchemeSaved` stores the **decompressed official payload**, not a
@@ -214,11 +229,11 @@ Need profiles are not in this catalogue. Their authoring is undecided
 
 ## Blobs and content addressing
 
-A blob is the protobuf serialization of one probe `Reading`. The request id is
-on the `ReadResult` around it, which belongs to the session and not to the
-reading (`probe-protocol.md`, § Export file). A reading from the pipe and the
-same reading from an export file are serialized by `yata-protocol` alike, so
-they have the same digest.
+An import stores two blobs: the snapshot's canonical binary encoding
+(`spec/snapshot-ir.md`), which the fold reads, and the file as imported, which
+is kept for provenance and debugging and which nothing parses again (ADR-0031,
+rule 7). The canonical encoding is deterministic, so one snapshot has one digest
+however often it is imported.
 
 - **The digest is SHA-256 over the uncompressed bytes.** Identity does not
   depend on how the bytes are stored, so the compression codec can change
@@ -229,53 +244,34 @@ they have the same digest.
 - **A blob holds at most one frame's payload**, 16 MiB (`core-protocol.md`, §
   Frame), and decompression stops at that bound. Opening a blob checks its bytes
   against its digest; bytes that do not hash to their name are never used.
-- **Identical bytes are stored once.** Two reads that return the same bytes
-  produce two `SnapshotAcquired` facts pointing at one blob: the observation
+- **Identical bytes are stored once.** Two imports of the same snapshot produce
+  two `SnapshotImported` facts pointing at the same two blobs: the observation
   happened twice, the data exists once.
 
 A blob is never modified. It is written once and later either kept or pruned.
 
-## Ingestion
+## Importing
 
-A reading reaches the fact log as a soul observation: the typed fields the
-reader fills, each with the evidence behind its mapping (`probe-protocol.md`, §
-Evidence), and the records as the reader saw them. Importing it checks two
-levels, which fail differently:
-
-- **A reading without soul identity is refused**, and nothing is committed.
-  Unless the reading states `SoulRecord.soul_id` as established, no record has
-  an identity the inventory can key on, and the import is
-  `import.unestablished_identity`, naming whether the soul id is unmapped or
-  inherited. Two records of one soul are `import.duplicate_soul`. A record
-  without a soul id or with an empty one, an empty account id, a reading that
-  does not state its coverage, and a result that is not a soul reading are
-  `import.malformed_reading`.
-- **A record that cannot be a row is kept and reported.** A row needs its set,
-  slot, star, level, main attribute, and sub-attributes, each established by the
-  reading and present on the record, and its innate attribute established,
-  present or not, because it decides whether the soul is a boss soul (ADR-0029);
-  then the premises of W-Soul that need no code table (`soul-mechanics.md`:
-  star, level, at most four sub-attributes, no attribute twice, finite
-  non-negative values, recorded rolls within the nodes reached). The lock and
-  discard flags are carried as read, with their evidence. A record that fails is
-  not a row (`query.md`) and is listed, by its position in the reading, with the
-  import and the inventory. The blob keeps it as read; nothing is guessed or
-  repaired.
-
-Admission parses rather than checks: what passes is an admitted row whose fields
-are present and established by type, so no later step checks them again.
+An import lands a snapshot the daemon has already read and normalized
+(`spec/import-format.md`, `spec/snapshot-ir.md`):
 
 ```text
-admit : SoulReading -> Result<Admitted, AdmissionError>
-Admitted       { coverage, account : GameAccountId?, rows : [AdmittedSoul], defects : [RecordDefect] }
-AdmittedSoul   { id, suit, star, slot, level, main, subs, innate : InnateReading, locked : Field<bool>, discarded : Field<bool> }
-RecordDefect   { index : usize, soul : GameSoulId, kind : SoulDefectKind }
-NotEstablished = Unmapped | Inherited
+import : (ProfileId, YataSnapshot, original bytes) -> Result<Imported, ImportError>
+ImportError = NoSections                                -- a snapshot of nothing
+            | OriginalMismatch { stated, found }        -- provenance names another file
+            | Refused(IrError)                          -- the IR's own rules
+            | Blob(BlobError) | Commit(CommitError)
 ```
 
-Until the reader establishes these fields, every real reading is refused at the
-first level. That is the intended state: the store holds no soul whose identity
-rests on an inherited hypothesis (ADR-0014).
+- **The IR's own rules refuse the snapshot whole**: limits, a duplicate id, a
+  preset naming a soul the snapshot does not hold (`spec/snapshot-ir.md`).
+  Nothing is committed.
+- **A record admission refuses is kept and reported** (ADR-0031, rule 6). The
+  stored snapshot holds it as imported; the import's result and the inventory
+  list it with its reason, and it is not a row. Nothing is guessed or repaired.
+
+The inventory is derived, not stored: the live snapshots of the souls section
+are decoded and admitted, and their souls overlaid as § Imports states.
 
 ## Reading old facts
 
@@ -294,12 +290,18 @@ lift : (kind, version, payload) -> current payload of that kind
   with the commit's `seq`. It is never skipped: a fold that silently drops a
   fact produces a projection that looks valid and is not.
 - **A store written by a newer build is refused.** `meta` carries the store
-  format version; an unknown `FactKind`, a kind version above the build's
-  current, or a store format above the build's is `store.newer_format`, and the
-  daemon opens nothing. Downgrading the application is not supported.
+  format version, and a store format above the build's is `store.newer_format`;
+  the daemon opens nothing. Downgrading the application is not supported.
+- **A new kind, kind version, or enum value moves the store format** (ADR-0032,
+  rule 2). A build therefore never meets a case or value it does not know in a
+  store it opened: an unset body or an unknown value is
+  `store.malformed_commit`, never a newer format.
+- **Format 1 is retired, not lifted** (ADR-0032, rule 3). Its facts held the
+  retired reader's readings, which the IR cannot represent. A format-1 store is
+  refused with its own error, and a developer recreates it. This is the one
+  exception to lifting, and no released build wrote such a store.
 
-The store format version moves only when the envelope or the table layout
-changes. Adding a kind or a kind version does not move it.
+The store format version is 2.
 
 ## The projection cache
 
@@ -321,20 +323,19 @@ and never touches facts.
 
 **What may be pruned.** A blob may be pruned only if the fold does not read it:
 
-| Blob                                                                 | Prunable |
-| -------------------------------------------------------------------- | -------- |
-| the live snapshot of any `(profile, scope)`                          | never    |
-| a partial snapshot after the live one                                | never    |
-| a superseded snapshot among the newest `K` of its `(profile, scope)` | no       |
-| any older superseded snapshot                                        | yes      |
-| a retracted snapshot                                                 | yes      |
+| Blob                                                                   | Prunable |
+| ---------------------------------------------------------------------- | -------- |
+| the base or a layer of any `(profile, section)`                        | never    |
+| a superseded snapshot among the newest `K` of its `(profile, section)` | no       |
+| any older superseded snapshot                                          | yes      |
+| a retracted snapshot, and the file blob of any snapshot                | yes      |
 
 `K` defaults to 3. It exists so that "what changed since the last import" can be
 computed from two retained snapshots rather than stored as a derived fact.
 
 **How it runs.** Compaction is a job (`core-protocol.md`, the Job category). It
 removes the selected blob bytes and appends one `BlobsPruned` commit naming
-them, in one transaction. The `SnapshotAcquired` facts stay; the fold treats a
+them, in one transaction. The `SnapshotImported` facts stay; the fold treats a
 fact whose blob is pruned as superseded history with no readable content.
 
 **What compaction never does:** rewrite, merge, or delete a fact; prune a blob
@@ -345,25 +346,23 @@ removed.
 
 At HEAD, with the tests named in `evidence/testing.md`:
 
-- the fact kinds `ProfileCreated`, `ProfileRenamed`, `ProfileRetired`,
-  `ProfileRestored`, `SnapshotAcquired`, `SnapshotRetracted`, and `SoulMarked`
-  at version 1, and `SoulNoted` at version 2, in
-  `crates/yata-daemon/proto/fact.proto`
-- the codec and the lift chain, whose one step lifts `SoulNoted` version 1
-  (where the empty text meant "cleared") to version 2; `store.newer_format` and
-  `store.malformed_commit`
-- commands with the outcomes above; imports as jobs
-- the fold, as `yata-core::fact`; the soul inventory derived from the live
-  snapshots over `yata-core::import`'s observations, carrying the game's raw
-  codes, because decode to `SoulSet`, `SoulSlot`, and `SoulAttribute` waits on
-  the game's code tables
-- blobs, ingestion, and replay on open, in the daemon's store module;
-  `yata-daemon log` dumps the log, showing account ids only as present
+- store format 2: the fact kinds `ProfileCreated`, `ProfileRenamed`,
+  `ProfileRetired`, `ProfileRestored`, `SnapshotImported`, `SnapshotRetracted`,
+  `SoulMarked`, and `SoulNoted`, each at version 1, as `oneof` cases in
+  `crates/yata-daemon/proto/fact.proto`; a format-1 store refused
+- the codec; `store.newer_format` at open and `store.malformed_commit`
+- commands with the outcomes above; imports as jobs, storing the snapshot and
+  the original file
+- the fold per profile and section, and `held`, as `yata-core::fact`; the soul
+  inventory derived from the live snapshots through `yata-core::import::admit`
+- replay on open, in the daemon's store module; `yata-daemon log` dumps the log,
+  showing account ids only as present
 
 Not yet: `SchemeAccountLearned`, `SchemeSaved`, `SchemeRemoved`,
-`ParamSetActivated`, `BlobsPruned`, compaction, and the projection cache. The
-store starts with an empty cache table and replays the whole log on open; the
-cache is never read.
+`ParamSetActivated`, `BlobsPruned` and its store subject, compaction, and the
+projection cache. The store starts with an empty cache table and replays the
+whole log on open; the cache is never read. The import job and the protocol
+session do not call the fact log yet.
 
 ## Not decided here
 
@@ -381,7 +380,10 @@ cache is never read.
 - The premise:
   [ADR-0001](../decisions/0001-pure-core-effects-at-the-boundary.md)
 - Revisions and jobs on the wire: [core-protocol.md](core-protocol.md)
-- Where blobs come from: [probe-protocol.md](probe-protocol.md)
+- Where blobs come from: [snapshot-ir.md](snapshot-ir.md),
+  [import-format.md](import-format.md)
+- Typed facts and section imports:
+  [ADR-0032](../decisions/0032-typed-facts-and-section-imports.md)
 - Scheme payloads kept as bytes: [scheme-code.md](scheme-code.md),
   `research/scheme-code-protocol.md` (local research, not published)
 - `GameProfile`, `Snapshot`, `AcquisitionEvent`: [glossary.md](glossary.md)

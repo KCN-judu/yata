@@ -53,30 +53,11 @@ existing tag number may never change.
 recycled, so a recording or a message from an older peer can never be decoded
 into the wrong field. The schema file marks retired numbers in a comment.
 
-## Probe protocol — daemon ↔ `yata-reader`
+## Probe protocol — retired
 
-The reader is gone (ADR-0030). The schema remains only for recordings and export
-files, until PRP-0008 decides what data reception keeps of it.
-
-Schema: `docs/spec/probe-protocol.md`. Schema file:
-`crates/yata-protocol/proto/probe.proto`, drafted 2026-09-24 and revised
-2026-09-25: every typed soul field optional with its stated evidence, observed
-records beside them, the target process, and the export's capture time; then,
-the same day, each shape given one encoding — the handshake's target and a
-failure's subject as `oneof`s, error codes as an enum, a result as a request id
-around a `Reading` that exports carry alone, one `Mapping` per field, the innate
-attribute as `none` or `present`, and full lengths only on cut values. Version 1
-stays reserved until a recording of the game establishes the soul record's
-fields; it turns current when both sides build against that file.
-
-| Version | Status   | Date       | What it introduced                                                                          | Refused below |
-| ------- | -------- | ---------- | ------------------------------------------------------------------------------------------- | ------------- |
-| 1       | reserved | 2026-09-23 | the initial schema: handshake, read requests, cancel, shutdown, results, progress, failures | —             |
-
-**Compatibility rule.** Same rule as the core channel, **plus** the probe build
-id, which is a separate field and moves independently. Both are recorded with
-every capture, so a fixture that fails to replay answers _did the wire change,
-or did the probe?_ from the pair rather than by bisecting commits.
+The probe protocol, the wire to the retired reader, never had a current version:
+version 1 was reserved on 2026-09-23 and is retired with the protocol (ADR-0030,
+ADR-0031, rule 10). No build reads or writes it.
 
 ## Snapshot schema — `yata-snapshot`
 
@@ -125,12 +106,12 @@ new-code column, so a client that receives it can still say what it was.
 
 ## What is not here
 
-| Question                                | Where it belongs                                                             |
-| --------------------------------------- | ---------------------------------------------------------------------------- |
-| what each message means                 | [core-protocol.md](core-protocol.md), [probe-protocol.md](probe-protocol.md) |
-| the app's own version, and the daemon's | the release process, not the wire                                            |
-| a parameter set's version               | `scoring.md` — parameters version separately from the wire                   |
-| the fact log's record versions          | `fact-format.md` — persistence versions separately from the wire             |
+| Question                                | Where it belongs                                                 |
+| --------------------------------------- | ---------------------------------------------------------------- |
+| what each message means                 | [core-protocol.md](core-protocol.md)                             |
+| the app's own version, and the daemon's | the release process, not the wire                                |
+| a parameter set's version               | `scoring.md` — parameters version separately from the wire       |
+| the fact log's record versions          | `fact-format.md` — persistence versions separately from the wire |
 
 Three versioning stories exist in this project, and they are deliberately
 independent: the wire, the parameter sets, and the fact records. Each moves on
@@ -140,7 +121,6 @@ protocol bump.
 ## Related
 
 - The core wire: [core-protocol.md](core-protocol.md)
-- The probe wire: [probe-protocol.md](probe-protocol.md)
 - Why there is a wire at all:
   [ADR-0004](../decisions/0004-core-process-boundary.md),
   [ADR-0006](../decisions/0006-reader-channel.md)
