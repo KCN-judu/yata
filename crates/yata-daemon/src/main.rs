@@ -19,6 +19,7 @@ use yata_daemon::scheme::{
 use yata_daemon::serve::projection::{Projection, fixture};
 use yata_daemon::serve::session::Session;
 use yata_daemon::store::{OpenError, Store, format_commit, read_commits};
+use yata_store::Check;
 
 const USAGE: &str = "usage: yata-daemon <command> ...
 
@@ -225,11 +226,11 @@ fn check(path: &Path) -> ExitCode {
         }
     };
     match store.integrity_check() {
-        Ok(problems) if problems.is_empty() => {
+        Ok(Check::Ok) => {
             println!("ok");
             ExitCode::SUCCESS
         }
-        Ok(problems) => {
+        Ok(Check::Problems(problems)) => {
             for p in problems {
                 println!("{p}");
             }
@@ -282,6 +283,7 @@ fn describe(e: &OpenError) -> String {
     match e {
         OpenError::Missing { path } => format!("store.missing: {}", path.display()),
         OpenError::NotADatabase => "store.not_a_database".to_owned(),
+        OpenError::Uninitialized => "store.uninitialized: the file is empty".to_owned(),
         OpenError::Foreign {
             application_id,
             objects,

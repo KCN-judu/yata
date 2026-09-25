@@ -11,42 +11,56 @@ use std::collections::BTreeMap;
 
 use super::model::{
     Acquisition, Commit, Coverage, Digest, Fact, FactBody, GameAccountId, GameSoulId, Mark,
-    ProfileId, Scope,
+    NoteText, ProfileId, Revision, Scope, Seq,
 };
 
 /// Everything the log says, as of `revision`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Projection {
-    revision: u64,
+    revision: Revision,
     profiles: BTreeMap<ProfileId, ProfileState>,
+}
+
+/// Whether a profile shows in the UI. A retired profile keeps its facts and can be restored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProfileStatus {
+    Active,
+    Retired,
 }
 
 /// One profile's state.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProfileState {
     display_name: String,
-    retired: bool,
+    status: ProfileStatus,
     /// The account named when the profile was created, if any.
     created_account: Option<GameAccountId>,
     acquisitions: Vec<AcquisitionRecord>,
     marks: BTreeMap<GameSoulId, Mark>,
-    notes: BTreeMap<GameSoulId, String>,
+    notes: BTreeMap<GameSoulId, NoteText>,
+}
+
+/// Whether a later fact withdrew an acquisition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AcquisitionStatus {
+    Current,
+    Retracted,
 }
 
 /// One `SnapshotAcquired`, where it landed, and whether a later fact withdrew it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcquisitionRecord {
-    pub seq: u64,
+    pub seq: Seq,
     pub acquisition: Acquisition,
-    pub retracted: bool,
+    pub status: AcquisitionStatus,
 }
 
 /// The snapshots the inventory of one `(profile, scope)` is built from: the live complete one,
 /// and the partial ones after it, oldest first.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct LiveSnapshots {
-    pub complete: Option<(u64, Digest)>,
-    pub partials: Vec<(u64, Digest)>,
+    pub complete: Option<(Seq, Digest)>,
+    pub partials: Vec<(Seq, Digest)>,
 }
 
 impl LiveSnapshots {
@@ -59,17 +73,15 @@ impl LiveSnapshots {
 /// Why a commit does not apply. Each variant names the commit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FoldError {
-    /// Commits apply densely from 1.
-    SeqNotNext { expected: u64, found: u64 },
-    /// A commit holds at least one fact.
-    EmptyCommit { seq: u64 },
+    /// Commits apply densely from 1. `expected` is `None` only past `u64::MAX`.
+    SeqNotNext { expected: Option<Seq>, found: Seq },
     /// A fact names a profile no earlier fact created.
-    UnknownProfile { seq: u64, profile: ProfileId },
+    UnknownProfile { seq: Seq, profile: ProfileId },
     /// A profile is created once.
-    ProfileExists { seq: u64, profile: ProfileId },
+    ProfileExists { seq: Seq, profile: ProfileId },
     /// `import.profile_mismatch`: a reading of another account than the one the profile knows.
     ProfileMismatch {
-        seq: u64,
+        seq: Seq,
         profile: ProfileId,
         known: GameAccountId,
         observed: GameAccountId,
@@ -77,7 +89,7 @@ pub enum FoldError {
     /// A retraction names no acquisition of that blob in the profile that is not already
     /// withdrawn.
     RetractsNothing {
-        seq: u64,
+        seq: Seq,
         profile: ProfileId,
         digest: Digest,
     },
@@ -91,8 +103,8 @@ pub fn fold(commits: &[Commit]) -> Result<Projection, FoldError> {
 }
 
 impl Projection {
-    /// The `seq` of the last commit applied; 0 for the empty log.
-    pub fn revision(&self) -> u64 {
+    /// The `seq` of the last commit applied.
+    pub fn revision(&self) -> Revision {
         self.revision
     }
 
@@ -114,57 +126,58 @@ impl Projection {
     /// Apply the next commit. Consumes the projection: a caller that must keep it on failure
     /// clones it first.
     pub fn apply(mut self, commit: &Commit) -> Result<Projection, FoldError> {
-        let expected = self.revision + 1;
-        if commit.seq != expected {
+        let expected = self.revision.next();
+        if expected != Some(commit.seq) {
             return Err(FoldError::SeqNotNext {
                 expected,
                 found: commit.seq,
             });
         }
-        if commit.facts.is_empty() {
-            return Err(FoldError::EmptyCommit { seq: commit.seq });
-        }
-        for fact in &commit.facts {
+        for fact in commit.facts.as_slice() {
             self.apply_fact(commit.seq, fact)?;
         }
-        self.revision = commit.seq;
+        self.revision = Revision::at(commit.seq);
         Ok(self)
     }
 
-    fn apply_fact(&mut self, seq: u64, fact: &Fact) -> Result<(), FoldError> {
+    fn apply_fact(&mut self, seq: Seq, fact: &Fact) -> Result<(), FoldError> {
         let profile = fact.profile;
-        if let FactBody::ProfileCreated {
-            display_name,
-            account,
-        } = &fact.body
-        {
-            if self.profiles.contains_key(&profile) {
-                return Err(FoldError::ProfileExists { seq, profile });
-            }
-            self.profiles.insert(
-                profile,
-                ProfileState {
-                    display_name: display_name.clone(),
-                    retired: false,
-                    created_account: account.clone(),
-                    acquisitions: Vec::new(),
-                    marks: BTreeMap::new(),
-                    notes: BTreeMap::new(),
-                },
-            );
-            return Ok(());
-        }
-        let state = self
-            .profiles
-            .get_mut(&profile)
-            .ok_or(FoldError::UnknownProfile { seq, profile })?;
+        let Some(state) = self.profiles.get_mut(&profile) else {
+            return match &fact.body {
+                FactBody::ProfileCreated {
+                    display_name,
+                    account,
+                } => {
+                    self.profiles.insert(
+                        profile,
+                        ProfileState {
+                            display_name: display_name.clone(),
+                            status: ProfileStatus::Active,
+                            created_account: account.clone(),
+                            acquisitions: Vec::new(),
+                            marks: BTreeMap::new(),
+                            notes: BTreeMap::new(),
+                        },
+                    );
+                    Ok(())
+                }
+                _ => Err(FoldError::UnknownProfile { seq, profile }),
+            };
+        };
         match &fact.body {
-            FactBody::ProfileCreated { .. } => {}
+            FactBody::ProfileCreated { .. } => Err(FoldError::ProfileExists { seq, profile }),
             FactBody::ProfileRenamed { display_name } => {
                 state.display_name.clone_from(display_name);
+                Ok(())
             }
-            FactBody::ProfileRetired => state.retired = true,
-            FactBody::ProfileRestored => state.retired = false,
+            FactBody::ProfileRetired => {
+                state.status = ProfileStatus::Retired;
+                Ok(())
+            }
+            FactBody::ProfileRestored => {
+                state.status = ProfileStatus::Active;
+                Ok(())
+            }
             FactBody::SnapshotAcquired(acquisition) => {
                 if let (Some(known), Some(observed)) =
                     (state.known_account(), &acquisition.observed_account)
@@ -180,17 +193,19 @@ impl Projection {
                 state.acquisitions.push(AcquisitionRecord {
                     seq,
                     acquisition: acquisition.clone(),
-                    retracted: false,
+                    status: AcquisitionStatus::Current,
                 });
+                Ok(())
             }
             FactBody::SnapshotRetracted { digest, .. } => {
-                let mut withdrawn = 0;
-                for r in &mut state.acquisitions {
-                    if r.acquisition.digest == *digest && !r.retracted {
-                        r.retracted = true;
-                        withdrawn += 1;
-                    }
-                }
+                let withdrawn = state
+                    .acquisitions
+                    .iter_mut()
+                    .filter(|r| {
+                        r.acquisition.digest == *digest && r.status == AcquisitionStatus::Current
+                    })
+                    .map(|r| r.status = AcquisitionStatus::Retracted)
+                    .count();
                 if withdrawn == 0 {
                     return Err(FoldError::RetractsNothing {
                         seq,
@@ -198,24 +213,23 @@ impl Projection {
                         digest: *digest,
                     });
                 }
+                Ok(())
             }
-            FactBody::SoulMarked { soul, mark } => match mark {
-                Some(m) => {
-                    state.marks.insert(soul.clone(), *m);
-                }
-                None => {
-                    state.marks.remove(soul);
-                }
-            },
-            FactBody::SoulNoted { soul, text } => {
-                if text.is_empty() {
-                    state.notes.remove(soul);
-                } else {
-                    state.notes.insert(soul.clone(), text.clone());
-                }
+            FactBody::SoulMarked { soul, mark } => {
+                match mark {
+                    Some(m) => state.marks.insert(soul.clone(), *m),
+                    None => state.marks.remove(soul),
+                };
+                Ok(())
+            }
+            FactBody::SoulNoted { soul, note } => {
+                match note {
+                    Some(n) => state.notes.insert(soul.clone(), n.clone()),
+                    None => state.notes.remove(soul),
+                };
+                Ok(())
             }
         }
-        Ok(())
     }
 }
 
@@ -224,8 +238,8 @@ impl ProfileState {
         &self.display_name
     }
 
-    pub fn is_retired(&self) -> bool {
-        self.retired
+    pub fn status(&self) -> ProfileStatus {
+        self.status
     }
 
     /// The account this profile's readings must belong to: the one named at creation, else the
@@ -235,7 +249,7 @@ impl ProfileState {
         self.created_account.as_ref().or_else(|| {
             self.acquisitions
                 .iter()
-                .filter(|r| !r.retracted)
+                .filter(|r| r.status == AcquisitionStatus::Current)
                 .find_map(|r| r.acquisition.observed_account.as_ref())
         })
     }
@@ -249,8 +263,8 @@ impl ProfileState {
         self.marks.get(soul).copied()
     }
 
-    pub fn note(&self, soul: &GameSoulId) -> Option<&str> {
-        self.notes.get(soul).map(String::as_str)
+    pub fn note(&self, soul: &GameSoulId) -> Option<&NoteText> {
+        self.notes.get(soul)
     }
 
     /// The live complete snapshot of `scope`, its latest complete acquisition not withdrawn, and
@@ -259,7 +273,7 @@ impl ProfileState {
         let current: Vec<&AcquisitionRecord> = self
             .acquisitions
             .iter()
-            .filter(|r| !r.retracted && r.acquisition.scope == scope)
+            .filter(|r| r.status == AcquisitionStatus::Current && r.acquisition.scope == scope)
             .collect();
         let base = current
             .iter()
@@ -278,17 +292,21 @@ impl ProfileState {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::fact::model::{Channel, Origin, ProbeVersion, Source};
+    use crate::fact::model::{Channel, Facts, Origin, ProbeVersion, Source};
 
     pub(crate) const P: ProfileId = ProfileId([1; 16]);
     pub(crate) const Q: ProfileId = ProfileId([2; 16]);
 
-    pub(crate) fn commit(seq: u64, facts: Vec<Fact>) -> Commit {
+    pub(crate) fn seq(n: u64) -> Seq {
+        Seq::new(n).expect("a seq")
+    }
+
+    pub(crate) fn commit(n: u64, facts: Vec<Fact>) -> Commit {
         Commit {
-            seq,
+            seq: seq(n),
             recorded_at_ms: 0,
-            origin: Origin::Command { request_id: seq },
-            facts,
+            origin: Origin::Command { request_id: n },
+            facts: Facts::new(facts).expect("at least one fact"),
         }
     }
 
@@ -311,7 +329,7 @@ pub(crate) mod tests {
         Fact {
             profile,
             body: FactBody::SnapshotAcquired(Acquisition {
-                digest: [digest; 32],
+                digest: Digest([digest; 32]),
                 scope: Scope::Souls,
                 coverage,
                 channel: Channel::MumuAdb,
@@ -327,7 +345,7 @@ pub(crate) mod tests {
         Fact {
             profile,
             body: FactBody::SnapshotRetracted {
-                digest: [digest; 32],
+                digest: Digest([digest; 32]),
                 reason: String::new(),
             },
         }
@@ -356,7 +374,7 @@ pub(crate) mod tests {
         ];
         let once = fold(&log).expect("folds");
         assert_eq!(fold(&log), Ok(once.clone()));
-        assert_eq!(once.revision(), 3);
+        assert_eq!(once.revision(), Revision::at(seq(3)));
     }
 
     #[test]
@@ -366,15 +384,15 @@ pub(crate) mod tests {
         assert_eq!(
             fold(&[b.clone(), a.clone()]),
             Err(FoldError::SeqNotNext {
-                expected: 1,
-                found: 2
+                expected: Some(seq(1)),
+                found: seq(2)
             })
         );
         assert_eq!(
             fold(&[a.clone(), a.clone()]),
             Err(FoldError::SeqNotNext {
-                expected: 2,
-                found: 1
+                expected: Some(seq(2)),
+                found: seq(1)
             })
         );
         assert!(fold(&[a, b]).is_ok());
@@ -399,25 +417,23 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn a_commit_without_facts_does_not_apply() {
-        assert_eq!(
-            fold(&[commit(1, vec![])]),
-            Err(FoldError::EmptyCommit { seq: 1 })
-        );
-    }
-
-    #[test]
     fn a_fact_needs_its_profile_to_exist_and_a_profile_is_created_once() {
         assert_eq!(
             fold(&[commit(1, vec![marked(P, "a", Some(Mark::Keep))])]),
-            Err(FoldError::UnknownProfile { seq: 1, profile: P })
+            Err(FoldError::UnknownProfile {
+                seq: seq(1),
+                profile: P
+            })
         );
         assert_eq!(
             fold(&[
                 commit(1, vec![created(P, None)]),
                 commit(2, vec![created(P, None)])
             ]),
-            Err(FoldError::ProfileExists { seq: 2, profile: P })
+            Err(FoldError::ProfileExists {
+                seq: seq(2),
+                profile: P
+            })
         );
     }
 
@@ -433,13 +449,15 @@ pub(crate) mod tests {
         assert_eq!(sp.mark(&id("a")), Some(Mark::Discard));
         assert_eq!(sq.mark(&id("a")), None);
         assert!(sp.acquisitions().is_empty());
-        assert_eq!(sq.live(Scope::Souls).complete, Some((3, [9; 32])));
+        assert_eq!(
+            sq.live(Scope::Souls).complete,
+            Some((seq(3), Digest([9; 32])))
+        );
     }
 
     #[test]
     fn a_reading_of_another_account_does_not_apply() {
-        let mismatch =
-            |log: &[Commit]| matches!(fold(log), Err(FoldError::ProfileMismatch { seq: 3, .. }));
+        let mismatch = |log: &[Commit]| matches!(fold(log), Err(FoldError::ProfileMismatch { seq: s, .. }) if s == seq(3));
         // known from creation
         assert!(mismatch(&[
             commit(1, vec![created(P, Some("x"))]),
@@ -491,8 +509,8 @@ pub(crate) mod tests {
         assert_eq!(
             p.profile(P).map(|s| s.live(Scope::Souls)),
             Some(LiveSnapshots {
-                complete: Some((5, [4; 32])),
-                partials: vec![(6, [5; 32])],
+                complete: Some((seq(5), Digest([4; 32]))),
+                partials: vec![(seq(6), Digest([5; 32]))],
             })
         );
         let mut withdrawn = log;
@@ -501,8 +519,8 @@ pub(crate) mod tests {
         assert_eq!(
             p.profile(P).map(|s| s.live(Scope::Souls)),
             Some(LiveSnapshots {
-                complete: Some((3, [2; 32])),
-                partials: vec![(4, [3; 32]), (6, [5; 32])],
+                complete: Some((seq(3), Digest([2; 32]))),
+                partials: vec![(seq(4), Digest([3; 32])), (seq(6), Digest([5; 32]))],
             })
         );
     }
@@ -519,7 +537,7 @@ pub(crate) mod tests {
             p.profile(P).map(|s| s.live(Scope::Souls)),
             Some(LiveSnapshots {
                 complete: None,
-                partials: vec![(2, [1; 32]), (3, [2; 32])],
+                partials: vec![(seq(2), Digest([1; 32])), (seq(3), Digest([2; 32]))],
             })
         );
     }
@@ -535,9 +553,19 @@ pub(crate) mod tests {
         ])
         .expect("folds");
         let s = p.profile(P).expect("P");
-        let withdrawn: Vec<bool> = s.acquisitions().iter().map(|r| r.retracted).collect();
-        assert_eq!(withdrawn, vec![true, true, false]);
-        assert_eq!(s.live(Scope::Souls).complete, Some((5, [1; 32])));
+        let withdrawn: Vec<AcquisitionStatus> = s.acquisitions().iter().map(|r| r.status).collect();
+        assert_eq!(
+            withdrawn,
+            vec![
+                AcquisitionStatus::Retracted,
+                AcquisitionStatus::Retracted,
+                AcquisitionStatus::Current
+            ]
+        );
+        assert_eq!(
+            s.live(Scope::Souls).complete,
+            Some((seq(5), Digest([1; 32])))
+        );
     }
 
     #[test]
@@ -550,14 +578,14 @@ pub(crate) mod tests {
         other_profile.push(commit(3, vec![retracted(Q, 1)]));
         assert!(matches!(
             fold(&other_profile),
-            Err(FoldError::RetractsNothing { seq: 3, .. })
+            Err(FoldError::RetractsNothing { seq: s, .. }) if s == seq(3)
         ));
         let mut twice = base;
         twice.push(commit(3, vec![retracted(P, 1)]));
         twice.push(commit(4, vec![retracted(P, 1)]));
         assert!(matches!(
             fold(&twice),
-            Err(FoldError::RetractsNothing { seq: 4, .. })
+            Err(FoldError::RetractsNothing { seq: s, .. }) if s == seq(4)
         ));
     }
 

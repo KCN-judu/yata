@@ -13,11 +13,16 @@ mod model;
 mod projection;
 
 pub use admission::{
-    AdmissionError, Admitted, ROW_FIELDS, SoulDefectKind, admit_reading, check_soul,
+    AdmissionError, Admitted, AdmittedSoul, NotEstablished, ROW_FIELDS, RecordDefect,
+    SoulDefectKind, admit_reading, check_soul,
 };
 pub use inventory::{Inventory, InventoryError, InventorySoul, SoulDefect};
 pub use model::{
-    Acquisition, Channel, Commit, Coverage, Digest, Fact, FactBody, GameAccountId, GameSoulId,
-    IdError, Mark, Origin, ProbeVersion, ProfileId, Scope, Source,
+    Acquisition, Channel, Commit, Coverage, Digest, Fact, FactBody, Facts, GameAccountId,
+    GameSoulId, IdError, Mark, NoteText, Origin, ProbeVersion, ProfileId, Revision, Scope, Seq,
+    Source,
 };
-pub use projection::{AcquisitionRecord, FoldError, LiveSnapshots, ProfileState, Projection, fold};
+pub use projection::{
+    AcquisitionRecord, AcquisitionStatus, FoldError, LiveSnapshots, ProfileState, ProfileStatus,
+    Projection, fold,
+};

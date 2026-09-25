@@ -7,8 +7,8 @@
 
 use prost::Message;
 use yata_core::fact::{
-    Acquisition, Channel, Commit, Coverage, Digest, Fact, FactBody, GameAccountId, GameSoulId,
-    Mark, Origin, ProbeVersion, ProfileId, Scope, Source,
+    Acquisition, Channel, Commit, Coverage, Digest, Fact, FactBody, Facts, GameAccountId,
+    GameSoulId, Mark, NoteText, Origin, ProbeVersion, ProfileId, Scope, Seq, Source,
 };
 
 /// The fact schema, generated from `proto/fact.proto` at build time.
@@ -25,9 +25,21 @@ mod pb {
 /// a reading's bytes are a blob, not part of a commit.
 pub const MAX_COMMIT_LEN: usize = 1 << 20;
 
-/// Every kind implemented so far is at version 1. A kind's version moves only when its meaning
+/// The version this build writes of each kind. A kind's version moves only when its meaning
 /// changes, and each move adds a step to [`lift`].
-const CURRENT_VERSION: u32 = 1;
+fn current_version(kind: pb::FactKind) -> u32 {
+    match kind {
+        pb::FactKind::SoulNoted => 2,
+        pb::FactKind::Unspecified
+        | pb::FactKind::ProfileCreated
+        | pb::FactKind::ProfileRenamed
+        | pb::FactKind::ProfileRetired
+        | pb::FactKind::ProfileRestored
+        | pb::FactKind::SnapshotAcquired
+        | pb::FactKind::SnapshotRetracted
+        | pb::FactKind::SoulMarked => 1,
+    }
+}
 
 /// A payload written by a newer build.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,24 +56,46 @@ pub enum Newer {
     },
 }
 
+/// What is wrong with a commit that is not newer than this build, only broken.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Malformation {
+    NotACommit,
+    NoOrigin,
+    /// A commit holds at least one fact.
+    NoFacts,
+    ProfileIdLength,
+    KindUnspecified,
+    VersionZero,
+    PayloadUndecodable,
+    DigestLength,
+    EmptySoulId,
+    EmptyAccountId,
+    /// An enum field holds its unspecified zero value.
+    Unspecified(&'static str),
+    /// A version-2 note says neither a text nor that it is cleared.
+    NoteUnset,
+    /// A version-2 note gives an empty text; clearing is its own case.
+    EmptyNoteText,
+}
+
 /// Why a commit could not be read back.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FactError {
     TooLarge {
-        seq: u64,
+        seq: Seq,
         len: usize,
     },
     Malformed {
-        seq: u64,
-        detail: &'static str,
+        seq: Seq,
+        what: Malformation,
     },
     /// The commit's own `seq` is not the row it was stored under.
     SeqMismatch {
-        key: u64,
+        key: Seq,
         found: u64,
     },
     NewerFormat {
-        seq: u64,
+        seq: Seq,
         what: Newer,
     },
 }
@@ -87,7 +121,7 @@ pub enum EncodeError {
 /// Encode a commit. Every fact is written at its kind's current version.
 pub fn encode_commit(commit: &Commit) -> Result<Vec<u8>, EncodeError> {
     let message = pb::Commit {
-        seq: commit.seq,
+        seq: commit.seq.get(),
         recorded_at_unix_ms: commit.recorded_at_ms,
         origin: Some(pb::Origin {
             kind: Some(match commit.origin {
@@ -96,7 +130,7 @@ pub fn encode_commit(commit: &Commit) -> Result<Vec<u8>, EncodeError> {
                 Origin::Maintenance => pb::origin::Kind::Maintenance(pb::Maintenance {}),
             }),
         }),
-        facts: commit.facts.iter().map(encode_fact).collect(),
+        facts: commit.facts.as_slice().iter().map(encode_fact).collect(),
     };
     let bytes = message.encode_to_vec();
     if bytes.len() > MAX_COMMIT_LEN {
@@ -140,7 +174,7 @@ fn encode_fact(fact: &Fact) -> pb::Fact {
         FactBody::SnapshotRetracted { digest, reason } => (
             pb::FactKind::SnapshotRetracted,
             pb::SnapshotRetracted {
-                digest: digest.to_vec(),
+                digest: digest.0.to_vec(),
                 reason: reason.clone(),
             }
             .encode_to_vec(),
@@ -159,11 +193,14 @@ fn encode_fact(fact: &Fact) -> pb::Fact {
             }
             .encode_to_vec(),
         ),
-        FactBody::SoulNoted { soul, text } => (
+        FactBody::SoulNoted { soul, note } => (
             pb::FactKind::SoulNoted,
-            pb::SoulNoted {
+            pb::SoulNotedV2 {
                 soul_id: soul.as_str().to_owned(),
-                text: text.clone(),
+                note: Some(match note {
+                    Some(text) => pb::soul_noted_v2::Note::Text(text.as_str().to_owned()),
+                    None => pb::soul_noted_v2::Note::Cleared(pb::NoteCleared {}),
+                }),
             }
             .encode_to_vec(),
         ),
@@ -171,14 +208,14 @@ fn encode_fact(fact: &Fact) -> pb::Fact {
     pb::Fact {
         profile: fact.profile.0.to_vec(),
         kind: kind.into(),
-        version: CURRENT_VERSION,
+        version: current_version(kind),
         payload,
     }
 }
 
 fn encode_acquisition(a: &Acquisition) -> pb::SnapshotAcquired {
     pb::SnapshotAcquired {
-        digest: a.digest.to_vec(),
+        digest: a.digest.0.to_vec(),
         scope: match a.scope {
             Scope::Souls => pb::Scope::Souls,
         }
@@ -206,16 +243,16 @@ fn encode_acquisition(a: &Acquisition) -> pb::SnapshotAcquired {
 }
 
 /// Decode the commit stored under `key`, lifting every fact to its current form.
-pub fn decode_commit(key: u64, bytes: &[u8]) -> Result<Commit, FactError> {
+pub fn decode_commit(key: Seq, bytes: &[u8]) -> Result<Commit, FactError> {
     if bytes.len() > MAX_COMMIT_LEN {
         return Err(FactError::TooLarge {
             seq: key,
             len: bytes.len(),
         });
     }
-    let malformed = |detail| FactError::Malformed { seq: key, detail };
-    let message = pb::Commit::decode(bytes).map_err(|_| malformed("not a commit"))?;
-    if message.seq != key {
+    let malformed = |what| FactError::Malformed { seq: key, what };
+    let message = pb::Commit::decode(bytes).map_err(|_| malformed(Malformation::NotACommit))?;
+    if message.seq != key.get() {
         return Err(FactError::SeqMismatch {
             key,
             found: message.seq,
@@ -225,37 +262,37 @@ pub fn decode_commit(key: u64, bytes: &[u8]) -> Result<Commit, FactError> {
         Some(pb::origin::Kind::CommandRequestId(request_id)) => Origin::Command { request_id },
         Some(pb::origin::Kind::JobId(job_id)) => Origin::Job { job_id },
         Some(pb::origin::Kind::Maintenance(_)) => Origin::Maintenance,
-        None => return Err(malformed("no origin")),
+        None => return Err(malformed(Malformation::NoOrigin)),
     };
     let facts = message
         .facts
         .iter()
         .map(|f| decode_fact(key, f))
-        .collect::<Result<_, _>>()?;
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(Commit {
         seq: key,
         recorded_at_ms: message.recorded_at_unix_ms,
         origin,
-        facts,
+        facts: Facts::new(facts).ok_or(malformed(Malformation::NoFacts))?,
     })
 }
 
-fn decode_fact(seq: u64, fact: &pb::Fact) -> Result<Fact, FactError> {
-    let malformed = |detail| FactError::Malformed { seq, detail };
+fn decode_fact(seq: Seq, fact: &pb::Fact) -> Result<Fact, FactError> {
+    let malformed = |what| FactError::Malformed { seq, what };
     let profile = <[u8; 16]>::try_from(fact.profile.as_slice())
         .map(ProfileId)
-        .map_err(|_| malformed("profile id is not 16 bytes"))?;
+        .map_err(|_| malformed(Malformation::ProfileIdLength))?;
     let kind = pb::FactKind::try_from(fact.kind).map_err(|_| FactError::NewerFormat {
         seq,
         what: Newer::Kind(fact.kind),
     })?;
     if kind == pb::FactKind::Unspecified {
-        return Err(malformed("fact kind unspecified"));
+        return Err(malformed(Malformation::KindUnspecified));
     }
     if fact.version == 0 {
-        return Err(malformed("fact version 0"));
+        return Err(malformed(Malformation::VersionZero));
     }
-    if fact.version > CURRENT_VERSION {
+    if fact.version > current_version(kind) {
         return Err(FactError::NewerFormat {
             seq,
             what: Newer::KindVersion {
@@ -268,93 +305,110 @@ fn decode_fact(seq: u64, fact: &pb::Fact) -> Result<Fact, FactError> {
     Ok(Fact { profile, body })
 }
 
-/// `lift : (kind, version, payload) → current payload of that kind` (`fact-format.md`). Every
-/// kind is at version 1, so the chain has no steps yet; a meaning change adds one here and
-/// never removes one, because a version-1 fact may be in any store forever.
-fn lift(seq: u64, kind: pb::FactKind, version: u32, payload: &[u8]) -> Result<FactBody, FactError> {
-    debug_assert_eq!(version, CURRENT_VERSION);
-    let malformed = |detail| FactError::Malformed { seq, detail };
-    let bad = |_| malformed("payload does not decode as its kind");
-    Ok(match kind {
-        pb::FactKind::Unspecified => return Err(malformed("fact kind unspecified")),
-        pb::FactKind::ProfileCreated => {
+/// `lift : (kind, version, payload) → current payload of that kind` (`fact-format.md`). A step
+/// is never deleted, because facts are never rewritten and an old fact may be in any store
+/// forever. The steps so far: `SoulNoted` v1 → v2, where v1's empty text meant "cleared".
+fn lift(seq: Seq, kind: pb::FactKind, version: u32, payload: &[u8]) -> Result<FactBody, FactError> {
+    let malformed = |what| FactError::Malformed { seq, what };
+    let bad = |_| malformed(Malformation::PayloadUndecodable);
+    Ok(match (kind, version) {
+        (pb::FactKind::ProfileCreated, _) => {
             let p = pb::ProfileCreated::decode(payload).map_err(bad)?;
             FactBody::ProfileCreated {
                 display_name: p.display_name,
                 account: account(seq, p.observed_account_id)?,
             }
         }
-        pb::FactKind::ProfileRenamed => {
+        (pb::FactKind::ProfileRenamed, _) => {
             let p = pb::ProfileRenamed::decode(payload).map_err(bad)?;
             FactBody::ProfileRenamed {
                 display_name: p.display_name,
             }
         }
-        pb::FactKind::ProfileRetired => {
+        (pb::FactKind::ProfileRetired, _) => {
             pb::ProfileRetired::decode(payload).map_err(bad)?;
             FactBody::ProfileRetired
         }
-        pb::FactKind::ProfileRestored => {
+        (pb::FactKind::ProfileRestored, _) => {
             pb::ProfileRestored::decode(payload).map_err(bad)?;
             FactBody::ProfileRestored
         }
-        pb::FactKind::SnapshotAcquired => {
+        (pb::FactKind::SnapshotAcquired, _) => {
             let p = pb::SnapshotAcquired::decode(payload).map_err(bad)?;
             FactBody::SnapshotAcquired(decode_acquisition(seq, p)?)
         }
-        pb::FactKind::SnapshotRetracted => {
+        (pb::FactKind::SnapshotRetracted, _) => {
             let p = pb::SnapshotRetracted::decode(payload).map_err(bad)?;
             FactBody::SnapshotRetracted {
                 digest: digest(seq, &p.digest)?,
                 reason: p.reason,
             }
         }
-        pb::FactKind::SoulMarked => {
+        (pb::FactKind::SoulMarked, _) => {
             let p = pb::SoulMarked::decode(payload).map_err(bad)?;
             let mark = match known::<pb::Mark>(seq, "mark", p.mark)? {
                 pb::Mark::None => None,
                 pb::Mark::Keep => Some(Mark::Keep),
                 pb::Mark::Discard => Some(Mark::Discard),
                 pb::Mark::Strengthen => Some(Mark::Strengthen),
-                pb::Mark::Unspecified => return Err(malformed("mark unspecified")),
+                pb::Mark::Unspecified => return Err(malformed(Malformation::Unspecified("mark"))),
             };
             FactBody::SoulMarked {
                 soul: soul(seq, p.soul_id)?,
                 mark,
             }
         }
-        pb::FactKind::SoulNoted => {
+        (pb::FactKind::SoulNoted, 1) => {
             let p = pb::SoulNoted::decode(payload).map_err(bad)?;
             FactBody::SoulNoted {
                 soul: soul(seq, p.soul_id)?,
-                text: p.text,
+                // The lift step: version 1 cleared a note with the empty text.
+                note: NoteText::new(p.text),
             }
         }
+        (pb::FactKind::SoulNoted, _) => {
+            let p = pb::SoulNotedV2::decode(payload).map_err(bad)?;
+            let note = match p.note {
+                Some(pb::soul_noted_v2::Note::Text(text)) => {
+                    Some(NoteText::new(text).ok_or(malformed(Malformation::EmptyNoteText))?)
+                }
+                Some(pb::soul_noted_v2::Note::Cleared(_)) => None,
+                None => return Err(malformed(Malformation::NoteUnset)),
+            };
+            FactBody::SoulNoted {
+                soul: soul(seq, p.soul_id)?,
+                note,
+            }
+        }
+        (pb::FactKind::Unspecified, _) => return Err(malformed(Malformation::KindUnspecified)),
     })
 }
 
-fn decode_acquisition(seq: u64, p: pb::SnapshotAcquired) -> Result<Acquisition, FactError> {
-    let unspecified = |field| FactError::Malformed { seq, detail: field };
+fn decode_acquisition(seq: Seq, p: pb::SnapshotAcquired) -> Result<Acquisition, FactError> {
+    let unspecified = |field| FactError::Malformed {
+        seq,
+        what: Malformation::Unspecified(field),
+    };
     Ok(Acquisition {
         digest: digest(seq, &p.digest)?,
         scope: match known::<pb::Scope>(seq, "scope", p.scope)? {
             pb::Scope::Souls => Scope::Souls,
-            pb::Scope::Unspecified => return Err(unspecified("scope unspecified")),
+            pb::Scope::Unspecified => return Err(unspecified("scope")),
         },
         coverage: match known::<pb::Coverage>(seq, "coverage", p.coverage)? {
             pb::Coverage::Complete => Coverage::Complete,
             pb::Coverage::Partial => Coverage::Partial,
-            pb::Coverage::Unspecified => return Err(unspecified("coverage unspecified")),
+            pb::Coverage::Unspecified => return Err(unspecified("coverage")),
         },
         channel: match known::<pb::Channel>(seq, "channel", p.channel)? {
             pb::Channel::DesktopMemory => Channel::DesktopMemory,
             pb::Channel::MumuAdb => Channel::MumuAdb,
-            pb::Channel::Unspecified => return Err(unspecified("channel unspecified")),
+            pb::Channel::Unspecified => return Err(unspecified("channel")),
         },
         source: match known::<pb::Source>(seq, "source", p.source)? {
             pb::Source::Live => Source::Live,
             pb::Source::ExportFile => Source::ExportFile,
-            pb::Source::Unspecified => return Err(unspecified("source unspecified")),
+            pb::Source::Unspecified => return Err(unspecified("source")),
         },
         probe_build_id: p.probe_build_id,
         probe_version: ProbeVersion {
@@ -365,33 +419,35 @@ fn decode_acquisition(seq: u64, p: pb::SnapshotAcquired) -> Result<Acquisition, 
     })
 }
 
-fn known<E: TryFrom<i32>>(seq: u64, field: &'static str, value: i32) -> Result<E, FactError> {
+fn known<E: TryFrom<i32>>(seq: Seq, field: &'static str, value: i32) -> Result<E, FactError> {
     E::try_from(value).map_err(|_| FactError::NewerFormat {
         seq,
         what: Newer::EnumValue { field, value },
     })
 }
 
-fn digest(seq: u64, bytes: &[u8]) -> Result<Digest, FactError> {
-    Digest::try_from(bytes).map_err(|_| FactError::Malformed {
-        seq,
-        detail: "digest is not 32 bytes",
-    })
+fn digest(seq: Seq, bytes: &[u8]) -> Result<Digest, FactError> {
+    <[u8; 32]>::try_from(bytes)
+        .map(Digest)
+        .map_err(|_| FactError::Malformed {
+            seq,
+            what: Malformation::DigestLength,
+        })
 }
 
-fn soul(seq: u64, id: String) -> Result<GameSoulId, FactError> {
+fn soul(seq: Seq, id: String) -> Result<GameSoulId, FactError> {
     GameSoulId::new(id).map_err(|_| FactError::Malformed {
         seq,
-        detail: "empty soul id",
+        what: Malformation::EmptySoulId,
     })
 }
 
-fn account(seq: u64, id: Option<String>) -> Result<Option<GameAccountId>, FactError> {
+fn account(seq: Seq, id: Option<String>) -> Result<Option<GameAccountId>, FactError> {
     id.map(GameAccountId::new)
         .transpose()
         .map_err(|_| FactError::Malformed {
             seq,
-            detail: "empty account id",
+            what: Malformation::EmptyAccountId,
         })
 }
 
@@ -400,6 +456,10 @@ mod tests {
     use super::*;
 
     const P: ProfileId = ProfileId([0xAB; 16]);
+
+    fn seq(n: u64) -> Seq {
+        Seq::new(n).expect("a seq")
+    }
 
     fn every_kind() -> Commit {
         let soul = GameSoulId::new("s-1").expect("non-empty");
@@ -414,7 +474,7 @@ mod tests {
             FactBody::ProfileRetired,
             FactBody::ProfileRestored,
             FactBody::SnapshotAcquired(Acquisition {
-                digest: [7; 32],
+                digest: Digest([7; 32]),
                 scope: Scope::Souls,
                 coverage: Coverage::Partial,
                 channel: Channel::DesktopMemory,
@@ -424,7 +484,7 @@ mod tests {
                 observed_account: None,
             }),
             FactBody::SnapshotRetracted {
-                digest: [7; 32],
+                digest: Digest([7; 32]),
                 reason: "wrong account".into(),
             },
             FactBody::SoulMarked {
@@ -436,18 +496,22 @@ mod tests {
                 mark: None,
             },
             FactBody::SoulNoted {
-                soul,
-                text: "双速".into(),
+                soul: soul.clone(),
+                note: NoteText::new("双速"),
             },
+            FactBody::SoulNoted { soul, note: None },
         ];
         Commit {
-            seq: 3,
+            seq: seq(3),
             recorded_at_ms: -5,
             origin: Origin::Job { job_id: 9 },
-            facts: facts
-                .into_iter()
-                .map(|body| Fact { profile: P, body })
-                .collect(),
+            facts: Facts::new(
+                facts
+                    .into_iter()
+                    .map(|body| Fact { profile: P, body })
+                    .collect(),
+            )
+            .expect("facts"),
         }
     }
 
@@ -461,11 +525,15 @@ mod tests {
         c.encode_to_vec()
     }
 
+    fn malformed(what: Malformation) -> Result<Commit, FactError> {
+        Err(FactError::Malformed { seq: seq(3), what })
+    }
+
     #[test]
     fn every_kind_round_trips() {
         let c = every_kind();
         let bytes = encode_commit(&c).expect("encodes");
-        assert_eq!(decode_commit(3, &bytes), Ok(c));
+        assert_eq!(decode_commit(seq(3), &bytes), Ok(c));
     }
 
     #[test]
@@ -480,27 +548,27 @@ mod tests {
                 ..every_kind()
             };
             let bytes = encode_commit(&c).expect("encodes");
-            assert_eq!(decode_commit(3, &bytes).map(|d| d.origin), Ok(origin));
+            assert_eq!(decode_commit(seq(3), &bytes).map(|d| d.origin), Ok(origin));
         }
     }
 
     #[test]
     fn encoding_is_deterministic_and_pinned() {
         let c = Commit {
-            seq: 1,
+            seq: seq(1),
             recorded_at_ms: 0,
             origin: Origin::Command { request_id: 1 },
-            facts: vec![Fact {
+            facts: Facts::one(Fact {
                 profile: ProfileId([0; 16]),
                 body: FactBody::SoulMarked {
                     soul: GameSoulId::new("a").expect("non-empty"),
                     mark: Some(Mark::Keep),
                 },
-            }],
+            }),
         };
         let bytes = encode_commit(&c).expect("encodes");
         assert_eq!(encode_commit(&c), Ok(bytes.clone()));
-        let decoded = decode_commit(1, &bytes).expect("decodes");
+        let decoded = decode_commit(seq(1), &bytes).expect("decodes");
         assert_eq!(encode_commit(&decoded), Ok(bytes.clone()));
         // These bytes are what every store holds for this commit; a change here breaks stores.
         let pinned: &[u8] = &[
@@ -516,22 +584,94 @@ mod tests {
     }
 
     #[test]
+    fn a_version_one_note_lifts_its_empty_text_to_cleared() {
+        let v1 = |text: &str| {
+            with_fact(|f| {
+                f.kind = pb::FactKind::SoulNoted.into();
+                f.version = 1;
+                f.payload = pb::SoulNoted {
+                    soul_id: "s".into(),
+                    text: text.into(),
+                }
+                .encode_to_vec();
+            })
+        };
+        let note = |bytes: Vec<u8>| match decode_commit(seq(3), &bytes)
+            .map(|c| c.facts.into_vec().remove(0).body)
+        {
+            Ok(FactBody::SoulNoted { note, .. }) => note,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(note(v1("")), None);
+        assert_eq!(note(v1("keep")), NoteText::new("keep"));
+    }
+
+    #[test]
+    fn a_note_is_written_at_version_two_with_its_case() {
+        let c = raw(&every_kind());
+        let (text, cleared) = (&c.facts[8], &c.facts[9]);
+        assert_eq!((text.version, cleared.version), (2, 2));
+        assert_eq!(
+            pb::SoulNotedV2::decode(cleared.payload.as_slice()).map(|p| p.note),
+            Ok(Some(pb::soul_noted_v2::Note::Cleared(pb::NoteCleared {})))
+        );
+    }
+
+    #[test]
+    fn a_version_two_note_must_say_which_case_it_is() {
+        let v2 = |note| {
+            with_fact(|f| {
+                f.kind = pb::FactKind::SoulNoted.into();
+                f.version = 2;
+                f.payload = pb::SoulNotedV2 {
+                    soul_id: "s".into(),
+                    note,
+                }
+                .encode_to_vec();
+            })
+        };
+        assert_eq!(
+            decode_commit(seq(3), &v2(None)),
+            malformed(Malformation::NoteUnset)
+        );
+        assert_eq!(
+            decode_commit(
+                seq(3),
+                &v2(Some(pb::soul_noted_v2::Note::Text(String::new())))
+            ),
+            malformed(Malformation::EmptyNoteText)
+        );
+    }
+
+    #[test]
     fn bytes_that_are_not_a_commit_are_malformed() {
-        assert!(matches!(
-            decode_commit(1, &[0xFF, 0xFF, 0xFF]),
-            Err(FactError::Malformed { seq: 1, .. })
-        ));
+        assert_eq!(
+            decode_commit(seq(1), &[0xFF, 0xFF, 0xFF]),
+            Err(FactError::Malformed {
+                seq: seq(1),
+                what: Malformation::NotACommit
+            })
+        );
         let no_origin = pb::Commit {
             seq: 1,
             ..pb::Commit::default()
         }
         .encode_to_vec();
         assert_eq!(
-            decode_commit(1, &no_origin),
+            decode_commit(seq(1), &no_origin),
             Err(FactError::Malformed {
-                seq: 1,
-                detail: "no origin"
+                seq: seq(1),
+                what: Malformation::NoOrigin
             })
+        );
+        let no_facts = pb::Commit {
+            facts: vec![],
+            ..raw(&every_kind())
+        }
+        .encode_to_vec();
+        assert_eq!(
+            decode_commit(seq(3), &no_facts),
+            malformed(Malformation::NoFacts)
         );
     }
 
@@ -539,8 +679,11 @@ mod tests {
     fn a_commit_must_sit_under_its_own_seq() {
         let bytes = encode_commit(&every_kind()).expect("encodes");
         assert_eq!(
-            decode_commit(4, &bytes),
-            Err(FactError::SeqMismatch { key: 4, found: 3 })
+            decode_commit(seq(4), &bytes),
+            Err(FactError::SeqMismatch {
+                key: seq(4),
+                found: 3
+            })
         );
     }
 
@@ -548,16 +691,21 @@ mod tests {
     fn decoding_is_bounded() {
         let big = vec![0u8; MAX_COMMIT_LEN + 1];
         assert_eq!(
-            decode_commit(1, &big),
+            decode_commit(seq(1), &big),
             Err(FactError::TooLarge {
-                seq: 1,
+                seq: seq(1),
                 len: MAX_COMMIT_LEN + 1
             })
         );
-        let mut c = every_kind();
-        c.facts[0].body = FactBody::SoulNoted {
-            soul: GameSoulId::new("a").expect("non-empty"),
-            text: "x".repeat(MAX_COMMIT_LEN),
+        let c = Commit {
+            facts: Facts::one(Fact {
+                profile: P,
+                body: FactBody::SoulNoted {
+                    soul: GameSoulId::new("a").expect("non-empty"),
+                    note: NoteText::new("x".repeat(MAX_COMMIT_LEN)),
+                },
+            }),
+            ..every_kind()
         };
         assert!(matches!(
             encode_commit(&c),
@@ -569,14 +717,14 @@ mod tests {
     fn a_newer_kind_version_or_enum_value_is_newer_format() {
         let unknown_kind = with_fact(|f| f.kind = 99);
         assert_eq!(
-            decode_commit(3, &unknown_kind),
+            decode_commit(seq(3), &unknown_kind),
             Err(FactError::NewerFormat {
-                seq: 3,
+                seq: seq(3),
                 what: Newer::Kind(99)
             })
         );
         let v2 = with_fact(|f| f.version = 2);
-        let e = decode_commit(3, &v2).expect_err("newer");
+        let e = decode_commit(seq(3), &v2).expect_err("newer");
         assert_eq!(e.code(), "store.newer_format");
         assert!(matches!(
             e,
@@ -585,6 +733,17 @@ mod tests {
                 ..
             }
         ));
+        let note_v3 = with_fact(|f| {
+            f.kind = pb::FactKind::SoulNoted.into();
+            f.version = 3;
+        });
+        assert!(matches!(
+            decode_commit(seq(3), &note_v3),
+            Err(FactError::NewerFormat {
+                what: Newer::KindVersion { version: 3, .. },
+                ..
+            })
+        ));
         let mut c = raw(&every_kind());
         c.facts[6].payload = pb::SoulMarked {
             soul_id: "s".into(),
@@ -592,9 +751,9 @@ mod tests {
         }
         .encode_to_vec();
         assert_eq!(
-            decode_commit(3, &c.encode_to_vec()),
+            decode_commit(seq(3), &c.encode_to_vec()),
             Err(FactError::NewerFormat {
-                seq: 3,
+                seq: seq(3),
                 what: Newer::EnumValue {
                     field: "mark",
                     value: 42
@@ -605,19 +764,19 @@ mod tests {
 
     #[test]
     fn a_malformed_envelope_or_payload_is_refused() {
-        let cases: [(&str, Vec<u8>); 6] = [
-            ("fact version 0", with_fact(|f| f.version = 0)),
-            ("fact kind unspecified", with_fact(|f| f.kind = 0)),
+        let cases: [(Malformation, Vec<u8>); 6] = [
+            (Malformation::VersionZero, with_fact(|f| f.version = 0)),
+            (Malformation::KindUnspecified, with_fact(|f| f.kind = 0)),
             (
-                "profile id is not 16 bytes",
+                Malformation::ProfileIdLength,
                 with_fact(|f| f.profile = vec![1; 15]),
             ),
             (
-                "payload does not decode as its kind",
+                Malformation::PayloadUndecodable,
                 with_fact(|f| f.payload = vec![0x0A, 0x05, b'x']),
             ),
             (
-                "empty account id",
+                Malformation::EmptyAccountId,
                 with_fact(|f| {
                     f.payload = pb::ProfileCreated {
                         display_name: "x".into(),
@@ -627,7 +786,7 @@ mod tests {
                 }),
             ),
             (
-                "coverage unspecified",
+                Malformation::Unspecified("coverage"),
                 with_fact(|f| {
                     f.kind = pb::FactKind::SnapshotAcquired.into();
                     f.payload = pb::SnapshotAcquired {
@@ -641,10 +800,14 @@ mod tests {
                 }),
             ),
         ];
-        for (detail, bytes) in cases {
-            let e = decode_commit(3, &bytes).expect_err(detail);
-            assert_eq!(e, FactError::Malformed { seq: 3, detail }, "{detail}");
-            assert_eq!(e.code(), "store.malformed_commit");
+        for (what, bytes) in cases {
+            let e = decode_commit(seq(3), &bytes);
+            assert_eq!(e, malformed(what), "{what:?}");
+            assert_eq!(
+                e.map_err(|e| e.code()),
+                Err("store.malformed_commit"),
+                "{what:?}"
+            );
         }
     }
 }

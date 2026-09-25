@@ -1,166 +1,78 @@
-//! Instructions to SQL.
+//! Instructions to one batch, and the batch's results back to the instructions' outputs.
 
-use std::ops::Range;
-
-use crate::instruction::{Instruction, MetaKey};
+use crate::instruction::Instruction;
 use crate::interpret::StoreError;
-use crate::schema::CREATE_SCHEMA;
-use crate::statement::{Batch, Param, Statement};
+use crate::statement::{Batch, BatchMode, StatementResult};
 
-// PRAGMA takes no bound parameters, so the id is a literal; a test ties it to APPLICATION_ID.
-const SET_APPLICATION_ID: &str = "PRAGMA application_id = 1497453633";
-
-impl Plan {
-    /// The error a guarded statement's failure means, given its index in the batch.
-    pub fn guard_error(&self, statement: usize) -> StoreError {
-        let owner = self.spans.iter().position(|s| s.contains(&statement));
-        match owner.map(|i| &self.instructions[i]) {
-            Some(Instruction::AppendCommit { seq, .. }) => StoreError::SeqNotNext { seq: *seq },
-            _ => StoreError::Shape {
-                instruction: "guard",
-                detail: "a statement without a guard reported a guard failure",
-            },
-        }
-    }
-}
-
-/// The instructions, the one batch that carries them out, and which statements belong to which
-/// instruction, so [`Plan::interpret`] can read the results back.
+/// An instruction, or instructions that must land together, and the one transaction that
+/// carries them out.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Plan {
-    pub(crate) instructions: Vec<Instruction>,
-    pub(crate) spans: Vec<Range<usize>>,
+pub struct Plan<I> {
+    instruction: I,
     batch: Batch,
 }
 
-impl Plan {
+/// The plan for an instruction: one atomic batch, its statements in order.
+pub fn plan<I: Instruction>(instruction: I) -> Plan<I> {
+    let batch = Batch::new(instruction.statements(), BatchMode::Transaction);
+    Plan { instruction, batch }
+}
+
+impl<I: Instruction> Plan<I> {
     pub fn batch(&self) -> &Batch {
         &self.batch
     }
 
-    pub fn instructions(&self) -> &[Instruction] {
-        &self.instructions
+    pub fn instruction(&self) -> &I {
+        &self.instruction
     }
-}
 
-/// The plan for instructions that must land together: one atomic batch, in order.
-pub fn plan(instructions: Vec<Instruction>) -> Result<Plan, StoreError> {
-    let mut statements = Vec::new();
-    let mut spans = Vec::with_capacity(instructions.len());
-    for i in &instructions {
-        let start = statements.len();
-        statements.extend(statements_for(i)?);
-        spans.push(start..statements.len());
-    }
-    Ok(Plan {
-        instructions,
-        spans,
-        batch: Batch::new(statements, true),
-    })
-}
-
-fn seq_param(seq: u64) -> Result<Param, StoreError> {
-    i64::try_from(seq)
-        .map(Param::Integer)
-        .map_err(|_| StoreError::SeqOutOfRange { seq })
-}
-
-fn statements_for(instruction: &Instruction) -> Result<Vec<Statement>, StoreError> {
-    use Instruction::*;
-    let one = |sql, params| Ok(vec![Statement::new(sql, params)]);
-    match instruction {
-        Inspect => Ok(vec![
-            Statement::new("PRAGMA application_id", vec![]),
-            Statement::new("SELECT count(*) FROM sqlite_schema", vec![]),
-        ]),
-        Initialize {
-            store_id,
-            store_format_version,
-        } => {
-            let mut out: Vec<Statement> = CREATE_SCHEMA
-                .iter()
-                .map(|sql| Statement::new(sql, vec![]))
-                .collect();
-            out.push(Statement::new(SET_APPLICATION_ID, vec![]));
-            out.push(meta_insert(
-                MetaKey::StoreFormatVersion,
-                store_format_version.to_be_bytes().to_vec(),
-            ));
-            out.push(meta_insert(MetaKey::StoreId, store_id.to_vec()));
-            Ok(out)
+    /// Read the executor's results, one per statement of the batch.
+    pub fn interpret(&self, results: &[StatementResult]) -> Result<I::Output, StoreError> {
+        let expected = self.batch.statements().len();
+        if results.len() != expected {
+            return Err(StoreError::ResultCount {
+                expected,
+                actual: results.len(),
+            });
         }
-        QuickCheck => one("PRAGMA quick_check", vec![]),
-        IntegrityCheck => one("PRAGMA integrity_check", vec![]),
-        ReadMeta { key } => one(
-            "SELECT value FROM meta WHERE key = ?1",
-            vec![Param::Text(key.as_str())],
-        ),
-        AppendCommit { seq, commit } => Ok(vec![Statement::guarded(
-            // The row lands only at the last seq plus one, and the guard voids the whole batch
-            // otherwise, so the log stays dense and no blob of a failed commit is kept.
-            "INSERT INTO log (seq, commit_bytes) SELECT ?1, ?2 \
-             WHERE ?1 = (SELECT coalesce(max(seq), 0) + 1 FROM log)",
-            vec![seq_param(*seq)?, Param::Blob(commit.clone())],
-            1,
-        )]),
-        LastSeq => one("SELECT coalesce(max(seq), 0) FROM log", vec![]),
-        ReadCommits { from, limit } => one(
-            "SELECT seq, commit_bytes FROM log WHERE seq >= ?1 ORDER BY seq LIMIT ?2",
-            vec![seq_param(*from)?, Param::Integer(i64::from(*limit))],
-        ),
-        PutBlob { digest, bytes } => one(
-            "INSERT OR IGNORE INTO blobs (digest, bytes) VALUES (?1, ?2)",
-            vec![Param::Blob(digest.to_vec()), Param::Blob(bytes.clone())],
-        ),
-        GetBlob { digest } => one(
-            "SELECT bytes FROM blobs WHERE digest = ?1",
-            vec![Param::Blob(digest.to_vec())],
-        ),
-        PruneBlobs { digests } => Ok(digests
-            .iter()
-            .map(|d| {
-                Statement::new(
-                    "DELETE FROM blobs WHERE digest = ?1",
-                    vec![Param::Blob(d.to_vec())],
-                )
-            })
-            .collect()),
-        ReplaceCache {
-            seq,
-            fold_version,
-            projection,
-        } => Ok(vec![
-            Statement::new("DELETE FROM projection_cache", vec![]),
-            Statement::new(
-                "INSERT INTO projection_cache (seq, fold_version, projection) VALUES (?1, ?2, ?3)",
-                vec![
-                    seq_param(*seq)?,
-                    Param::Integer(i64::from(*fold_version)),
-                    Param::Blob(projection.clone()),
-                ],
-            ),
-        ]),
-        ReadCache => one(
-            "SELECT seq, fold_version, projection FROM projection_cache ORDER BY seq DESC LIMIT 1",
-            vec![],
-        ),
+        self.instruction.interpret(results)
     }
-}
 
-fn meta_insert(key: MetaKey, value: Vec<u8>) -> Statement {
-    Statement::new(
-        "INSERT INTO meta (key, value) VALUES (?1, ?2)",
-        vec![Param::Text(key.as_str()), Param::Blob(value)],
-    )
+    /// What the failure of the guarded statement at `statement` in the batch means; `None` if
+    /// that statement has no guard.
+    pub fn guard_error(&self, statement: usize) -> Option<StoreError> {
+        self.instruction.guard_error(statement)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::schema::APPLICATION_ID;
+    use crate::instruction::{Digest, MetaKey, Seq, StoreId};
+    use crate::interpret::{CacheEntry, Check, StoreKind};
+    use crate::ops::*;
+    use crate::schema::{APPLICATION_ID, CREATE_SCHEMA};
+    use crate::statement::{Param, Value};
 
-    fn sql_of(p: &Plan) -> Vec<&'static str> {
+    fn seq(n: u64) -> Seq {
+        Seq::new(n).expect("a seq")
+    }
+
+    fn sql_of<I: Instruction>(p: &Plan<I>) -> Vec<&'static str> {
         p.batch().statements().iter().map(|s| s.sql()).collect()
+    }
+
+    fn rows(rows: Vec<Vec<Value>>) -> StatementResult {
+        StatementResult::Rows(rows)
+    }
+
+    fn changed(n: u64) -> StatementResult {
+        StatementResult::Changed(n)
+    }
+
+    fn one<I: Instruction>(i: I, r: Vec<StatementResult>) -> Result<I::Output, StoreError> {
+        plan(i).interpret(&r)
     }
 
     #[test]
@@ -169,30 +81,28 @@ mod tests {
     }
 
     #[test]
-    fn instructions_that_land_together_share_one_atomic_batch() {
-        let p = plan(vec![
-            Instruction::PutBlob {
-                digest: [1; 32],
+    fn instructions_that_land_together_share_one_atomic_batch_and_answer_in_their_shape() {
+        let p = plan((
+            PutBlob {
+                digest: Digest([1; 32]),
                 bytes: vec![9],
             },
-            Instruction::AppendCommit {
-                seq: 1,
+            AppendCommit {
+                seq: seq(1),
                 commit: vec![7],
             },
-        ])
-        .expect("plannable");
-        assert!(p.batch().is_atomic());
+        ));
+        assert_eq!(p.batch().mode(), BatchMode::Transaction);
         assert_eq!(p.batch().statements().len(), 2);
-        assert_eq!(p.spans, vec![0..1, 1..2]);
+        assert_eq!(p.interpret(&[changed(1), changed(1)]), Ok(((), ())));
     }
 
     #[test]
     fn appending_binds_seq_and_bytes_and_guards_density() {
-        let p = plan(vec![Instruction::AppendCommit {
-            seq: 42,
+        let p = plan(AppendCommit {
+            seq: seq(42),
             commit: vec![1, 2],
-        }])
-        .expect("plannable");
+        });
         let s = &p.batch().statements()[0];
         assert!(s.sql().contains("max(seq), 0) + 1"));
         assert_eq!(s.must_change(), Some(1));
@@ -201,40 +111,38 @@ mod tests {
 
     #[test]
     fn a_failed_append_guard_means_the_seq_was_not_next() {
-        let p = plan(vec![
-            Instruction::PutBlob {
-                digest: [1; 32],
+        let p = plan((
+            PutBlob {
+                digest: Digest([1; 32]),
                 bytes: vec![],
             },
-            Instruction::AppendCommit {
-                seq: 9,
+            AppendCommit {
+                seq: seq(9),
                 commit: vec![],
             },
-        ])
-        .expect("plannable");
-        assert_eq!(p.guard_error(1), StoreError::SeqNotNext { seq: 9 });
-        assert!(matches!(p.guard_error(0), StoreError::Shape { .. }));
-    }
-
-    #[test]
-    fn a_seq_beyond_sqlite_integers_is_refused() {
-        let e = plan(vec![
-            Instruction::LastSeq,
-            Instruction::ReadCommits {
-                from: u64::MAX,
-                limit: 1,
-            },
-        ]);
-        assert_eq!(e, Err(StoreError::SeqOutOfRange { seq: u64::MAX }));
+        ));
+        assert_eq!(
+            p.guard_error(1),
+            Some(StoreError::SeqNotNext { seq: seq(9) })
+        );
+        assert_eq!(p.guard_error(0), None);
+        let i = || AppendCommit {
+            seq: seq(5),
+            commit: vec![],
+        };
+        assert_eq!(one(i(), vec![changed(1)]), Ok(()));
+        assert_eq!(
+            one(i(), vec![changed(0)]),
+            Err(StoreError::SeqNotNext { seq: seq(5) })
+        );
     }
 
     #[test]
     fn initializing_creates_four_tables_then_writes_identity() {
-        let p = plan(vec![Instruction::Initialize {
-            store_id: [3; 16],
+        let p = plan(Initialize {
+            store_id: StoreId([3; 16]),
             store_format_version: 1,
-        }])
-        .expect("plannable");
+        });
         let sql = sql_of(&p);
         assert_eq!(
             sql.iter().filter(|q| q.starts_with("CREATE TABLE")).count(),
@@ -251,53 +159,198 @@ mod tests {
     }
 
     #[test]
-    fn pruning_deletes_each_named_blob_and_nothing_else() {
-        let p = plan(vec![Instruction::PruneBlobs {
-            digests: vec![[1; 32], [2; 32]],
-        }])
-        .expect("plannable");
-        assert_eq!(sql_of(&p), vec!["DELETE FROM blobs WHERE digest = ?1"; 2]);
+    fn pruning_deletes_each_named_blob_and_counts_them() {
+        let i = PruneBlobs {
+            digests: vec![Digest([1; 32]), Digest([2; 32])],
+        };
+        assert_eq!(
+            sql_of(&plan(i.clone())),
+            vec!["DELETE FROM blobs WHERE digest = ?1"; 2]
+        );
+        assert_eq!(one(i, vec![changed(1), changed(0)]), Ok(1));
     }
 
     #[test]
     fn no_instruction_updates_or_deletes_a_commit() {
-        let every = vec![
-            Instruction::Inspect,
-            Instruction::Initialize {
-                store_id: [0; 16],
-                store_format_version: 1,
-            },
-            Instruction::QuickCheck,
-            Instruction::IntegrityCheck,
-            Instruction::ReadMeta {
-                key: MetaKey::StoreId,
-            },
-            Instruction::AppendCommit {
-                seq: 1,
-                commit: vec![],
-            },
-            Instruction::LastSeq,
-            Instruction::ReadCommits { from: 1, limit: 10 },
-            Instruction::PutBlob {
-                digest: [0; 32],
-                bytes: vec![],
-            },
-            Instruction::GetBlob { digest: [0; 32] },
-            Instruction::PruneBlobs {
-                digests: vec![[0; 32]],
-            },
-            Instruction::ReplaceCache {
-                seq: 1,
-                fold_version: 1,
-                projection: vec![],
-            },
-            Instruction::ReadCache,
-        ];
-        for sql in sql_of(&plan(every).expect("plannable")) {
+        let p = plan((
+            (
+                (
+                    Inspect,
+                    Initialize {
+                        store_id: StoreId([0; 16]),
+                        store_format_version: 1,
+                    },
+                ),
+                (
+                    (QuickCheck, IntegrityCheck),
+                    (
+                        ReadMeta {
+                            key: MetaKey::StoreId,
+                        },
+                        LastSeq,
+                    ),
+                ),
+            ),
+            (
+                (
+                    AppendCommit {
+                        seq: seq(1),
+                        commit: vec![],
+                    },
+                    ReadCommits {
+                        from: seq(1),
+                        limit: 10,
+                    },
+                ),
+                (
+                    (
+                        PutBlob {
+                            digest: Digest([0; 32]),
+                            bytes: vec![],
+                        },
+                        GetBlob {
+                            digest: Digest([0; 32]),
+                        },
+                    ),
+                    (
+                        PruneBlobs {
+                            digests: vec![Digest([0; 32])],
+                        },
+                        (
+                            ReplaceCache {
+                                seq: seq(1),
+                                fold_version: 1,
+                                projection: vec![],
+                            },
+                            ReadCache,
+                        ),
+                    ),
+                ),
+            ),
+        ));
+        for sql in sql_of(&p) {
             let upper = sql.to_ascii_uppercase();
             assert!(!upper.starts_with("UPDATE"), "{sql}");
             assert!(!upper.starts_with("DELETE FROM LOG"), "{sql}");
             assert!(!upper.starts_with("DROP"), "{sql}");
         }
+    }
+
+    #[test]
+    fn inspect_tells_empty_yata_and_foreign_files_apart() {
+        let kind = |id, n| {
+            one(
+                Inspect,
+                vec![
+                    rows(vec![vec![Value::Integer(id)]]),
+                    rows(vec![vec![Value::Integer(n)]]),
+                ],
+            )
+        };
+        assert_eq!(kind(0, 0), Ok(StoreKind::Empty));
+        assert_eq!(kind(APPLICATION_ID, 4), Ok(StoreKind::Yata));
+        assert_eq!(
+            kind(0, 3),
+            Ok(StoreKind::Foreign {
+                application_id: 0,
+                objects: 3
+            })
+        );
+    }
+
+    #[test]
+    fn commits_read_back_must_be_dense() {
+        let row = |s: i64| vec![Value::Integer(s), Value::Blob(vec![])];
+        let read = |r| {
+            one(
+                ReadCommits {
+                    from: seq(3),
+                    limit: 9,
+                },
+                vec![rows(r)],
+            )
+        };
+        assert_eq!(read(vec![row(3), row(4)]).map(|c| c.len()), Ok(2));
+        assert_eq!(
+            read(vec![row(3), row(5)]),
+            Err(StoreError::LogGap {
+                expected: seq(4),
+                found: 5
+            })
+        );
+    }
+
+    #[test]
+    fn the_last_seq_of_an_empty_log_is_none() {
+        assert_eq!(one(LastSeq, vec![rows(vec![vec![Value::Null]])]), Ok(None));
+        assert_eq!(
+            one(LastSeq, vec![rows(vec![vec![Value::Integer(7)]])]),
+            Ok(Some(seq(7)))
+        );
+    }
+
+    #[test]
+    fn a_check_that_said_ok_has_no_problems() {
+        let text = |t: &str| vec![Value::Text(t.to_owned())];
+        assert_eq!(one(QuickCheck, vec![rows(vec![text("ok")])]), Ok(Check::Ok));
+        assert_eq!(
+            one(IntegrityCheck, vec![rows(vec![text("page 3: bad")])]),
+            Ok(Check::Problems(vec!["page 3: bad".to_owned()]))
+        );
+    }
+
+    #[test]
+    fn missing_rows_read_as_absent() {
+        assert_eq!(
+            one(
+                GetBlob {
+                    digest: Digest([0; 32])
+                },
+                vec![rows(vec![])]
+            ),
+            Ok(None)
+        );
+        assert_eq!(one(ReadCache, vec![rows(vec![])]), Ok(None));
+        assert_eq!(
+            one(
+                ReadCache,
+                vec![rows(vec![vec![
+                    Value::Integer(2),
+                    Value::Integer(3),
+                    Value::Blob(vec![1])
+                ]])]
+            ),
+            Ok(Some(CacheEntry {
+                seq: seq(2),
+                fold_version: 3,
+                projection: vec![1]
+            }))
+        );
+    }
+
+    #[test]
+    fn a_result_of_the_wrong_shape_is_an_error() {
+        use crate::interpret::Expected;
+        assert_eq!(
+            one(LastSeq, vec![rows(vec![vec![Value::Text("x".into())]])]),
+            Err(StoreError::Shape {
+                instruction: "LastSeq",
+                expected: Expected::Integer
+            })
+        );
+        assert_eq!(
+            one(LastSeq, vec![changed(0)]),
+            Err(StoreError::Shape {
+                instruction: "LastSeq",
+                expected: Expected::Rows
+            })
+        );
+        assert_eq!(
+            one(LastSeq, vec![]),
+            Err(StoreError::ResultCount {
+                expected: 1,
+                actual: 0
+            })
+        );
     }
 }

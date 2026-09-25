@@ -8,36 +8,40 @@
 
 use std::collections::BTreeMap;
 
-use super::admission::{AdmissionError, SoulDefectKind, admit_reading, check_soul};
-use super::model::{Coverage, Digest, GameSoulId, Mark, ProfileId, Scope};
+use super::admission::{AdmissionError, AdmittedSoul, SoulDefectKind, admit_reading};
+use super::model::{Coverage, Digest, GameSoulId, Mark, NoteText, ProfileId, Revision, Scope, Seq};
 use super::projection::Projection;
-use crate::import::observation::{SoulObservation, SoulReading};
+use crate::import::observation::SoulReading;
 
 /// One profile's souls as of one revision.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Inventory {
-    revision: u64,
+    revision: Revision,
     souls: BTreeMap<GameSoulId, InventorySoul>,
     defects: Vec<SoulDefect>,
 }
 
-/// One soul of the inventory.
+/// One soul of the inventory: an admitted row, where it was read, and the user's decisions.
 #[derive(Debug, Clone, PartialEq)]
 pub struct InventorySoul {
-    pub id: GameSoulId,
-    /// The record as read, every typed field row-checked (`admission::ROW_FIELDS`).
-    pub record: SoulObservation,
-    /// The `seq` of the acquisition this record was read in.
-    pub observed_at: u64,
+    pub soul: AdmittedSoul,
+    /// The acquisition this record was read in.
+    pub observed_at: Seq,
     pub mark: Option<Mark>,
-    pub note: Option<String>,
+    pub note: Option<NoteText>,
+}
+
+impl InventorySoul {
+    pub fn id(&self) -> &GameSoulId {
+        &self.soul.id
+    }
 }
 
 /// A live record that cannot be a soul the game holds. It is reported and is not a row.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SoulDefect {
     pub soul: GameSoulId,
-    pub observed_at: u64,
+    pub observed_at: Seq,
     pub kind: SoulDefectKind,
 }
 
@@ -53,15 +57,21 @@ pub enum InventoryError {
     },
     /// A reading's own coverage is not what its acquisition recorded.
     ReadingDisagrees {
-        seq: u64,
+        seq: Seq,
         digest: Digest,
     },
     /// A live reading the fact log would not admit now; it was admitted when it landed.
     ReadingRefused {
-        seq: u64,
+        seq: Seq,
         digest: Digest,
         error: AdmissionError,
     },
+}
+
+/// The latest live record of one soul: a row, or a defect.
+enum Latest {
+    Row(Seq, AdmittedSoul),
+    Defect(Seq, SoulDefectKind),
 }
 
 impl Inventory {
@@ -81,7 +91,7 @@ impl Inventory {
             .iter()
             .map(|l| (l, Coverage::Complete))
             .chain(live.partials.iter().map(|l| (l, Coverage::Partial)));
-        let mut records: BTreeMap<GameSoulId, (u64, &SoulObservation)> = BTreeMap::new();
+        let mut latest: BTreeMap<GameSoulId, Latest> = BTreeMap::new();
         for (&(seq, digest), coverage) in layers {
             let reading = readings
                 .get(&digest)
@@ -91,31 +101,41 @@ impl Inventory {
             if admitted.coverage != coverage {
                 return Err(InventoryError::ReadingDisagrees { seq, digest });
             }
-            for (id, soul) in admitted.souls.into_iter().zip(reading.souls()) {
-                records.insert(id, (seq, soul));
-            }
+            latest.extend(
+                admitted
+                    .rows
+                    .into_iter()
+                    .map(|row| (row.id.clone(), Latest::Row(seq, row))),
+            );
+            latest.extend(
+                admitted
+                    .defects
+                    .into_iter()
+                    .map(|d| (d.soul, Latest::Defect(seq, d.kind))),
+            );
         }
-        let mut souls = BTreeMap::new();
-        let mut defects = Vec::new();
-        for (id, (observed_at, record)) in records {
-            match check_soul(record) {
-                Ok(()) => {
-                    let row = InventorySoul {
-                        id: id.clone(),
-                        record: record.clone(),
+        let (souls, defects) = latest.into_iter().fold(
+            (BTreeMap::new(), Vec::new()),
+            |(mut souls, mut defects), (id, entry)| {
+                match entry {
+                    Latest::Row(observed_at, soul) => {
+                        let row = InventorySoul {
+                            observed_at,
+                            mark: state.mark(&id),
+                            note: state.note(&id).cloned(),
+                            soul,
+                        };
+                        souls.insert(id, row);
+                    }
+                    Latest::Defect(observed_at, kind) => defects.push(SoulDefect {
+                        soul: id,
                         observed_at,
-                        mark: state.mark(&id),
-                        note: state.note(&id).map(str::to_owned),
-                    };
-                    souls.insert(id, row);
+                        kind,
+                    }),
                 }
-                Err(kind) => defects.push(SoulDefect {
-                    soul: id,
-                    observed_at,
-                    kind,
-                }),
-            }
-        }
+                (souls, defects)
+            },
+        );
         Ok(Inventory {
             revision: projection.revision(),
             souls,
@@ -123,7 +143,7 @@ impl Inventory {
         })
     }
 
-    pub fn revision(&self) -> u64 {
+    pub fn revision(&self) -> Revision {
         self.revision
     }
 
@@ -156,8 +176,8 @@ mod tests {
     use crate::fact::admission::tests::{established, soul};
     use crate::fact::model::Commit;
     use crate::fact::projection::fold;
-    use crate::fact::projection::tests::{P, Q, acquired, commit, created, marked};
-    use crate::import::observation::{self, GameStar, RawSoul, SoulMappings};
+    use crate::fact::projection::tests::{P, Q, acquired, commit, created, marked, seq};
+    use crate::import::observation::{self, GameLevel, GameStar, RawSoul, SoulMappings};
 
     fn id(s: &str) -> GameSoulId {
         GameSoulId::new(s).expect("non-empty")
@@ -175,13 +195,13 @@ mod tests {
         let p = fold(log).expect("folds");
         let readings = readings
             .iter()
-            .map(|(d, r)| ([*d; 32], r.clone()))
+            .map(|(d, r)| (Digest([*d; 32]), r.clone()))
             .collect();
         Inventory::derive(&p, profile, &readings).expect("derives")
     }
 
     fn ids(inv: &Inventory) -> Vec<&str> {
-        inv.souls().map(|s| s.id.as_str()).collect()
+        inv.souls().map(|s| s.id().as_str()).collect()
     }
 
     #[test]
@@ -204,10 +224,7 @@ mod tests {
         let inv = derive(&log, &readings, P);
         assert_eq!(ids(&inv), vec!["a", "c"]);
         let a = inv.get(&id("a")).expect("a");
-        assert_eq!(
-            (a.record.level.value().map(|l| l.0), a.observed_at),
-            (Some(15), 3)
-        );
+        assert_eq!((a.soul.level, a.observed_at), (GameLevel(15), seq(3)));
     }
 
     #[test]
@@ -229,12 +246,8 @@ mod tests {
         ];
         let inv = derive(&log, &readings, P);
         assert_eq!(ids(&inv), vec!["a", "b", "d"]);
-        assert_eq!(inv.get(&id("a")).map(|s| s.observed_at), Some(2));
-        assert_eq!(
-            inv.get(&id("b"))
-                .and_then(|s| s.record.level.value().map(|l| l.0)),
-            Some(6)
-        );
+        assert_eq!(inv.get(&id("a")).map(|s| s.observed_at), Some(seq(2)));
+        assert_eq!(inv.get(&id("b")).map(|s| s.soul.level.0), Some(6));
     }
 
     #[test]
@@ -294,7 +307,7 @@ mod tests {
             inv.defects(),
             &[SoulDefect {
                 soul: id("b"),
-                observed_at: 2,
+                observed_at: seq(2),
                 kind: SoulDefectKind::Star(9),
             }]
         );
@@ -309,14 +322,16 @@ mod tests {
         let p = fold(&log).expect("folds");
         assert_eq!(
             Inventory::derive(&p, P, &BTreeMap::new()),
-            Err(InventoryError::MissingReading { digest: [1; 32] })
+            Err(InventoryError::MissingReading {
+                digest: Digest([1; 32])
+            })
         );
-        let partial = BTreeMap::from([([1; 32], reading(Coverage::Partial, vec![]))]);
+        let partial = BTreeMap::from([(Digest([1; 32]), reading(Coverage::Partial, vec![]))]);
         assert_eq!(
             Inventory::derive(&p, P, &partial),
             Err(InventoryError::ReadingDisagrees {
-                seq: 2,
-                digest: [1; 32]
+                seq: seq(2),
+                digest: Digest([1; 32])
             })
         );
         assert_eq!(
@@ -331,8 +346,8 @@ mod tests {
             vec![],
         );
         assert!(matches!(
-            Inventory::derive(&p, P, &BTreeMap::from([([1; 32], unmapped)])),
-            Err(InventoryError::ReadingRefused { seq: 2, .. })
+            Inventory::derive(&p, P, &BTreeMap::from([(Digest([1; 32]), unmapped)])),
+            Err(InventoryError::ReadingRefused { seq: s, .. }) if s == seq(2)
         ));
     }
 }

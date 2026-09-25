@@ -21,6 +21,8 @@ const ZSTD_LEVEL: i32 = 3;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlobError {
     TooLarge,
+    /// The compressor failed.
+    Compress,
     /// No header byte.
     Empty,
     UnknownCodec(u8),
@@ -32,7 +34,7 @@ pub enum BlobError {
 
 /// The SHA-256 digest of a reading's bytes.
 pub fn digest_of(bytes: &[u8]) -> Digest {
-    Sha256::digest(bytes).into()
+    Digest(Sha256::digest(bytes).into())
 }
 
 /// A reading's digest and the bytes to store under it.
@@ -40,7 +42,7 @@ pub fn seal(bytes: &[u8]) -> Result<(Digest, Vec<u8>), BlobError> {
     if bytes.len() > MAX_BLOB_LEN {
         return Err(BlobError::TooLarge);
     }
-    let compressed = zstd::bulk::compress(bytes, ZSTD_LEVEL).map_err(|_| BlobError::Corrupt)?;
+    let compressed = zstd::bulk::compress(bytes, ZSTD_LEVEL).map_err(|_| BlobError::Compress)?;
     let mut stored = Vec::with_capacity(compressed.len() + 1);
     stored.push(CODEC_ZSTD);
     stored.extend(compressed);
@@ -89,7 +91,7 @@ mod tests {
             0xb9, 0x24, 0x27, 0xae, 0x41, 0xe4, 0x64, 0x9b, 0x93, 0x4c, 0xa4, 0x95, 0x99, 0x1b,
             0x78, 0x52, 0xb8, 0x55,
         ];
-        assert_eq!(seal(b"").map(|(d, _)| d), Ok(empty));
+        assert_eq!(seal(b"").map(|(d, _)| d), Ok(Digest(empty)));
     }
 
     #[test]

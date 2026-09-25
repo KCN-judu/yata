@@ -36,7 +36,8 @@ message Origin {
 
 message Maintenance {}
 
-// The envelope. `payload` is the message named by `kind`, at `version`.
+// The envelope. `payload` is the message named by `kind`, at `version`: each kind's version 1 is
+// the message of the kind's name, and a later version is the message with its `V<n>` suffix.
 message Fact {
   // The 16-byte ProfileId.
   bytes profile = 1;
@@ -137,9 +138,21 @@ message SoulMarked {
   Mark mark = 2;
 }
 
-// Version 1.
+// Version 1, read only: lifted to version 2 on load, where the empty text becomes `cleared`.
 message SoulNoted {
   string soul_id = 1;
-  // Empty clears the note.
+  // Empty cleared the note.
   string text = 2;
 }
+
+// Version 2: a note is a text or a clearing, never an empty text.
+message SoulNotedV2 {
+  string soul_id = 1;
+  oneof note {
+    // Never empty.
+    string text = 2;
+    NoteCleared cleared = 3;
+  }
+}
+
+message NoteCleared {}

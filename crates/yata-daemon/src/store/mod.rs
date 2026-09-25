@@ -16,19 +16,23 @@ mod log;
 use std::path::{Path, PathBuf};
 
 pub use executor::ExecError;
-use executor::Executor;
+use executor::{Executor, IfMissing};
 pub use log::{
-    CommitError, Committed, FactLog, IngestError, Ingested, InventoryReadError, LoadError,
+    CommandOutcome, CommitError, FactLog, IngestError, Ingested, InventoryReadError, LoadError,
     Provenance, format_commit, read_commits,
 };
 use yata_store::{
-    Instruction, MetaKey, Output, StoreError, StoreId, StoreKind, check_settings,
-    connection_settings, plan,
+    Check, Initialize, Inspect, Instruction, IntegrityCheck, MetaKey, QuickCheck, ReadMeta,
+    StoreError, StoreId, StoreKind, connection_settings, plan,
 };
 
 /// The store format this build writes and reads (`fact-format.md`, § Reading old facts). It
 /// moves only when the fact envelope or the table layout changes.
 pub const STORE_FORMAT_VERSION: u32 = 1;
+
+/// SQLite's `SQLITE_NOTADB`: the file is not a database. SQLite reads the header lazily, so the
+/// first statement on the connection reports it.
+const SQLITE_NOTADB: i32 = 26;
 
 /// Why a store could not be opened. Each variant carries what the caller needs to report it.
 #[derive(Debug, Clone, PartialEq)]
@@ -38,6 +42,9 @@ pub enum OpenError {
     },
     /// The file is not an SQLite database at all. Nothing was written to it.
     NotADatabase,
+    /// The file is empty, and opening was asked not to create a store in it. Nothing was
+    /// written to it.
+    Uninitialized,
     /// The file is a database but not a Yata store. Nothing was written to it.
     Foreign {
         application_id: i64,
@@ -82,7 +89,7 @@ impl Store {
                 path: path.to_owned(),
             });
         }
-        let mut store = Store::connect(path, false)?;
+        let mut store = Store::connect(path, IfMissing::Refuse)?;
         store.admit(None::<fn() -> StoreId>)?;
         Ok(store)
     }
@@ -93,68 +100,58 @@ impl Store {
         path: &Path,
         new_id: impl FnOnce() -> StoreId,
     ) -> Result<Store, OpenError> {
-        let mut store = Store::connect(path, true)?;
+        let mut store = Store::connect(path, IfMissing::Create)?;
         store.admit(Some(new_id))?;
         Ok(store)
     }
 
-    /// Run instructions that must land together, as one atomic batch.
-    pub fn apply(&mut self, instructions: Vec<Instruction>) -> Result<Vec<Output>, Failure> {
-        let p = plan(instructions).map_err(Failure::Store)?;
-        let results = match self.exec.run(p.batch()) {
-            Ok(r) => r,
-            Err(ExecError::Guard { statement, .. }) => {
-                return Err(Failure::Store(p.guard_error(statement)));
-            }
-            Err(e) => return Err(Failure::Exec(e)),
-        };
-        p.interpret(results).map_err(Failure::Store)
+    /// Run an instruction, or instructions that must land together, as one atomic batch, and
+    /// answer in its output type.
+    pub fn apply<I: Instruction>(&mut self, instruction: I) -> Result<I::Output, Failure> {
+        let p = plan(instruction);
+        let results = self.exec.run(p.batch()).map_err(|e| match e {
+            ExecError::Guard { statement, .. } => match p.guard_error(statement) {
+                Some(meaning) => Failure::Store(meaning),
+                None => Failure::Exec(e),
+            },
+            e => Failure::Exec(e),
+        })?;
+        p.interpret(&results).map_err(Failure::Store)
     }
 
-    /// SQLite's full integrity check: the problems it reports, or none.
-    pub fn integrity_check(&mut self) -> Result<Vec<String>, Failure> {
-        match self.apply(vec![Instruction::IntegrityCheck])?.pop() {
-            Some(Output::Check(problems)) => Ok(problems),
-            _ => Err(shape("IntegrityCheck")),
-        }
+    /// SQLite's full integrity check.
+    pub fn integrity_check(&mut self) -> Result<Check, Failure> {
+        self.apply(IntegrityCheck)
     }
 
-    fn connect(path: &Path, create: bool) -> Result<Store, OpenError> {
-        // SQLITE_NOTADB: SQLite reads the header lazily, so the first statement reports it.
-        const NOT_A_DATABASE: i32 = 26;
-        let mut exec = Executor::open(path, create).map_err(Failure::Exec)?;
-        let results = exec.run(&connection_settings()).map_err(|e| match e {
+    fn connect(path: &Path, if_missing: IfMissing) -> Result<Store, OpenError> {
+        let mut exec = Executor::open(path, if_missing).map_err(Failure::Exec)?;
+        let settings = connection_settings();
+        let results = exec.run(settings.batch()).map_err(|e| match e {
             ExecError::Sqlite {
-                code: Some(NOT_A_DATABASE),
+                code: Some(SQLITE_NOTADB),
                 ..
             } => OpenError::NotADatabase,
             e => Failure::Exec(e).into(),
         })?;
-        check_settings(&results).map_err(Failure::Store)?;
+        settings.check(&results).map_err(Failure::Store)?;
         Ok(Store { exec })
     }
 
     /// Decide whether the file may be used, initializing an empty one when `new_id` is given.
     fn admit(&mut self, new_id: Option<impl FnOnce() -> StoreId>) -> Result<(), OpenError> {
-        match (self.single(Instruction::Inspect)?, new_id) {
-            (Output::Kind(StoreKind::Yata), _) => {}
-            (Output::Kind(StoreKind::Empty), Some(new_id)) => {
-                self.apply(vec![Instruction::Initialize {
-                    store_id: new_id(),
-                    store_format_version: STORE_FORMAT_VERSION,
-                }])?;
-            }
-            (Output::Kind(StoreKind::Empty), None) => {
-                return Err(OpenError::Foreign {
-                    application_id: 0,
-                    objects: 0,
-                });
-            }
+        match (self.apply(Inspect)?, new_id) {
+            (StoreKind::Yata, _) => {}
+            (StoreKind::Empty, Some(new_id)) => self.apply(Initialize {
+                store_id: new_id(),
+                store_format_version: STORE_FORMAT_VERSION,
+            })?,
+            (StoreKind::Empty, None) => return Err(OpenError::Uninitialized),
             (
-                Output::Kind(StoreKind::Foreign {
+                StoreKind::Foreign {
                     application_id,
                     objects,
-                }),
+                },
                 _,
             ) => {
                 return Err(OpenError::Foreign {
@@ -162,46 +159,30 @@ impl Store {
                     objects,
                 });
             }
-            (_, _) => return Err(shape("Inspect").into()),
         }
-        let found = match self.single(Instruction::ReadMeta {
-            key: MetaKey::StoreFormatVersion,
-        })? {
-            Output::Meta(Some(bytes)) => <[u8; 4]>::try_from(bytes.as_slice())
-                .map(u32::from_be_bytes)
-                .map_err(|_| OpenError::NoFormatVersion)?,
-            _ => return Err(OpenError::NoFormatVersion),
-        };
+        let found = self
+            .apply(ReadMeta {
+                key: MetaKey::StoreFormatVersion,
+            })?
+            .and_then(|bytes| <[u8; 4]>::try_from(bytes.as_slice()).ok())
+            .map(u32::from_be_bytes)
+            .ok_or(OpenError::NoFormatVersion)?;
         if found > STORE_FORMAT_VERSION {
             return Err(OpenError::NewerFormat {
                 found,
                 known: STORE_FORMAT_VERSION,
             });
         }
-        match self.single(Instruction::QuickCheck)? {
-            Output::Check(problems) if problems.is_empty() => Ok(()),
-            Output::Check(problems) => Err(OpenError::Damaged { problems }),
-            _ => Err(shape("QuickCheck").into()),
+        match self.apply(QuickCheck)? {
+            Check::Ok => Ok(()),
+            Check::Problems(problems) => Err(OpenError::Damaged { problems }),
         }
     }
-
-    fn single(&mut self, instruction: Instruction) -> Result<Output, Failure> {
-        self.apply(vec![instruction])?
-            .pop()
-            .ok_or_else(|| shape("instruction"))
-    }
-}
-
-fn shape(instruction: &'static str) -> Failure {
-    Failure::Store(StoreError::Shape {
-        instruction,
-        detail: "unexpected output",
-    })
 }
 
 /// A fresh random store id, from the operating system's generator.
 pub fn random_store_id() -> Result<StoreId, getrandom::Error> {
     let mut id = [0u8; 16];
     getrandom::fill(&mut id)?;
-    Ok(id)
+    Ok(StoreId(id))
 }

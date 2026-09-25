@@ -3,22 +3,27 @@
 //!
 //! Opening replays every commit through the codec and the fold; nothing derived is read from
 //! disk. A write applies its commit to the projection first, so a commit the fold would refuse
-//! is never written, and a commit that would change nothing is not written at all. The commit
-//! and any blob it names land in one transaction; the in-memory projection moves only after
-//! that transaction commits.
+//! is never written. The commit and any blob it names land in one transaction; the in-memory
+//! projection moves only after that transaction commits.
+//!
+//! Two kinds of write, with two result types:
+//! - a command ([`FactLog::command`]) carries the revision it was formed against, and is
+//!   [`CommandOutcome::Stale`] when that is not the current one, [`CommandOutcome::Unchanged`]
+//!   when it would change nothing (no commit is written), or [`CommandOutcome::Applied`];
+//! - an import ([`FactLog::ingest`]) is a job with no base, and always lands: an acquisition is
+//!   an observation, and the log records every one.
 
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 
 use prost::Message;
 use yata_core::fact::{
-    Acquisition, AdmissionError, Channel, Commit, Digest, Fact, FactBody, FoldError, Inventory,
-    InventoryError, Origin, ProbeVersion, ProfileId, Projection, Scope, SoulDefect, Source,
-    admit_reading, check_soul,
+    Acquisition, AdmissionError, Channel, Commit, Digest, Fact, FactBody, Facts, FoldError,
+    Inventory, InventoryError, Origin, ProbeVersion, ProfileId, Projection, RecordDefect, Revision,
+    Scope, Seq, Source, admit_reading,
 };
 use yata_core::import::observation::SoulReading;
 use yata_protocol::probe;
-use yata_store::{Instruction, Output};
+use yata_store::{AppendCommit, GetBlob, Instruction, PutBlob, ReadCommits};
 
 use super::blob::{self, BlobError};
 use super::fact::{EncodeError, FactError, decode_commit, encode_commit};
@@ -46,13 +51,16 @@ impl LoadError {
     }
 }
 
-/// What a write did.
+/// What a command did (`core-protocol.md`, § Commands). A command maps to at most one commit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Committed {
-    /// A commit landed at this `seq`, which is the new revision.
-    At(u64),
-    /// The facts would change nothing; nothing was written and the revision did not move.
-    Unchanged,
+pub enum CommandOutcome {
+    /// One commit landed; `revision` is its `seq`.
+    Applied { revision: Revision },
+    /// The facts would change nothing: no commit was written and the revision did not move.
+    Unchanged { revision: Revision },
+    /// `command.stale_revision`: the command was formed against `base`, not `current`. Nothing
+    /// was applied.
+    Stale { base: Revision, current: Revision },
 }
 
 /// Why a write was refused. Nothing was written, and the projection is as it was.
@@ -60,6 +68,8 @@ pub enum Committed {
 pub enum CommitError {
     Refused(FoldError),
     Encode(EncodeError),
+    /// The log is full: the next `seq` does not fit the store.
+    LogFull,
     Store(Failure),
 }
 
@@ -69,7 +79,7 @@ impl CommitError {
             CommitError::Refused(FoldError::ProfileMismatch { .. }) => "import.profile_mismatch",
             CommitError::Refused(_) => "command.refused",
             CommitError::Encode(_) => "command.too_large",
-            CommitError::Store(_) => "store.failure",
+            CommitError::LogFull | CommitError::Store(_) => "store.failure",
         }
     }
 }
@@ -130,10 +140,11 @@ pub struct Provenance {
 /// A landed import.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ingested {
-    pub seq: u64,
+    pub seq: Seq,
     pub digest: Digest,
-    /// The reading's records that cannot be souls: kept as read, left out of the inventory.
-    pub defects: Vec<SoulDefect>,
+    /// The reading's records that cannot be souls, by their position in the reading: kept as
+    /// read, left out of the inventory.
+    pub defects: Vec<RecordDefect>,
 }
 
 /// The store, and the projection of everything in its log.
@@ -142,27 +153,31 @@ pub struct FactLog {
     projection: Projection,
 }
 
+fn store_digest(d: &Digest) -> yata_store::Digest {
+    yata_store::Digest(d.0)
+}
+
 /// Read every commit of the log, in order, decoded and lifted. Nothing is folded.
 pub fn read_commits(store: &mut Store) -> Result<Vec<Commit>, LoadError> {
     let mut commits = Vec::new();
-    loop {
-        let from = commits.len() as u64 + 1;
-        let page = match store
-            .apply(vec![Instruction::ReadCommits { from, limit: PAGE }])
-            .map_err(LoadError::Store)?
-            .pop()
-        {
-            Some(Output::Commits(page)) => page,
-            _ => return Err(LoadError::Store(super::shape("ReadCommits"))),
+    let mut from = Some(yata_store::Seq::FIRST);
+    while let Some(start) = from {
+        let page = store
+            .apply(ReadCommits {
+                from: start,
+                limit: PAGE,
+            })
+            .map_err(LoadError::Store)?;
+        from = match page.last() {
+            Some((last, _)) if page.len() == PAGE as usize => last.next(),
+            _ => None,
         };
-        let done = page.len() < PAGE as usize;
-        for (seq, bytes) in page {
+        for (key, bytes) in page {
+            let seq = Seq::from(key.get_nonzero());
             commits.push(decode_commit(seq, &bytes).map_err(LoadError::Fact)?);
         }
-        if done {
-            return Ok(commits);
-        }
     }
+    Ok(commits)
 }
 
 impl FactLog {
@@ -182,19 +197,32 @@ impl FactLog {
         self.store
     }
 
-    /// Append the facts as one commit at the next `seq`, if they change anything.
-    pub fn commit(
+    /// Apply a command formed against `base`: its facts as one commit at the next `seq`, if the
+    /// base is current and the facts change anything.
+    pub fn command(
         &mut self,
+        base: Revision,
         origin: Origin,
         recorded_at_ms: i64,
-        facts: Vec<Fact>,
-    ) -> Result<Committed, CommitError> {
-        self.land(origin, recorded_at_ms, facts, Vec::new())
+        facts: Facts,
+    ) -> Result<CommandOutcome, CommitError> {
+        let current = self.projection.revision();
+        if base != current {
+            return Ok(CommandOutcome::Stale { base, current });
+        }
+        let (commit, next) = self.next_commit(origin, recorded_at_ms, facts)?;
+        if next.same_state(&self.projection) {
+            return Ok(CommandOutcome::Unchanged { revision: current });
+        }
+        let seq = self.land(commit, next, Vec::<PutBlob>::new())?;
+        Ok(CommandOutcome::Applied {
+            revision: Revision::at(seq),
+        })
     }
 
-    /// Import one reading into a profile: the reading becomes a blob ([`blob_of`]; the session's
-    /// request id is not part of it), and one `SnapshotAcquired` commit records it. The same
-    /// reading imported again, by pipe or by file, is a second observation of one blob.
+    /// Import one reading into a profile: the reading becomes a blob ([`blob_of`]), and one
+    /// `SnapshotAcquired` commit records it. The same reading imported again, by pipe or by
+    /// file, is a second observation of one blob.
     pub fn ingest(
         &mut self,
         profile: ProfileId,
@@ -219,34 +247,18 @@ impl FactLog {
                 observed_account: admitted.account,
             }),
         };
-        let put = Instruction::PutBlob {
-            digest,
+        let (commit, next) = self
+            .next_commit(origin, recorded_at_ms, Facts::one(fact))
+            .map_err(IngestError::Commit)?;
+        let put = PutBlob {
+            digest: store_digest(&digest),
             bytes: stored,
         };
-        let seq = match self
-            .land(origin, recorded_at_ms, vec![fact], vec![put])
-            .map_err(IngestError::Commit)?
-        {
-            Committed::At(seq) => seq,
-            // An acquisition always adds to the projection.
-            Committed::Unchanged => self.projection.revision(),
-        };
-        let defects = admitted
-            .souls
-            .into_iter()
-            .zip(reading.souls())
-            .filter_map(|(soul, record)| {
-                check_soul(record).err().map(|kind| SoulDefect {
-                    soul,
-                    observed_at: seq,
-                    kind,
-                })
-            })
-            .collect();
+        let seq = self.land(commit, next, put).map_err(IngestError::Commit)?;
         Ok(Ingested {
             seq,
             digest,
-            defects,
+            defects: admitted.defects,
         })
     }
 
@@ -255,25 +267,22 @@ impl FactLog {
         let live = self
             .projection
             .profile(profile)
-            .map(|s| s.live(Scope::Souls))
-            .unwrap_or_default();
+            .ok_or(InventoryReadError::Derive(InventoryError::UnknownProfile {
+                profile,
+            }))?
+            .live(Scope::Souls);
         let mut readings: BTreeMap<Digest, SoulReading> = BTreeMap::new();
         for digest in live.digests() {
             if readings.contains_key(digest) {
                 continue;
             }
-            let stored = match self
+            let stored = self
                 .store
-                .apply(vec![Instruction::GetBlob { digest: *digest }])
+                .apply(GetBlob {
+                    digest: store_digest(digest),
+                })
                 .map_err(InventoryReadError::Store)?
-                .pop()
-            {
-                Some(Output::Blob(Some(bytes))) => bytes,
-                Some(Output::Blob(None)) => {
-                    return Err(InventoryReadError::MissingBlob { digest: *digest });
-                }
-                _ => return Err(InventoryReadError::Store(super::shape("GetBlob"))),
-            };
+                .ok_or(InventoryReadError::MissingBlob { digest: *digest })?;
             let bytes = blob::open(digest, &stored).map_err(|error| InventoryReadError::Blob {
                 digest: *digest,
                 error,
@@ -289,15 +298,20 @@ impl FactLog {
         Inventory::derive(&self.projection, profile, &readings).map_err(InventoryReadError::Derive)
     }
 
-    fn land(
-        &mut self,
+    /// The next commit of these facts, and the projection it would leave.
+    fn next_commit(
+        &self,
         origin: Origin,
         recorded_at_ms: i64,
-        facts: Vec<Fact>,
-        mut with: Vec<Instruction>,
-    ) -> Result<Committed, CommitError> {
+        facts: Facts,
+    ) -> Result<(Commit, Projection), CommitError> {
+        let seq = self
+            .projection
+            .revision()
+            .next()
+            .ok_or(CommitError::LogFull)?;
         let commit = Commit {
-            seq: self.projection.revision() + 1,
+            seq,
             recorded_at_ms,
             origin,
             facts,
@@ -307,43 +321,48 @@ impl FactLog {
             .clone()
             .apply(&commit)
             .map_err(CommitError::Refused)?;
-        if next.same_state(&self.projection) {
-            return Ok(Committed::Unchanged);
-        }
+        Ok((commit, next))
+    }
+
+    /// Write the commit, with the instructions that must land with it, and move the projection.
+    fn land<W: Instruction>(
+        &mut self,
+        commit: Commit,
+        next: Projection,
+        with: W,
+    ) -> Result<Seq, CommitError> {
         let bytes = encode_commit(&commit).map_err(CommitError::Encode)?;
-        with.push(Instruction::AppendCommit {
-            seq: commit.seq,
-            commit: bytes,
-        });
-        self.store.apply(with).map_err(CommitError::Store)?;
+        let seq = yata_store::Seq::new(commit.seq.get()).ok_or(CommitError::LogFull)?;
+        self.store
+            .apply((with, AppendCommit { seq, commit: bytes }))
+            .map_err(CommitError::Store)?;
         self.projection = next;
-        Ok(Committed::At(commit.seq))
+        Ok(commit.seq)
     }
 }
 
 /// A commit in readable form, for `yata-daemon log`. Account ids are account-derived data and
 /// are shown only as present.
 pub fn format_commit(c: &Commit) -> String {
-    let mut out = format!("#{} at {} ms, {:?}\n", c.seq, c.recorded_at_ms, c.origin);
-    for f in &c.facts {
+    let set = |present: bool| if present { ", account set" } else { "" };
+    let mut out = format!(
+        "#{} at {} ms, {:?}\n",
+        c.seq.get(),
+        c.recorded_at_ms,
+        c.origin
+    );
+    for f in c.facts.as_slice() {
         let body = match &f.body {
             FactBody::ProfileCreated {
                 display_name,
                 account,
-            } => format!(
-                "ProfileCreated {display_name:?}{}",
-                if account.is_some() {
-                    ", account set"
-                } else {
-                    ""
-                }
-            ),
+            } => format!("ProfileCreated {display_name:?}{}", set(account.is_some())),
             FactBody::ProfileRenamed { display_name } => format!("ProfileRenamed {display_name:?}"),
             FactBody::ProfileRetired => "ProfileRetired".to_owned(),
             FactBody::ProfileRestored => "ProfileRestored".to_owned(),
             FactBody::SnapshotAcquired(a) => format!(
                 "SnapshotAcquired {} {:?} {:?} via {:?}/{:?}, probe {} v{}.{}{}",
-                hex(&a.digest),
+                hex(&a.digest.0),
                 a.scope,
                 a.coverage,
                 a.channel,
@@ -351,30 +370,26 @@ pub fn format_commit(c: &Commit) -> String {
                 a.probe_build_id,
                 a.probe_version.major,
                 a.probe_version.minor,
-                if a.observed_account.is_some() {
-                    ", account set"
-                } else {
-                    ""
-                }
+                set(a.observed_account.is_some())
             ),
             FactBody::SnapshotRetracted { digest, reason } => {
-                format!("SnapshotRetracted {} {reason:?}", hex(digest))
+                format!("SnapshotRetracted {} {reason:?}", hex(&digest.0))
             }
             FactBody::SoulMarked { soul, mark } => {
                 format!("SoulMarked {} {mark:?}", soul.as_str())
             }
-            FactBody::SoulNoted { soul, text } => format!("SoulNoted {} {text:?}", soul.as_str()),
+            FactBody::SoulNoted { soul, note } => match note {
+                Some(text) => format!("SoulNoted {} {:?}", soul.as_str(), text.as_str()),
+                None => format!("SoulNoted {} cleared", soul.as_str()),
+            },
         };
-        let _ = writeln!(out, "  {} {body}", hex(&f.profile.0));
+        out.push_str(&format!("  {} {body}\n", hex(&f.profile.0)));
     }
     out
 }
 
 fn hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::new(), |mut s, b| {
-        let _ = write!(s, "{b:02x}");
-        s
-    })
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 #[cfg(test)]
@@ -400,8 +415,10 @@ mod tests {
         }
 
         fn log(&self) -> FactLog {
-            let store =
-                Store::create_or_open(&self.0.join("store.sqlite3"), || [7; 16]).expect("store");
+            let store = Store::create_or_open(&self.0.join("store.sqlite3"), || {
+                yata_store::StoreId([7; 16])
+            })
+            .expect("store");
             FactLog::open(store).expect("log")
         }
     }
@@ -453,32 +470,45 @@ mod tests {
         }
     }
 
+    fn seq(n: u64) -> Seq {
+        Seq::new(n).expect("a seq")
+    }
+
+    fn store_seq(n: u64) -> yata_store::Seq {
+        yata_store::Seq::new(n).expect("a seq")
+    }
+
     #[test]
     fn a_failed_transaction_keeps_neither_the_blob_nor_the_projection() {
         let dir = Scratch::new("rollback");
         let mut log = dir.log();
-        log.commit(Origin::Maintenance, 0, vec![created()])
-            .expect("commit");
+        log.command(
+            Revision::EMPTY,
+            Origin::Maintenance,
+            0,
+            Facts::one(created()),
+        )
+        .expect("commit");
         // A commit lands behind the projection's back, so the next append's seq is taken: the
         // blob is written inside the transaction and the append's guard then fails.
         let behind = encode_commit(&Commit {
-            seq: 2,
+            seq: seq(2),
             recorded_at_ms: 0,
             origin: Origin::Maintenance,
-            facts: vec![Fact {
+            facts: Facts::one(Fact {
                 profile: P,
                 body: FactBody::SoulMarked {
                     soul: GameSoulId::new("a").expect("id"),
                     mark: Some(Mark::Keep),
                 },
-            }],
+            }),
         })
         .expect("encodes");
         log.store
-            .apply(vec![Instruction::AppendCommit {
-                seq: 2,
+            .apply(AppendCommit {
+                seq: store_seq(2),
                 commit: behind,
-            }])
+            })
             .expect("append");
         let before = log.projection().clone();
         let e = log
@@ -486,14 +516,11 @@ mod tests {
             .expect_err("seq 2 is taken");
         assert_eq!(e.code(), "store.failure");
         assert_eq!(log.projection(), &before);
-        let digest = blob::digest_of(&blob_of(&reading()));
-        assert_eq!(
-            log.store.apply(vec![Instruction::GetBlob { digest }]),
-            Ok(vec![Output::Blob(None)])
-        );
+        let digest = store_digest(&blob::digest_of(&blob_of(&reading())));
+        assert_eq!(log.store.apply(GetBlob { digest }), Ok(None));
         // The log on disk is still the two commits, and replaying it sees the mark.
         let reopened = FactLog::open(log.into_store()).expect("replays");
-        assert_eq!(reopened.projection().revision(), 2);
+        assert_eq!(reopened.projection().revision(), Revision::at(seq(2)));
         assert_eq!(
             reopened
                 .projection()
@@ -512,7 +539,7 @@ mod tests {
             body: FactBody::ProfileRetired,
         };
         assert!(matches!(
-            log.commit(Origin::Maintenance, 0, vec![orphan]),
+            log.command(Revision::EMPTY, Origin::Maintenance, 0, Facts::one(orphan)),
             Err(CommitError::Refused(FoldError::UnknownProfile { .. }))
         ));
         assert_eq!(read_commits(&mut log.store), Ok(vec![]));
@@ -523,17 +550,20 @@ mod tests {
         let dir = Scratch::new("malformed");
         let mut store = dir.log().into_store();
         store
-            .apply(vec![Instruction::AppendCommit {
-                seq: 1,
+            .apply(AppendCommit {
+                seq: store_seq(1),
                 commit: vec![0xFF, 0x01],
-            }])
+            })
             .expect("append");
         let e = FactLog::open(store).err().expect("refused");
         assert_eq!(e.code(), "store.malformed_commit");
-        assert!(matches!(
+        assert_eq!(
             e,
-            LoadError::Fact(FactError::Malformed { seq: 1, .. })
-        ));
+            LoadError::Fact(FactError::Malformed {
+                seq: seq(1),
+                what: super::super::fact::Malformation::NotACommit
+            })
+        );
     }
 
     #[test]
@@ -541,20 +571,20 @@ mod tests {
         let dir = Scratch::new("invalid");
         let mut store = dir.log().into_store();
         let orphan = encode_commit(&Commit {
-            seq: 1,
+            seq: seq(1),
             recorded_at_ms: 0,
             origin: Origin::Maintenance,
-            facts: vec![Fact {
+            facts: Facts::one(Fact {
                 profile: P,
                 body: FactBody::ProfileRetired,
-            }],
+            }),
         })
         .expect("encodes");
         store
-            .apply(vec![Instruction::AppendCommit {
-                seq: 1,
+            .apply(AppendCommit {
+                seq: store_seq(1),
                 commit: orphan,
-            }])
+            })
             .expect("append");
         let e = FactLog::open(store).err().expect("refused");
         assert_eq!(e.code(), "store.invalid_log");
@@ -563,16 +593,16 @@ mod tests {
     #[test]
     fn the_dump_shows_every_fact_and_hides_account_ids() {
         let c = Commit {
-            seq: 1,
+            seq: seq(1),
             recorded_at_ms: 5,
             origin: Origin::Command { request_id: 2 },
-            facts: vec![Fact {
+            facts: Facts::one(Fact {
                 profile: P,
                 body: FactBody::ProfileCreated {
                     display_name: "main".into(),
                     account: Some(yata_core::fact::GameAccountId::new("secret").expect("id")),
                 },
-            }],
+            }),
         };
         let text = format_commit(&c);
         assert!(text.starts_with("#1 at 5 ms, Command { request_id: 2 }\n"));
@@ -580,5 +610,47 @@ mod tests {
             text.contains("01010101010101010101010101010101 ProfileCreated \"main\", account set")
         );
         assert!(!text.contains("secret"));
+    }
+
+    #[test]
+    fn a_command_is_stale_unchanged_or_applied() {
+        let dir = Scratch::new("outcome");
+        let mut log = dir.log();
+        let keep = || {
+            Facts::one(Fact {
+                profile: P,
+                body: FactBody::SoulMarked {
+                    soul: GameSoulId::new("a").expect("id"),
+                    mark: Some(Mark::Keep),
+                },
+            })
+        };
+        let r1 = Revision::at(seq(1));
+        let r2 = Revision::at(seq(2));
+        assert_eq!(
+            log.command(
+                Revision::EMPTY,
+                Origin::Maintenance,
+                0,
+                Facts::one(created())
+            ),
+            Ok(CommandOutcome::Applied { revision: r1 })
+        );
+        assert_eq!(
+            log.command(Revision::EMPTY, Origin::Maintenance, 0, keep()),
+            Ok(CommandOutcome::Stale {
+                base: Revision::EMPTY,
+                current: r1
+            })
+        );
+        assert_eq!(
+            log.command(r1, Origin::Maintenance, 0, keep()),
+            Ok(CommandOutcome::Applied { revision: r2 })
+        );
+        assert_eq!(
+            log.command(r2, Origin::Maintenance, 0, keep()),
+            Ok(CommandOutcome::Unchanged { revision: r2 })
+        );
+        assert_eq!(read_commits(&mut log.store).map(|c| c.len()), Ok(2));
     }
 }

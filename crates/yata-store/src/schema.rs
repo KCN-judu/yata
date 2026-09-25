@@ -1,7 +1,7 @@
 //! The tables of `fact-format.md`, § Tables, and the connection settings of ADR-0019.
 
-use crate::interpret::StoreError;
-use crate::statement::{Batch, Statement, StatementResult, Value};
+use crate::interpret::{StoreError, exactly};
+use crate::statement::{Batch, BatchMode, Statement, StatementResult, Value};
 
 /// The value of SQLite's `application_id` header field in a Yata store: "YATA" in ASCII.
 pub const APPLICATION_ID: i64 = 0x5941_5441;
@@ -22,41 +22,64 @@ pub(crate) const CREATE_SCHEMA: [&str; 6] = [
     "CREATE TRIGGER log_no_delete BEFORE DELETE ON log BEGIN SELECT RAISE(ABORT, 'the log is append-only'); END",
 ];
 
-/// Run once per connection, before anything else and outside any transaction. The order
-/// matters: exclusive locking comes before WAL, so SQLite keeps the WAL index in memory and
-/// creates no shared-memory file (ADR-0019, rule 2).
-pub fn connection_settings() -> Batch {
-    Batch::new(
-        vec![
-            Statement::new("PRAGMA locking_mode = EXCLUSIVE", vec![]),
-            Statement::new("PRAGMA journal_mode = WAL", vec![]),
-            Statement::new("PRAGMA synchronous = FULL", vec![]),
-            Statement::new("PRAGMA foreign_keys = OFF", vec![]),
-        ],
-        false,
-    )
+/// The connection settings, run once per connection before anything else and outside any
+/// transaction. The order matters: exclusive locking comes before WAL, so SQLite keeps the WAL
+/// index in memory and creates no shared-memory file (ADR-0019, rule 2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConnectionSettings {
+    batch: Batch,
 }
 
-/// Read back the results of [`connection_settings`]: SQLite answers a `journal_mode` or
-/// `locking_mode` assignment with the mode it actually took, which may differ (an in-memory
-/// database cannot use WAL). Anything but the requested modes refuses the connection.
-pub fn check_settings(results: &[StatementResult]) -> Result<(), StoreError> {
-    let mode = |i: usize| -> Option<String> {
-        match results.get(i)?.rows.first()?.first()? {
-            Value::Text(t) => Some(t.to_ascii_lowercase()),
-            _ => None,
-        }
-    };
-    for (i, setting, wanted) in [(0, "locking_mode", "exclusive"), (1, "journal_mode", "wal")] {
-        let found = mode(i);
-        if found.as_deref() != Some(wanted) {
-            return Err(StoreError::Setting {
-                setting,
-                found: found.unwrap_or_default(),
-            });
-        }
+/// The settings in the order the batch runs them.
+const SETTINGS: [&str; 4] = [
+    "PRAGMA locking_mode = EXCLUSIVE",
+    "PRAGMA journal_mode = WAL",
+    "PRAGMA synchronous = FULL",
+    "PRAGMA foreign_keys = OFF",
+];
+
+pub fn connection_settings() -> ConnectionSettings {
+    ConnectionSettings {
+        batch: Batch::new(
+            SETTINGS
+                .iter()
+                .map(|sql| Statement::new(sql, vec![]))
+                .collect(),
+            BatchMode::Autocommit,
+        ),
     }
-    Ok(())
+}
+
+impl ConnectionSettings {
+    pub fn batch(&self) -> &Batch {
+        &self.batch
+    }
+
+    /// SQLite answers a `locking_mode` or `journal_mode` assignment with the mode it actually
+    /// took, which may differ (an in-memory database cannot use WAL). Anything but the requested
+    /// modes refuses the connection.
+    pub fn check(&self, results: &[StatementResult]) -> Result<(), StoreError> {
+        let [locking, journal, _synchronous, _foreign_keys] = exactly(results)?;
+        let mode = |r: &StatementResult| -> Option<String> {
+            match r {
+                StatementResult::Rows(rows) => match rows.first()?.first()? {
+                    Value::Text(t) => Some(t.to_ascii_lowercase()),
+                    _ => None,
+                },
+                StatementResult::Changed(_) => None,
+            }
+        };
+        for (r, setting, wanted) in [
+            (locking, "locking_mode", "exclusive"),
+            (journal, "journal_mode", "wal"),
+        ] {
+            let found = mode(r);
+            if found.as_deref() != Some(wanted) {
+                return Err(StoreError::Setting { setting, found });
+            }
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -64,27 +87,43 @@ mod tests {
     use super::*;
 
     fn text(t: &str) -> StatementResult {
-        StatementResult {
-            rows: vec![vec![Value::Text(t.to_owned())]],
-            changes: 0,
-        }
+        StatementResult::Rows(vec![vec![Value::Text(t.to_owned())]])
     }
 
     #[test]
     fn settings_hold_only_if_sqlite_took_them() {
+        let s = connection_settings();
         let ok = [
             text("exclusive"),
             text("wal"),
-            StatementResult::default(),
-            StatementResult::default(),
+            StatementResult::Changed(0),
+            StatementResult::Changed(0),
         ];
-        assert_eq!(check_settings(&ok), Ok(()));
-        let memory = [text("exclusive"), text("memory")];
+        assert_eq!(s.check(&ok), Ok(()));
+        let memory = [
+            text("exclusive"),
+            text("memory"),
+            StatementResult::Changed(0),
+            StatementResult::Changed(0),
+        ];
         assert_eq!(
-            check_settings(&memory),
+            s.check(&memory),
             Err(StoreError::Setting {
                 setting: "journal_mode",
-                found: "memory".to_owned()
+                found: Some("memory".to_owned())
+            })
+        );
+        let silent = [
+            text("exclusive"),
+            StatementResult::Rows(vec![]),
+            StatementResult::Changed(0),
+            StatementResult::Changed(0),
+        ];
+        assert_eq!(
+            s.check(&silent),
+            Err(StoreError::Setting {
+                setting: "journal_mode",
+                found: None
             })
         );
     }
@@ -105,10 +144,10 @@ mod tests {
     }
 
     #[test]
-    fn exclusive_locking_comes_before_wal() {
+    fn exclusive_locking_comes_before_wal_outside_a_transaction() {
         let s = connection_settings();
-        assert!(!s.is_atomic());
-        let sql: Vec<_> = s.statements().iter().map(|st| st.sql()).collect();
+        assert_eq!(s.batch().mode(), BatchMode::Autocommit);
+        let sql: Vec<_> = s.batch().statements().iter().map(|st| st.sql()).collect();
         let lock = sql.iter().position(|q| q.contains("locking_mode"));
         let wal = sql.iter().position(|q| q.contains("journal_mode"));
         assert!(lock < wal);

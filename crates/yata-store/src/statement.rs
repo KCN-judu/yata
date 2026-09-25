@@ -57,32 +57,42 @@ impl Statement {
     }
 }
 
-/// The statements of a plan, in order. When `atomic`, the executor runs them in one write
-/// transaction (`BEGIN IMMEDIATE … COMMIT`) and rolls all of them back if any fails.
+/// How the executor runs a batch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BatchMode {
+    /// In one write transaction (`BEGIN IMMEDIATE … COMMIT`), rolled back whole if any statement
+    /// fails.
+    Transaction,
+    /// Each statement on its own, outside any transaction: connection settings, which SQLite
+    /// does not accept inside one.
+    Autocommit,
+}
+
+/// The statements of a plan, in order, and how they run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Batch {
     statements: Vec<Statement>,
-    atomic: bool,
+    mode: BatchMode,
 }
 
 impl Batch {
-    pub(crate) fn new(statements: Vec<Statement>, atomic: bool) -> Batch {
-        Batch { statements, atomic }
+    pub(crate) fn new(statements: Vec<Statement>, mode: BatchMode) -> Batch {
+        Batch { statements, mode }
     }
 
     pub fn statements(&self) -> &[Statement] {
         &self.statements
     }
 
-    pub fn is_atomic(&self) -> bool {
-        self.atomic
+    pub fn mode(&self) -> BatchMode {
+        self.mode
     }
 }
 
-/// What the executor observed for one statement: the rows it returned, and how many rows it
-/// changed.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct StatementResult {
-    pub rows: Vec<Vec<Value>>,
-    pub changes: u64,
+/// What the executor observed for one statement: the rows a query returned, or the number of
+/// rows a write changed. A statement is one or the other, by whether it has result columns.
+#[derive(Debug, Clone, PartialEq)]
+pub enum StatementResult {
+    Rows(Vec<Vec<Value>>),
+    Changed(u64),
 }
