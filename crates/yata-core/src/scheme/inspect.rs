@@ -35,24 +35,54 @@ pub fn dump(payload: &RawSchemePayload) -> Vec<DumpRow<'_>> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ByteChange {
     pub offset: usize,
-    /// `None` where the offset is past the end of the first payload.
-    pub before: Option<u8>,
-    /// `None` where the offset is past the end of the second payload.
-    pub after: Option<u8>,
+    pub difference: ByteDifference,
+}
+
+/// How the bytes at one offset differ.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ByteDifference {
+    /// Both payloads have a byte here, and they differ.
+    Changed { before: u8, after: u8 },
+    /// Only the first payload is this long.
+    OnlyBefore(u8),
+    /// Only the second payload is this long.
+    OnlyAfter(u8),
 }
 
 impl ByteChange {
-    /// `before XOR after`, where both bytes exist.
-    pub fn xor(self) -> Option<u8> {
-        Some(self.before? ^ self.after?)
+    /// The first payload's byte, if it has one here.
+    pub fn before(self) -> Option<u8> {
+        match self.difference {
+            ByteDifference::Changed { before, .. } | ByteDifference::OnlyBefore(before) => {
+                Some(before)
+            }
+            ByteDifference::OnlyAfter(_) => None,
+        }
     }
 
-    /// The bit positions within the byte, 0 (least significant) to 7, that differ, where both
-    /// bytes exist.
+    /// The second payload's byte, if it has one here.
+    pub fn after(self) -> Option<u8> {
+        match self.difference {
+            ByteDifference::Changed { after, .. } | ByteDifference::OnlyAfter(after) => Some(after),
+            ByteDifference::OnlyBefore(_) => None,
+        }
+    }
+
+    /// `before XOR after`, where both bytes exist.
+    pub fn xor(self) -> Option<u8> {
+        match self.difference {
+            ByteDifference::Changed { before, after } => Some(before ^ after),
+            ByteDifference::OnlyBefore(_) | ByteDifference::OnlyAfter(_) => None,
+        }
+    }
+
+    /// The bit positions within the byte, 0 (least significant) to 7, that differ. Where only one
+    /// payload has the byte, every bit differs: the other has no bit there at all.
     pub fn changed_bits(self) -> Vec<u8> {
-        self.xor()
-            .map(|x| (0..8).filter(|b| x >> b & 1 == 1).collect())
-            .unwrap_or_default()
+        match self.xor() {
+            Some(x) => (0..8).filter(|b| x >> b & 1 == 1).collect(),
+            None => (0..8).collect(),
+        }
     }
 
     /// The same changed bits as absolute bit offsets in the payload, counting LSB-first within
@@ -84,12 +114,16 @@ impl PayloadDiff {
 pub fn diff(before: &RawSchemePayload, after: &RawSchemePayload) -> PayloadDiff {
     let (a, b) = (before.as_bytes(), after.as_bytes());
     let changes = (0..a.len().max(b.len()))
-        .map(|offset| ByteChange {
-            offset,
-            before: a.get(offset).copied(),
-            after: b.get(offset).copied(),
+        .filter_map(|offset| {
+            let difference = match (a.get(offset).copied(), b.get(offset).copied()) {
+                (Some(x), Some(y)) if x == y => return None,
+                (Some(before), Some(after)) => ByteDifference::Changed { before, after },
+                (Some(x), None) => ByteDifference::OnlyBefore(x),
+                (None, Some(y)) => ByteDifference::OnlyAfter(y),
+                (None, None) => return None,
+            };
+            Some(ByteChange { offset, difference })
         })
-        .filter(|c| c.before != c.after)
         .collect();
     PayloadDiff {
         before_len: a.len(),
@@ -99,33 +133,43 @@ pub fn diff(before: &RawSchemePayload, after: &RawSchemePayload) -> PayloadDiff 
 }
 
 /// A span of bits to read: `len` bits from absolute bit offset `start`, LSB-first within each
-/// byte. At most 64 bits.
+/// byte. From 1 to 64 bits, by construction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BitSpan {
-    pub start: usize,
-    pub len: u8,
+    start: usize,
+    len: u8,
 }
 
-/// Why a span could not be read.
+impl BitSpan {
+    /// `len` bits from `start`, or `None` unless `1 ≤ len ≤ 64`.
+    pub fn new(start: usize, len: u8) -> Option<BitSpan> {
+        (1..=64).contains(&len).then_some(BitSpan { start, len })
+    }
+
+    pub fn start(self) -> usize {
+        self.start
+    }
+
+    pub fn width(self) -> u8 {
+        self.len
+    }
+}
+
+/// A span past the end of the payload, which has `bits` bits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BitSpanError {
-    /// Longer than 64 bits, or empty.
-    BadLength { len: u8 },
-    /// Past the end of the payload, which has `bits` bits.
-    OutOfRange { span: BitSpan, bits: usize },
+pub struct SpanOutOfRange {
+    pub span: BitSpan,
+    pub bits: usize,
 }
 
 /// The bits of a span, bit `start` as the least significant bit of the result. A raw reading
 /// for inspection: whether the span is a field, and of what, is not this function's claim.
-pub fn read_bits(payload: &RawSchemePayload, span: BitSpan) -> Result<u64, BitSpanError> {
-    if span.len == 0 || span.len > 64 {
-        return Err(BitSpanError::BadLength { len: span.len });
-    }
+pub fn read_bits(payload: &RawSchemePayload, span: BitSpan) -> Result<u64, SpanOutOfRange> {
     let bytes = payload.as_bytes();
     let bits = bytes.len() * 8;
     let end = span.start.checked_add(usize::from(span.len));
     if end.is_none_or(|e| e > bits) {
-        return Err(BitSpanError::OutOfRange { span, bits });
+        return Err(SpanOutOfRange { span, bits });
     }
     Ok((0..usize::from(span.len)).fold(0u64, |acc, i| {
         let at = span.start + i;
@@ -192,50 +236,41 @@ mod tests {
             vec![
                 ByteChange {
                     offset: 2,
-                    before: None,
-                    after: Some(7)
+                    difference: ByteDifference::OnlyAfter(7)
                 },
                 ByteChange {
                     offset: 3,
-                    before: None,
-                    after: Some(6)
+                    difference: ByteDifference::OnlyAfter(6)
                 },
             ]
         );
         assert_eq!(d.changes[0].xor(), None);
-        assert!(d.changes[0].changed_bits().is_empty());
+        // A byte only one payload has differs in every bit.
+        assert_eq!(d.changes[0].changed_bits(), (0..8).collect::<Vec<u8>>());
+        assert_eq!(d.changes[0].changed_bit_offsets()[0], 16);
     }
 
     #[test]
     fn bits_are_read_lsb_first_across_bytes() {
         // 0x05 is bits 0 and 2; 0x01 in the second byte is bit 8.
         let p = payload(&[0x05, 0x01]);
-        assert_eq!(read_bits(&p, BitSpan { start: 0, len: 3 }), Ok(0b101));
-        assert_eq!(read_bits(&p, BitSpan { start: 2, len: 7 }), Ok(0b100_0001));
-        assert_eq!(read_bits(&p, BitSpan { start: 8, len: 1 }), Ok(1));
+        let span = |start, len| BitSpan::new(start, len).expect("1 to 64 bits");
+        assert_eq!(read_bits(&p, span(0, 3)), Ok(0b101));
+        assert_eq!(read_bits(&p, span(2, 7)), Ok(0b100_0001));
+        assert_eq!(read_bits(&p, span(8, 1)), Ok(1));
     }
 
     #[test]
     fn a_span_past_the_end_or_of_no_length_is_refused() {
         let p = payload(&[0xff]);
+        let span = |start, len| BitSpan::new(start, len).expect("1 to 64 bits");
         assert!(matches!(
-            read_bits(&p, BitSpan { start: 4, len: 5 }),
-            Err(BitSpanError::OutOfRange { bits: 8, .. })
+            read_bits(&p, span(4, 5)),
+            Err(SpanOutOfRange { bits: 8, .. })
         ));
-        assert_eq!(
-            read_bits(&p, BitSpan { start: 0, len: 0 }),
-            Err(BitSpanError::BadLength { len: 0 })
-        );
-        assert!(matches!(
-            read_bits(
-                &p,
-                BitSpan {
-                    start: usize::MAX,
-                    len: 8
-                }
-            ),
-            Err(BitSpanError::OutOfRange { .. })
-        ));
+        assert_eq!(BitSpan::new(0, 0), None);
+        assert_eq!(BitSpan::new(0, 65), None);
+        assert!(read_bits(&p, span(usize::MAX, 8)).is_err());
     }
 
     mod properties {
@@ -270,7 +305,7 @@ mod tests {
                 let back = diff(&pb, &pa);
                 prop_assert_eq!(forward.changes.len(), back.changes.len());
                 for (f, r) in forward.changes.iter().zip(&back.changes) {
-                    prop_assert_eq!((f.offset, f.before, f.after), (r.offset, r.after, r.before));
+                    prop_assert_eq!((f.offset, f.before(), f.after()), (r.offset, r.after(), r.before()));
                 }
             }
 

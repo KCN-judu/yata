@@ -124,7 +124,8 @@ pub fn format_dump(payload: &RawSchemePayload) -> String {
 }
 
 /// A diff: both lengths, then one line per changed offset with the XOR and the changed bits as
-/// absolute bit offsets, LSB-first. `--` marks a byte one payload does not have.
+/// absolute bit offsets, LSB-first. `--` marks a byte one payload does not have; every bit of a
+/// byte only one payload has is changed.
 pub fn format_diff(diff: &PayloadDiff) -> String {
     let mut out = format!(
         "before: {} bytes\nafter: {} bytes\nchanged: {} bytes\n",
@@ -147,8 +148,8 @@ pub fn format_diff(diff: &PayloadDiff) -> String {
         out.push_str(&format!(
             "0x{:08x}  {}      {}     {}   {}\n",
             c.offset,
-            byte(c.before),
-            byte(c.after),
+            byte(c.before()),
+            byte(c.after()),
             byte(c.xor()),
             if bits.is_empty() {
                 "--".to_owned()
@@ -321,7 +322,7 @@ mod tests {
             "before: 2 bytes\nafter: 3 bytes\nchanged: 2 bytes\n\
              offset      before  after  xor  bits\n\
              0x00000001  05      15     10   12\n\
-             0x00000002  --      07     --   --\n"
+             0x00000002  --      07     --   16 17 18 19 20 21 22 23\n"
         );
     }
 
