@@ -16,8 +16,8 @@
 use std::collections::BTreeMap;
 
 use yata_core::fact::{
-    Commit, Digest, Fact, FactBody, Facts, FoldError, Inventory, InventoryError, Origin, ProfileId,
-    Projection, Revision, Sections, Seq, SnapshotImport,
+    Commit, Digest, Fact, FactBody, Facts, FoldError, GameAccountId, Inventory, InventoryError,
+    Origin, ProfileId, Projection, Revision, Sections, Seq, SnapshotImport,
 };
 use yata_core::import::admit::{AdmittedSnapshot, admit};
 use yata_core::import::ir::{Completeness, IrError, SectionKind, YataSnapshot};
@@ -242,6 +242,7 @@ impl FactLog {
                 original: original_digest,
                 source: snapshot.provenance.format,
                 sections: sections.clone(),
+                account: snapshot.account.as_ref().map(GameAccountId::from_source),
             }),
         };
         let (commit, next) = self
@@ -372,11 +373,12 @@ pub fn format_commit(c: &Commit) -> String {
             FactBody::ProfileRetired => "ProfileRetired".to_owned(),
             FactBody::ProfileRestored => "ProfileRestored".to_owned(),
             FactBody::SnapshotImported(i) => format!(
-                "SnapshotImported {} from {} {:?} {:?}",
+                "SnapshotImported {} from {} {:?} {:?}{}",
                 hex(&i.snapshot.0),
                 hex(&i.original.0),
                 i.source,
-                i.sections.as_map()
+                i.sections.as_map(),
+                set(i.account.is_some())
             ),
             FactBody::SnapshotRetracted { snapshot, reason } => {
                 format!("SnapshotRetracted {} {reason:?}", hex(&snapshot.0))

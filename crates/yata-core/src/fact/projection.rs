@@ -108,6 +108,13 @@ pub enum FoldError {
     UnknownProfile { seq: Seq, profile: ProfileId },
     /// A profile is created once.
     ProfileExists { seq: Seq, profile: ProfileId },
+    /// An import states another account than the one the profile knows (ADR-0033).
+    ProfileMismatch {
+        seq: Seq,
+        profile: ProfileId,
+        known: GameAccountId,
+        observed: GameAccountId,
+    },
     /// A retraction names no import of that snapshot in the profile that is not already
     /// withdrawn.
     RetractsNothing {
@@ -201,6 +208,16 @@ impl Projection {
                 Ok(())
             }
             FactBody::SnapshotImported(import) => {
+                if let (Some(known), Some(observed)) = (state.known_account(), &import.account)
+                    && known != observed
+                {
+                    return Err(FoldError::ProfileMismatch {
+                        seq,
+                        profile,
+                        known: known.clone(),
+                        observed: observed.clone(),
+                    });
+                }
                 state.imports.push(ImportRecord {
                     seq,
                     import: import.clone(),
@@ -254,6 +271,18 @@ impl ProfileState {
     /// The account named when the profile was created; `None` when none was.
     pub fn account(&self) -> Option<&GameAccountId> {
         self.account.as_ref()
+    }
+
+    /// The account this profile's imports must state, if they state one (ADR-0033, rule 2): the
+    /// one named at creation, else the one of its earliest current import that states one.
+    /// Withdrawing that import frees the profile to be bound again.
+    pub fn known_account(&self) -> Option<&GameAccountId> {
+        self.account.as_ref().or_else(|| {
+            self.imports
+                .iter()
+                .filter(|r| r.status == ImportStatus::Current)
+                .find_map(|r| r.import.account.as_ref())
+        })
     }
 
     /// Every import, in log order, withdrawn ones included.
@@ -341,7 +370,7 @@ pub(crate) mod tests {
         }
     }
 
-    /// An import of snapshot `digest` holding `sections`.
+    /// An import of snapshot `digest` holding `sections`, stating no account.
     pub(crate) fn imported(
         profile: ProfileId,
         digest: u8,
@@ -355,8 +384,18 @@ pub(crate) mod tests {
                 source: SourceFormat::Community(FormatTag::MumuSnapshotV1),
                 sections: Sections::new(sections.iter().copied().collect())
                     .expect("at least one section"),
+                account: None,
             }),
         }
+    }
+
+    /// An import of the souls of snapshot `digest`, stating `account`.
+    fn of_account(profile: ProfileId, digest: u8, account: &str) -> Fact {
+        let mut fact = souls(profile, digest, Completeness::Complete);
+        if let FactBody::SnapshotImported(i) = &mut fact.body {
+            i.account = Some(GameAccountId::new(account).expect("non-empty"));
+        }
+        fact
     }
 
     /// An import of snapshot `digest` holding the souls alone.
@@ -627,6 +666,76 @@ pub(crate) mod tests {
         assert!(matches!(
             fold(&twice),
             Err(FoldError::RetractsNothing { seq: s, .. }) if s == seq(4)
+        ));
+    }
+
+    fn mismatch_at(log: &[Commit], n: u64) -> bool {
+        matches!(fold(log), Err(FoldError::ProfileMismatch { seq: s, .. }) if s == seq(n))
+    }
+
+    #[test]
+    fn an_import_of_another_account_does_not_apply() {
+        // known from creation
+        assert!(mismatch_at(
+            &[
+                commit(1, vec![created(P, Some("x"))]),
+                commit(2, vec![of_account(P, 1, "y")]),
+            ],
+            2
+        ));
+        // learned from the first import that states one
+        assert!(mismatch_at(
+            &[
+                commit(1, vec![created(P, None)]),
+                commit(2, vec![of_account(P, 1, "x")]),
+                commit(3, vec![of_account(P, 2, "y")]),
+            ],
+            3
+        ));
+        // an import that states no account is not checked, and binds nothing
+        let p = fold(&[
+            commit(1, vec![created(P, Some("x"))]),
+            commit(2, vec![souls(P, 1, Complete)]),
+            commit(3, vec![of_account(P, 2, "x")]),
+        ])
+        .expect("folds");
+        assert_eq!(
+            p.profile(P).and_then(ProfileState::known_account),
+            Some(&GameAccountId::new("x").expect("non-empty"))
+        );
+        let unbound = fold(&[
+            commit(1, vec![created(P, None)]),
+            commit(2, vec![souls(P, 1, Complete)]),
+        ])
+        .expect("folds");
+        assert_eq!(
+            unbound.profile(P).and_then(ProfileState::known_account),
+            None
+        );
+    }
+
+    #[test]
+    fn withdrawing_the_binding_import_frees_the_profile() {
+        let p = fold(&[
+            commit(1, vec![created(P, None)]),
+            commit(2, vec![of_account(P, 1, "x")]),
+            commit(3, vec![retracted(P, 1)]),
+            commit(4, vec![of_account(P, 2, "y")]),
+        ])
+        .expect("folds");
+        assert_eq!(
+            p.profile(P).and_then(ProfileState::known_account),
+            Some(&GameAccountId::new("y").expect("non-empty"))
+        );
+        // an account named at creation is never freed by a retraction
+        assert!(mismatch_at(
+            &[
+                commit(1, vec![created(P, Some("x"))]),
+                commit(2, vec![of_account(P, 1, "x")]),
+                commit(3, vec![retracted(P, 1)]),
+                commit(4, vec![of_account(P, 2, "y")]),
+            ],
+            4
         ));
     }
 

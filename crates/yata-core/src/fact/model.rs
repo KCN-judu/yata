@@ -75,7 +75,8 @@ pub enum IdError {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GameSoulId(String);
 
-/// The game's identifier for an account, as the user named it when creating a profile.
+/// The game's identifier for an account: named when a profile is created, or stated by an
+/// imported snapshot.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct GameAccountId(String);
 
@@ -104,6 +105,14 @@ impl GameSoulId {
     /// The soul id an imported snapshot states. A source id is never empty, so this cannot fail.
     pub fn from_source(id: &crate::import::ir::SourceId) -> GameSoulId {
         GameSoulId(id.as_str().to_owned())
+    }
+}
+
+impl GameAccountId {
+    /// The account an imported snapshot states. An account ref is never empty, so this cannot
+    /// fail.
+    pub fn from_source(account: &crate::import::ir::AccountRef) -> GameAccountId {
+        GameAccountId(account.as_str().to_owned())
     }
 }
 
@@ -151,6 +160,8 @@ pub struct SnapshotImport {
     pub original: Digest,
     pub source: SourceFormat,
     pub sections: Sections,
+    /// The account the snapshot states; `None` when it states none (ADR-0033).
+    pub account: Option<GameAccountId>,
 }
 
 /// A note's text: never empty. Clearing a note is its own case, `None`, not an empty text.

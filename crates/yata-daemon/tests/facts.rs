@@ -6,18 +6,20 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use yata_core::fact::{
-    Fact, FactBody, Facts, GameSoulId, Inventory, Mark, NoteText, Origin, ProfileId, Revision,
+    Fact, FactBody, Facts, FoldError, GameSoulId, Inventory, Mark, NoteText, Origin, ProfileId,
+    Revision,
 };
 use yata_core::import::capability::{Availability, Capability, availability};
 use yata_core::import::ir::{
-    Completeness, Guild, Provenance, RolledSub, SchemaVersion, Section, SectionKind, SetName,
-    ShikigamiRecord, ShikigamiRoster, SoulRecord, Souls, SourceFormat, SourceId, SpeciesNumber,
-    Valued, YataSnapshot,
+    AccountRef, Completeness, Guild, Provenance, RolledSub, SchemaVersion, Section, SectionKind,
+    SetName, ShikigamiRecord, ShikigamiRoster, SoulRecord, Souls, SourceFormat, SourceId,
+    SpeciesNumber, Valued, YataSnapshot,
 };
 use yata_core::soul::SoulAttribute;
 use yata_daemon::store::blob::digest_of;
 use yata_daemon::store::{
-    CanonicalCodec, CommandOutcome, FactLog, Imported, SnapshotCodec, Store, read_commits,
+    CanonicalCodec, CommandOutcome, CommitError, FactLog, ImportError, Imported, SnapshotCodec,
+    Store, read_commits,
 };
 use yata_store::{GetBlob, ReplaceCache, StoreId};
 
@@ -517,4 +519,80 @@ fn the_canonical_codec_gives_one_snapshot_one_digest() {
     let bytes = codec.encode(&s);
     assert_eq!(codec.encode(&s.clone()), bytes);
     assert_eq!(codec.decode(&bytes), Ok(s));
+}
+
+#[allow(
+    clippy::expect_used,
+    reason = "test helper: a failure here is the test failing"
+)]
+fn of_account(name: &str, account: &str) -> YataSnapshot {
+    YataSnapshot {
+        souls: souls(Complete, vec![soul(name, 15)]),
+        account: Some(AccountRef::new(account).expect("an account")),
+        ..file(name)
+    }
+}
+
+#[test]
+fn an_import_of_another_account_is_refused_and_writes_nothing() {
+    let dir = Scratch::new("account");
+    let mut log = dir.log();
+    import(&mut log, P, "a", &of_account("a", "x"));
+    let before = log.projection().clone();
+    let refused = log.import(
+        P,
+        &of_account("b", "y"),
+        &original("b"),
+        &CanonicalCodec,
+        Origin::Job { job_id: 2 },
+        0,
+    );
+    assert!(matches!(
+        refused,
+        Err(ImportError::Commit(CommitError::Refused(
+            FoldError::ProfileMismatch { .. }
+        )))
+    ));
+    assert_eq!(log.projection(), &before);
+    // A file that states no account is not checked.
+    import(
+        &mut log,
+        P,
+        "c",
+        &YataSnapshot {
+            souls: souls(Partial, vec![soul("c", 3)]),
+            ..file("c")
+        },
+    );
+    assert_eq!(
+        levels(&inventory(&mut log, P)),
+        vec![("a".into(), 15), ("c".into(), 3)]
+    );
+    let mut store = log.into_store();
+    assert_eq!(read_commits(&mut store).map(|c| c.len()), Ok(3));
+}
+
+#[test]
+fn withdrawing_the_binding_import_lets_another_account_in() {
+    let dir = Scratch::new("rebind");
+    let mut log = dir.log();
+    let wrong = import(&mut log, P, "a", &of_account("a", "x"));
+    let revision = log.projection().revision();
+    let retract = Facts::one(Fact {
+        profile: P,
+        body: FactBody::SnapshotRetracted {
+            snapshot: wrong.snapshot,
+            reason: "another account".into(),
+        },
+    });
+    assert!(matches!(
+        log.command(revision, Origin::Command { request_id: 5 }, 0, retract),
+        Ok(CommandOutcome::Applied { .. })
+    ));
+    import(&mut log, P, "b", &of_account("b", "y"));
+    assert_eq!(levels(&inventory(&mut log, P)), vec![("b".into(), 15)]);
+    // The rebuilt projection binds the profile the same way.
+    let projection = log.projection().clone();
+    drop(log);
+    assert_eq!(dir.log().projection(), &projection);
 }

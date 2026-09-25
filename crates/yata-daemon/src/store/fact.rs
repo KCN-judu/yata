@@ -186,6 +186,7 @@ fn encode_import(i: &SnapshotImport) -> pb::SnapshotImported {
                 completeness: completeness(*c).into(),
             })
             .collect(),
+        account: i.account.as_ref().map(|a| a.as_str().to_owned()),
     }
 }
 
@@ -334,6 +335,11 @@ fn decode_import(p: pb::SnapshotImported) -> Result<SnapshotImport, Malformation
         original: digest(&p.original)?,
         source,
         sections: Sections::new(sections).ok_or(Malformation::NoSections)?,
+        account: p
+            .account
+            .map(GameAccountId::new)
+            .transpose()
+            .map_err(|_| Malformation::EmptyAccountId)?,
     })
 }
 
@@ -372,6 +378,7 @@ mod tests {
                 (SectionKind::Guild, Completeness::Unstated),
             ]))
             .expect("sections"),
+            account: None,
         }
     }
 
@@ -390,6 +397,7 @@ mod tests {
             FactBody::SnapshotImported(import()),
             FactBody::SnapshotImported(SnapshotImport {
                 source: SourceFormat::YataSnapshot(SchemaVersion { major: 1, minor: 2 }),
+                account: Some(GameAccountId::new("acct").expect("non-empty")),
                 ..import()
             }),
             FactBody::SnapshotRetracted {
@@ -648,7 +656,7 @@ mod tests {
 
     #[test]
     fn an_import_states_its_digests_source_and_sections_once_each() {
-        let cases: [(Malformation, Vec<u8>); 7] = [
+        let cases: [(Malformation, Vec<u8>); 8] = [
             (
                 Malformation::DigestLength,
                 with_import(|i| i.snapshot = vec![0; 31]),
@@ -658,6 +666,10 @@ mod tests {
                 with_import(|i| i.original = vec![]),
             ),
             (Malformation::NoSource, with_import(|i| i.source = None)),
+            (
+                Malformation::EmptyAccountId,
+                with_import(|i| i.account = Some(String::new())),
+            ),
             (
                 Malformation::NoSections,
                 with_import(|i| i.sections.clear()),

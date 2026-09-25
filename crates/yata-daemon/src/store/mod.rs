@@ -28,8 +28,8 @@ use yata_store::{
 
 /// The store format this build writes and reads (`fact-format.md`, § Reading old facts). It
 /// moves when the fact envelope, a fact kind or version, a fact enum's values, or the table
-/// layout changes (ADR-0032, rule 2).
-pub const STORE_FORMAT_VERSION: u32 = 2;
+/// layout changes (ADR-0032, rule 2). Format 3 records an import's account (ADR-0033).
+pub const STORE_FORMAT_VERSION: u32 = 3;
 
 /// SQLite's `SQLITE_NOTADB`: the file is not a database. SQLite reads the header lazily, so the
 /// first statement on the connection reports it.
@@ -57,7 +57,8 @@ pub enum OpenError {
         known: u32,
     },
     /// Written in a format no build reads any more: format 1, whose facts held the retired
-    /// reader's readings (ADR-0032, rule 3). The store is recreated. Nothing was written to it.
+    /// reader's readings (ADR-0032, rule 3), or format 2, whose imports stated no account
+    /// (ADR-0033, rule 4). The store is recreated. Nothing was written to it.
     RetiredFormat {
         found: u32,
     },
@@ -213,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn a_format_one_store_is_retired_and_a_newer_one_refused() {
+    fn formats_one_and_two_are_retired_and_a_newer_one_refused() {
         let dir = std::env::temp_dir()
             .join(format!("yata-unit-{}-format", std::process::id()))
             .join("数据 目录");
@@ -225,6 +226,7 @@ mod tests {
             Store::open(&path).err()
         };
         assert_eq!(open(1), Some(OpenError::RetiredFormat { found: 1 }));
+        assert_eq!(open(2), Some(OpenError::RetiredFormat { found: 2 }));
         assert_eq!(
             open(STORE_FORMAT_VERSION + 1),
             Some(OpenError::NewerFormat {

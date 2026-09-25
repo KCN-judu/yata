@@ -1,5 +1,5 @@
 // The fact schema: the durable encoding of the log's commits (ADR-0002, ADR-0032,
-// fact-format.md). Store format 2.
+// fact-format.md). Store format 3 (ADR-0033).
 //
 // Owned by the store module of yata-daemon; nothing outside the daemon reads facts, so no Dart
 // bindings are generated. This file has its own version line: a change to a wire schema never
@@ -80,6 +80,8 @@ message SnapshotImported {
   SourceFormat source = 3;
   // At least one; each kind once.
   repeated SectionEntry sections = 4;
+  // The account the snapshot states; absent when it states none (ADR-0033). Never empty.
+  optional string account = 5;
 }
 
 message SourceFormat {
