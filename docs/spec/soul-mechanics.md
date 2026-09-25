@@ -73,6 +73,12 @@ never a value to score.
  ⊢ ⟨k, σ, ℓ, m, S, c⟩ ok
 ```
 
+**Some premises hold by type.** In `yata-core` a star is a `Star`, one to six,
+and every value, main or sub, is a `StoredValue`, finite and not negative;
+`c(a)` is a `RollCount`, and `hits(a)` a `HitCount`, at least one. A decoder
+refuses a number outside them before W-Soul runs, so `1 ≤ σ ≤ 6` and `c(a) ≥ 0`
+are never violations, and no rule meets a NaN or a negative value.
+
 **No rule relates `m` to `dom S`.** A sub-attribute may be the same attribute as
 the main attribute. A Slot 2 soul with main `Spd` and `Spd ∈ dom S` is
 well-formed (双速).

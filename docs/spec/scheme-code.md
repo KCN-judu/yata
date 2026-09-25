@@ -84,7 +84,7 @@ the game's.
 SoulSelection {
   sets             : SetChoice
   slots            : { SoulSlot }
-  stars            : { 1..6 }
+  stars            : { Star }                             // 1★ to 6★
   main_attributes  : { SoulAttribute }
   sub_attributes   : SoulAttribute → SubAttributeMode    // absent key = Ignore
   levels           : { LevelBand }
@@ -92,19 +92,30 @@ SoulSelection {
   sub_counts       : { SubCount }                         // 数量: how many sub-attributes
 }
 
-SetChoice        = AnySet | Sets({ SoulSet })
+SetChoice        = AnySet | Sets(NonEmpty{ SoulSet }) | OnlyUnmapped
 SubAttributeMode = Ignore | Include | Exclude
 LevelBand        = L0to2 | L3to5 | L6to8 | L9to11 | L12to14 | L15
 InnateAttribute  = AtkPercent | DefPercent | HpPercent | EffectHit | EffectRes | Crit
 SubCount         = FewerThanTwo | Two | Three | Four
 ```
 
+**All souls has one name and one encoding.** No soul chosen means no
+restriction, so all souls (the maintainer, 2026-09-25). That is `AnySet`,
+written as a soul mask with no bit set, whatever the mask's length: an empty
+mask and a mask of zero bytes are the same choice. At the bit level it is
+`SoulChoice::All`; the other choice holds at least one soul. A soul mask whose
+set bits all lie beyond the mapped sets is `OnlyUnmapped`: souls are chosen, but
+none the model maps, so it picks no mapped soul.
+
 **`AnySet` and `Sets(every set)` are different values.** The game's
 strengthening editor has a distinct "all souls" choice that is not the same as
 ticking every set by hand (`research/scheme-code-protocol.md`). Collapsing them
-would make a decode–encode round trip change the user's scheme. `AnySet` is
-valid only in a strengthening plan; in a discard scheme it is an encode error
-until the discard editor is shown to have the same choice.
+would make a decode–encode round trip change the user's scheme.
+
+**A discard scheme cannot choose all souls.** Only the strengthening editor has
+that choice. A discard layout is a non-empty list of records that each name
+their souls, and a `DiscardScheme` cannot hold `AnySet`; both refuse it with the
+one error `DiscardCannotSelectAll`, whether the record is built or read.
 
 **`SoulSet` identity is the game's suit code**, the id every soul record
 carries. The scheme bit and the UI order are both mappings from it, recorded in
@@ -146,18 +157,20 @@ group's bits. A selection with nothing preserved is trimmed to its highest set
 bit, as the game writes one.
 
 **Records the model refuses.** A record with both ○ and ✕ set for one attribute
-has no selection: the editor cannot show it. A discard record with an empty soul
-mask has none either: the strengthening editor writes "all souls" that way, and
-what it means in a discard scheme is open. On encode, `AnySet` in a discard
-scheme, `Sets` of nothing, an unmapped suit code, a star outside 1–6, and a plan
-name the game refuses on import are errors.
+has no selection: the editor cannot show it. A discard record that chooses all
+souls is refused by the layout (above). A name the game refuses on import is
+refused where a `SchemeName` is made, on decode as on build. On encode, an
+unmapped suit code, `AnySet` over preserved soul bits beyond the mapped sets
+(writing it would drop them), and `OnlyUnmapped` with no such bit preserved (it
+would read back as `AnySet`) are errors. Stars, an empty `Sets`, and an empty
+discard code cannot be written at all: their types do not hold them.
 
 ## Evaluation
 
 ```text
 matches : (SoulSelection, Soul) -> Verdict
 
-Verdict  = Matches | DoesNotMatch | Undetermined([OpenRule])
+Verdict  = Matches | DoesNotMatch | Undetermined(NonEmpty{ OpenRule })
 OpenRule = Innate | UnknownConditions
 ```
 
@@ -176,15 +189,15 @@ Groups combine by AND: a soul is picked only when every group picks it. So one
 group that rules a soul out makes the verdict `DoesNotMatch`, whatever an open
 rule would say. The per-group rules:
 
-| Group                                         | A soul passes when                                             | Mark |
-| --------------------------------------------- | -------------------------------------------------------------- | ---- |
-| any group with nothing chosen                 | always: an empty group is no constraint                        | ◎    |
-| `sets`                                        | `AnySet`, or its set is in the chosen sets                     | ✓    |
-| `slots`, `stars`, `main_attributes`, `levels` | its value is in the chosen set; a level above 15 is in no band | ✓    |
-| `sub_attributes`, `Include`                   | it has every included attribute                                | ✓    |
-| `sub_attributes`, `Exclude`                   | it has none of the excluded attributes                         | ◎    |
-| `sub_counts`                                  | its number of sub-attributes, all of them, is chosen           | ✓    |
-| `innate`, something chosen                    | it has no innate attribute, or its innate attribute is chosen  | ✓    |
+| Group                                         | A soul passes when                                               | Mark |
+| --------------------------------------------- | ---------------------------------------------------------------- | ---- |
+| any group with nothing chosen                 | always: an empty group is no constraint                          | ◎    |
+| `sets`                                        | `AnySet`, or its set is in the chosen sets; never `OnlyUnmapped` | ✓    |
+| `slots`, `stars`, `main_attributes`, `levels` | its value is in the chosen set; a level above 15 is in no band   | ✓    |
+| `sub_attributes`, `Include`                   | it has every included attribute                                  | ✓    |
+| `sub_attributes`, `Exclude`                   | it has none of the excluded attributes                           | ◎    |
+| `sub_counts`                                  | its number of sub-attributes, all of them, is chosen             | ✓    |
+| `innate`, something chosen                    | it has no innate attribute, or its innate attribute is chosen    | ✓    |
 
 `SubCount::of` places a soul's number of sub-attributes by the editor's labels:
 0 or 1 is 不足2条, then 2条, 3条, 4条; more than four is in no choice.
@@ -205,9 +218,8 @@ published):
 
 The empty-group rule is observed for 等级, 数量 and a disabled 固有属性, and
 **extrapolated** to 类型, 位置, 星级 and 主属性 (the maintainer's choice,
-2026-09-24): hence ◎. An empty 类型 cannot be written anyway (`NoSets`). Of
-the 数量 choices, 2条 and 4条 were exercised; the other two are read from their
-labels.
+2026-09-24): hence ◎. An empty 类型 is `AnySet` (above). Of the 数量 choices,
+2条 and 4条 were exercised; the other two are read from their labels.
 
 **`innate` is decided where the soul's own set is chosen.** The maintainer
 applied 固有属性 in the game's soul panel on 2026-09-25, with a boss soul and
@@ -232,10 +244,10 @@ either.
 
 There is no unknown kind: a reading that cannot tell which a soul is, is refused
 before it becomes a soul (ADR-0029). One case stays `Undetermined(Innate)`: a
-boss soul whose own set is not chosen (`AnySet`, or no set) and whose innate
-attribute is not chosen. The editor cannot write a chosen innate attribute
-there, so the game's reading of one is not observed; a chosen attribute picks
-the soul either way.
+boss soul whose own set is not chosen (`AnySet`) and whose innate attribute is
+not chosen. The editor cannot write a chosen innate attribute there, so the
+game's reading of one is not observed; a chosen attribute picks the soul either
+way.
 
 An empty 固有属性 is no constraint, like any empty group.
 
