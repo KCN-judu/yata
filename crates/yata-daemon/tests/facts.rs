@@ -549,19 +549,25 @@ fn a_reading_without_an_established_soul_id_is_refused_and_writes_nothing() {
     let dir = Scratch::new("unestablished");
     let mut log = dir.log();
     commit(&mut log, Origin::Maintenance, 0, vec![created(P)]).expect("profile");
-    // What the reader sends today: records, and no typed field established.
-    let mut today = complete("p", vec![soul("a", 15)]);
-    records(&mut today).mappings = Some(probe::SoulMappings {
+    // A soul id the reader states only as inherited.
+    let only_id = probe::SoulRecord {
+        soul_id: Some("a".into()),
+        ..probe::SoulRecord::default()
+    };
+    let mut inherited = complete("p", vec![only_id]);
+    records(&mut inherited).mappings = Some(probe::SoulMappings {
         soul_id: Some(inherited_mapping()),
         ..probe::SoulMappings::default()
     });
     let e = log
-        .ingest(P, &today, provenance(), Origin::Job { job_id: 1 }, 0)
+        .ingest(P, &inherited, provenance(), Origin::Job { job_id: 1 }, 0)
         .expect_err("unestablished");
     assert_eq!(
         wire::ingest_failure(&e).code(),
         "import.unestablished_identity"
     );
+    // What the reader sends today: records with no typed field, and nothing mapped.
+    let mut today = complete("p", vec![probe::SoulRecord::default()]);
     records(&mut today).mappings = Some(probe::SoulMappings::default());
     let e = log
         .ingest(P, &today, provenance(), Origin::Job { job_id: 2 }, 0)
@@ -570,6 +576,13 @@ fn a_reading_without_an_established_soul_id_is_refused_and_writes_nothing() {
         wire::ingest_failure(&e).code(),
         "import.unestablished_identity"
     );
+    // Values on fields the reading does not map contradict it.
+    let mut stray = complete("p", vec![soul("a", 15)]);
+    records(&mut stray).mappings = Some(probe::SoulMappings::default());
+    let e = log
+        .ingest(P, &stray, provenance(), Origin::Job { job_id: 3 }, 0)
+        .expect_err("contradictory");
+    assert_eq!(wire::ingest_failure(&e).code(), "import.malformed_reading");
     assert_eq!(log.projection().revision(), Revision::at(seq(1)));
 }
 

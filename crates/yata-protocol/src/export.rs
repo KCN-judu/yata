@@ -12,7 +12,7 @@ use crate::probe::{self, ProbeExport, ProtocolVersion};
 /// file can make the parser allocate.
 pub const MAX_EXPORT_BYTES: usize = 64 * 1024 * 1024;
 
-/// Why a file is not an export this build accepts, or an export could not be written.
+/// Why a file is not an export this build accepts.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExportError {
     /// Larger than [`MAX_EXPORT_BYTES`].
@@ -25,13 +25,17 @@ pub enum ExportError {
     UnsupportedVersion { found: ProtocolVersion },
     /// JSON of the right version that is not a `ProbeExport`.
     Malformed { reason: String },
-    /// The export could not be written as JSON.
-    Unwritable { reason: String },
+}
+
+/// Why an export could not be written as JSON.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Unwritable {
+    pub reason: String,
 }
 
 /// The file's text for an export: pretty-printed, ending in a newline.
-pub fn to_json(export: &ProbeExport) -> Result<String, ExportError> {
-    let mut text = serde_json::to_string_pretty(export).map_err(|e| ExportError::Unwritable {
+pub fn to_json(export: &ProbeExport) -> Result<String, Unwritable> {
+    let mut text = serde_json::to_string_pretty(export).map_err(|e| Unwritable {
         reason: e.to_string(),
     })?;
     text.push('\n');

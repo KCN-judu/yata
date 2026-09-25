@@ -49,13 +49,20 @@ pub enum Field<T> {
 }
 
 impl<T> Field<T> {
-    fn from_mapping(mapping: Option<&Mapping>, value: Option<T>) -> Field<T> {
-        match mapping {
-            None => Field::Unmapped,
-            Some(m) => Field::Mapped {
+    /// The field a record holds under its mapping. A value on a field the reading does not map
+    /// is a contradiction, refused with the field's name.
+    fn from_mapping(
+        field: SoulField,
+        mapping: Option<&Mapping>,
+        value: Option<T>,
+    ) -> Result<Field<T>, SoulField> {
+        match (mapping, value) {
+            (None, None) => Ok(Field::Unmapped),
+            (None, Some(_)) => Err(field),
+            (Some(m), value) => Ok(Field::Mapped {
                 evidence: m.evidence(),
                 value,
-            },
+            }),
         }
     }
 
@@ -264,6 +271,17 @@ impl SoulObservation {
     }
 }
 
+/// Why a reading's records contradict what the reading states.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReadingDefect {
+    /// A record holds a value for a field the reading says it does not map.
+    ValueOnUnmappedField { index: usize, field: SoulField },
+    /// The reading names an account with an empty id.
+    EmptyAccount,
+    /// A record's soul id is empty.
+    EmptySoulId { index: usize },
+}
+
 /// One reading of the souls scope.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SoulReading {
@@ -275,39 +293,58 @@ pub struct SoulReading {
 }
 
 impl SoulReading {
-    /// A reading from its mappings and its records' raw values: each field of each soul is
-    /// unmapped exactly when its mapping is, whatever the raw value holds.
+    /// A reading from its mappings and its records' raw values. Each field of each soul is
+    /// unmapped exactly when its mapping is; a value on an unmapped field, an empty account id,
+    /// or an empty soul id contradicts the reading and is refused.
     pub fn new(
         coverage: Coverage,
         account: Option<String>,
         recognition: Option<Mapping>,
         mappings: SoulMappings,
         souls: Vec<RawSoul>,
-    ) -> SoulReading {
+    ) -> Result<SoulReading, ReadingDefect> {
+        if account.as_deref() == Some("") {
+            return Err(ReadingDefect::EmptyAccount);
+        }
         let m = &mappings;
         let souls = souls
             .into_iter()
-            .map(|r| SoulObservation {
-                soul_id: Field::from_mapping(m.soul_id.as_ref(), r.soul_id),
-                suit_code: Field::from_mapping(m.suit_code.as_ref(), r.suit_code),
-                star: Field::from_mapping(m.star.as_ref(), r.star),
-                slot: Field::from_mapping(m.slot.as_ref(), r.slot),
-                level: Field::from_mapping(m.level.as_ref(), r.level),
-                main: Field::from_mapping(m.main.as_ref(), r.main),
-                subs: Field::from_mapping(m.subs.as_ref(), r.subs),
-                innate: Field::from_mapping(m.innate.as_ref(), r.innate),
-                locked: Field::from_mapping(m.locked.as_ref(), r.locked),
-                discarded: Field::from_mapping(m.discarded.as_ref(), r.discarded),
-                observed: r.observed,
+            .enumerate()
+            .map(|(index, r)| {
+                if r.soul_id.as_deref() == Some("") {
+                    return Err(ReadingDefect::EmptySoulId { index });
+                }
+                fn take<T>(
+                    index: usize,
+                    field: SoulField,
+                    mapping: &Option<Mapping>,
+                    value: Option<T>,
+                ) -> Result<Field<T>, ReadingDefect> {
+                    Field::from_mapping(field, mapping.as_ref(), value)
+                        .map_err(|field| ReadingDefect::ValueOnUnmappedField { index, field })
+                }
+                Ok(SoulObservation {
+                    soul_id: take(index, SoulField::SoulId, &m.soul_id, r.soul_id)?,
+                    suit_code: take(index, SoulField::SuitCode, &m.suit_code, r.suit_code)?,
+                    star: take(index, SoulField::Star, &m.star, r.star)?,
+                    slot: take(index, SoulField::Slot, &m.slot, r.slot)?,
+                    level: take(index, SoulField::Level, &m.level, r.level)?,
+                    main: take(index, SoulField::Main, &m.main, r.main)?,
+                    subs: take(index, SoulField::Subs, &m.subs, r.subs)?,
+                    innate: take(index, SoulField::Innate, &m.innate, r.innate)?,
+                    locked: take(index, SoulField::Locked, &m.locked, r.locked)?,
+                    discarded: take(index, SoulField::Discarded, &m.discarded, r.discarded)?,
+                    observed: r.observed,
+                })
             })
-            .collect();
-        SoulReading {
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(SoulReading {
             coverage,
             account,
             recognition,
             mappings,
             souls,
-        }
+        })
     }
 
     pub fn coverage(&self) -> Coverage {
@@ -521,22 +558,71 @@ mod tests {
     }
 
     #[test]
-    fn an_unmapped_field_holds_no_value_whatever_the_record_says() {
+    fn a_value_on_an_unmapped_field_contradicts_the_reading() {
         let mappings = SoulMappings {
             star: Some(Mapping::Inherited),
             ..SoulMappings::default()
         };
-        let raw = RawSoul {
+        let mapped = RawSoul {
             star: Some(GameStar(6)),
-            level: Some(GameLevel(15)),
             ..RawSoul::default()
         };
-        let r = SoulReading::new(Coverage::Partial, None, None, mappings, vec![raw]);
+        let r = SoulReading::new(
+            Coverage::Partial,
+            None,
+            None,
+            mappings.clone(),
+            vec![mapped],
+        )
+        .expect("consistent");
         let soul = &r.souls()[0];
         assert_eq!(soul.star.value(), Some(&GameStar(6)));
         assert_eq!(soul.star.evidence(), Some(Evidence::Inherited));
         assert_eq!(soul.level, Field::Unmapped);
-        assert_eq!(soul.level.value(), None);
+        let stray = RawSoul {
+            star: Some(GameStar(6)),
+            level: Some(GameLevel(15)),
+            ..RawSoul::default()
+        };
+        assert_eq!(
+            SoulReading::new(
+                Coverage::Partial,
+                None,
+                None,
+                mappings,
+                vec![RawSoul::default(), stray]
+            ),
+            Err(ReadingDefect::ValueOnUnmappedField {
+                index: 1,
+                field: SoulField::Level
+            })
+        );
+    }
+
+    #[test]
+    fn an_empty_account_or_soul_id_is_refused() {
+        let ids = SoulMappings {
+            soul_id: Some(Mapping::Inherited),
+            ..SoulMappings::default()
+        };
+        assert_eq!(
+            SoulReading::new(
+                Coverage::Partial,
+                Some(String::new()),
+                None,
+                SoulMappings::default(),
+                vec![]
+            ),
+            Err(ReadingDefect::EmptyAccount)
+        );
+        let empty = RawSoul {
+            soul_id: Some(String::new()),
+            ..RawSoul::default()
+        };
+        assert_eq!(
+            SoulReading::new(Coverage::Partial, None, None, ids, vec![empty]),
+            Err(ReadingDefect::EmptySoulId { index: 0 })
+        );
     }
 
     #[test]
@@ -553,7 +639,8 @@ mod tests {
             None,
             mappings,
             vec![RawSoul::default()],
-        );
+        )
+        .expect("consistent");
         assert_eq!(
             r.souls()[0].subs,
             Field::Mapped {

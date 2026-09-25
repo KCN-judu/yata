@@ -14,11 +14,11 @@ use std::time::Duration;
 
 use prost::Message;
 use yata_protocol::discipline::{Breach, Ledger, RequestId};
+use yata_protocol::failure::{Failure, FailureError, RequestFailure, SessionFailure};
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
 use yata_protocol::probe::{
-    self, Cancel, Discover, Handshake, HandshakeAck, Log, ProbeError, ProbeErrorCode, ProbeMessage,
-    ProtocolVersion, ReadRequest, Reading, Scope, Shutdown, TargetProcess, failed::Subject,
-    handshake, probe_error::Detail, probe_message::Kind,
+    self, Cancel, Discover, Handshake, HandshakeAck, Log, ProbeMessage, ProtocolVersion,
+    ReadRequest, Reading, Scope, Shutdown, failed::Subject, handshake, probe_message::Kind,
 };
 
 /// Which process the reader reads.
@@ -30,37 +30,30 @@ pub enum Target {
     Pid(NonZeroU32),
 }
 
-/// A failure the reader reported, as the daemon keeps it: the code is never unspecified.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProbeFailure {
-    pub code: ProbeErrorCode,
-    pub message: String,
-    pub os_error: Option<u32>,
-    /// The processes discovery considered, for not-found and ambiguous-target.
-    pub candidates: Vec<TargetProcess>,
+/// A failure the reader reported, with what it was about.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Failed {
+    Session(SessionFailure),
+    Request {
+        id: RequestId,
+        failure: RequestFailure,
+    },
 }
 
-impl ProbeFailure {
-    fn from_wire(e: Option<ProbeError>) -> Result<ProbeFailure, SessionError> {
-        let e = e.ok_or(SessionError::Undecodable(Undecodable::NoError))?;
-        let code = e.code();
-        if code == ProbeErrorCode::Unspecified {
-            return Err(SessionError::Undecodable(Undecodable::UnstatedCode));
-        }
-        Ok(ProbeFailure {
-            code,
-            message: e.message,
-            os_error: e.os_error,
-            candidates: match e.detail {
-                Some(Detail::Discovery(d)) => d.candidates,
-                None => Vec::new(),
-            },
-        })
-    }
-
+impl Failed {
     /// The code's stable dotted name.
     pub fn name(&self) -> &'static str {
-        self.code.name().unwrap_or("probe.unspecified")
+        match self {
+            Failed::Session(f) => f.name(),
+            Failed::Request { failure, .. } => failure.name(),
+        }
+    }
+
+    pub fn message(&self) -> &str {
+        match self {
+            Failed::Session(f) => &f.message,
+            Failed::Request { failure, .. } => &failure.message,
+        }
     }
 }
 
@@ -73,8 +66,12 @@ pub enum Undecodable {
     NoKind,
     /// A `Failed` without its error.
     NoError,
-    /// An error whose code is unspecified.
-    UnstatedCode,
+    /// An error the shared failure types refuse: an unstated code, or a detail or system error
+    /// the code does not have.
+    Failure(FailureError),
+    /// A `Failed` whose subject is the session and whose code answers one request, or the
+    /// other way round.
+    SubjectMismatch,
     /// A result without its reading.
     NoReading,
 }
@@ -97,8 +94,15 @@ pub enum SessionError {
     Breach(Breach),
     /// The reader speaks a protocol major version this build does not, or states none.
     ProtocolUnsupported(Option<ProtocolVersion>),
-    /// The reader answered the request, or the session, with `Failed`.
-    Failed(ProbeFailure),
+    /// The reader ended the session with `Failed`.
+    SessionFailed(SessionFailure),
+    /// The reader answered a request with `Failed`.
+    RequestFailed {
+        id: RequestId,
+        failure: RequestFailure,
+    },
+    /// The thread reading the stream panicked.
+    PumpPanicked,
     /// The stream ended cleanly with requests unanswered, or before the handshake was answered.
     Closed {
         open: Vec<RequestId>,
@@ -133,9 +137,9 @@ pub enum Inbound {
     },
     RequestFailed {
         id: RequestId,
-        failure: ProbeFailure,
+        failure: RequestFailure,
     },
-    SessionFailed(ProbeFailure),
+    SessionFailed(SessionFailure),
     Log(Log),
 }
 
@@ -210,18 +214,24 @@ impl Inbox {
                 self.phase = Phase::Acked;
                 Ok(Inbound::Ack(a))
             }
-            Kind::Failed(f) => match f.subject {
-                Some(Subject::Session(_)) => {
-                    Ok(Inbound::SessionFailed(ProbeFailure::from_wire(f.error)?))
+            Kind::Failed(f) => {
+                let undecodable = |u| SessionError::Undecodable(u);
+                let error = f.error.ok_or(undecodable(Undecodable::NoError))?;
+                let failure =
+                    Failure::from_wire(error).map_err(|e| undecodable(Undecodable::Failure(e)))?;
+                match (f.subject, failure) {
+                    (Some(Subject::Session(_)), Failure::Session(failure)) => {
+                        Ok(Inbound::SessionFailed(failure))
+                    }
+                    (Some(Subject::RequestId(id)), Failure::Request(failure)) => {
+                        let id = self.about(id)?;
+                        self.ledger.answer(id).map_err(SessionError::Breach)?;
+                        Ok(Inbound::RequestFailed { id, failure })
+                    }
+                    (Some(_), _) => Err(undecodable(Undecodable::SubjectMismatch)),
+                    (None, _) => Err(undecodable(Undecodable::NoKind)),
                 }
-                Some(Subject::RequestId(id)) => {
-                    let id = self.about(id)?;
-                    let failure = ProbeFailure::from_wire(f.error)?;
-                    self.ledger.answer(id).map_err(SessionError::Breach)?;
-                    Ok(Inbound::RequestFailed { id, failure })
-                }
-                None => Err(SessionError::Undecodable(Undecodable::NoKind)),
-            },
+            }
             Kind::Progress(p) => {
                 let id = self.about(p.request_id)?;
                 self.ledger.progress(id).map_err(SessionError::Breach)?;
@@ -282,11 +292,14 @@ impl Replay {
         })
     }
 
-    /// Every failure: `None` for the session, the request's id otherwise.
-    pub fn failures(&self) -> impl Iterator<Item = (Option<RequestId>, &ProbeFailure)> {
+    /// Every failure, with what it was about.
+    pub fn failures(&self) -> impl Iterator<Item = Failed> + '_ {
         self.messages.iter().filter_map(|m| match m {
-            Inbound::SessionFailed(f) => Some((None, f)),
-            Inbound::RequestFailed { id, failure } => Some((Some(*id), failure)),
+            Inbound::SessionFailed(f) => Some(Failed::Session(f.clone())),
+            Inbound::RequestFailed { id, failure } => Some(Failed::Request {
+                id: *id,
+                failure: failure.clone(),
+            }),
             _ => None,
         })
     }
@@ -387,7 +400,7 @@ impl Session {
         loop {
             match self.next()? {
                 Inbound::Ack(a) => return Ok(a),
-                Inbound::SessionFailed(f) => return Err(SessionError::Failed(f)),
+                Inbound::SessionFailed(f) => return Err(SessionError::SessionFailed(f)),
                 Inbound::Log(l) => self.logs.push(l),
                 Inbound::Progress { .. }
                 | Inbound::Result { .. }
@@ -425,9 +438,10 @@ impl Session {
                     }
                 }
                 Inbound::Result { reading, .. } => return Ok(*reading),
-                Inbound::RequestFailed { failure, .. } | Inbound::SessionFailed(failure) => {
-                    return Err(SessionError::Failed(failure));
+                Inbound::RequestFailed { id, failure } => {
+                    return Err(SessionError::RequestFailed { id, failure });
                 }
+                Inbound::SessionFailed(f) => return Err(SessionError::SessionFailed(f)),
                 Inbound::Log(l) => self.logs.push(l),
                 // The inbox refuses a second HandshakeAck before it gets here.
                 Inbound::Ack(_) => return Err(SessionError::OutOfOrder("a second HandshakeAck")),
@@ -455,12 +469,14 @@ impl Session {
                 match events.recv() {
                     Ok(Event::Frame(_)) => continue,
                     Ok(Event::End(end)) => break end,
+                    // The pump always sends its end before it returns, so a disconnect without
+                    // one is a panic; the join below says so.
                     Err(_) => break Ok(()),
                 }
             },
         };
-        let _ = pump.join();
-        sent.and(end)
+        let joined = pump.join().map_err(|_| SessionError::PumpPanicked);
+        sent.and(end).and(joined)
     }
 
     fn send(&mut self, kind: Kind) -> Result<(), SessionError> {

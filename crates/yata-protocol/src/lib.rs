@@ -2,7 +2,8 @@
 //!
 //! - [`frame`]: the one frame codec both channels use, as `core-protocol.md`, § Frame states it.
 //! - [`probe`]: the probe protocol's messages, generated from `proto/probe.proto`, with their
-//!   proto3 JSON mapping, the error codes, and the reader's exit codes.
+//!   proto3 JSON mapping.
+//! - [`failure`]: the probe's failures as parsed values, their codes, and the reader's exits.
 //! - [`discipline`]: the request discipline, one state machine both peers run.
 //! - [`export`]: the export file, a `ProbeExport` in proto3 JSON (ADR-0008).
 //! - [`core`]: the core protocol's messages, generated from `proto/core.proto`: the session,
@@ -14,6 +15,7 @@
 
 pub mod discipline;
 pub mod export;
+pub mod failure;
 pub mod frame;
 /// The probe protocol (`probe-protocol.md`), generated from `proto/probe.proto` at build time.
 #[allow(
@@ -32,96 +34,6 @@ pub mod probe {
     /// (`protocol-versions.md`, "Compatibility rule").
     pub fn accepts(version: ProtocolVersion) -> bool {
         version.major == VERSION.major
-    }
-
-    /// The reader's process exit codes (`probe-protocol.md`, "Frame").
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-    pub enum Exit {
-        /// Clean shutdown, requested by the daemon.
-        Clean,
-        /// Could not attach: the game was not found, was ambiguous, exited, or refused access.
-        NotAttached,
-        /// The target was found but no read strategy matched it.
-        NoStrategy,
-        /// The daemon sent a frame the reader could not decode, or broke the discipline.
-        Protocol,
-        /// An internal failure, with the reason in the reader's log file.
-        Internal,
-        /// The game is elevated and the reader is not.
-        ElevationRequired,
-    }
-
-    impl Exit {
-        /// The process exit code.
-        pub fn code(self) -> u8 {
-            match self {
-                Exit::Clean => 0,
-                Exit::NotAttached => 1,
-                Exit::NoStrategy => 2,
-                Exit::Protocol => 3,
-                Exit::Internal => 4,
-                Exit::ElevationRequired => 5,
-            }
-        }
-
-        pub fn from_code(code: i32) -> Option<Exit> {
-            [
-                Exit::Clean,
-                Exit::NotAttached,
-                Exit::NoStrategy,
-                Exit::Protocol,
-                Exit::Internal,
-                Exit::ElevationRequired,
-            ]
-            .into_iter()
-            .find(|e| i32::from(e.code()) == code)
-        }
-    }
-
-    impl ProbeErrorCode {
-        /// The code's stable dotted name, as the spec, logs, and the daemon's error details
-        /// write it. `None` for the unspecified value, which is never a code.
-        pub fn name(self) -> Option<&'static str> {
-            Some(match self {
-                ProbeErrorCode::Unspecified => return None,
-                ProbeErrorCode::NotFound => "probe.not_found",
-                ProbeErrorCode::AmbiguousTarget => "probe.ambiguous_target",
-                ProbeErrorCode::ElevationRequired => "probe.elevation_required",
-                ProbeErrorCode::AccessDenied => "probe.access_denied",
-                ProbeErrorCode::ProcessExited => "probe.process_exited",
-                ProbeErrorCode::UnsupportedEnvironment => "probe.unsupported_environment",
-                ProbeErrorCode::LayoutMismatch => "probe.layout_mismatch",
-                ProbeErrorCode::Cancelled => "probe.cancelled",
-                ProbeErrorCode::ProtocolUnsupported => "probe.protocol_unsupported",
-                ProbeErrorCode::ProtocolError => "probe.protocol_error",
-                ProbeErrorCode::ScopeUnsupported => "probe.scope_unsupported",
-                ProbeErrorCode::NotAttached => "probe.not_attached",
-                ProbeErrorCode::Internal => "probe.internal",
-            })
-        }
-
-        /// The exit code a reader ends with after this failure, for the codes that end it; the
-        /// others answer one request (`probe-protocol.md`, "Error codes").
-        pub fn exit(self) -> Option<Exit> {
-            match self {
-                ProbeErrorCode::NotFound
-                | ProbeErrorCode::AmbiguousTarget
-                | ProbeErrorCode::AccessDenied
-                | ProbeErrorCode::ProcessExited => Some(Exit::NotAttached),
-                ProbeErrorCode::ElevationRequired => Some(Exit::ElevationRequired),
-                ProbeErrorCode::UnsupportedEnvironment | ProbeErrorCode::LayoutMismatch => {
-                    Some(Exit::NoStrategy)
-                }
-                ProbeErrorCode::ProtocolUnsupported | ProbeErrorCode::ProtocolError => {
-                    Some(Exit::Protocol)
-                }
-                ProbeErrorCode::Internal => Some(Exit::Internal),
-                ProbeErrorCode::Cancelled
-                | ProbeErrorCode::ScopeUnsupported
-                | ProbeErrorCode::NotAttached
-                | ProbeErrorCode::Unspecified => None,
-            }
-        }
     }
 }
 
@@ -145,9 +57,9 @@ mod tests {
 
     use super::frame::{decode_all, encode};
     use super::probe::{
-        AttributeValue, Exit, InnateReading, NoInnate, ProbeErrorCode, ProbeMessage, ReadResult,
-        Reading, SoulRecord, SoulRecords, SubAttributeValue, SubAttributeValues,
-        innate_reading::State, probe_message::Kind, reading::Records,
+        AttributeValue, InnateReading, NoInnate, ProbeMessage, ReadResult, Reading, SoulRecord,
+        SoulRecords, SubAttributeValue, SubAttributeValues, innate_reading::State,
+        probe_message::Kind, reading::Records,
     };
 
     #[test]
@@ -204,36 +116,5 @@ mod tests {
             roll_count,
         };
         assert_ne!(with(None).encode_to_vec(), with(Some(0)).encode_to_vec());
-    }
-
-    #[test]
-    fn every_code_has_a_name_and_only_session_codes_end_the_reader() {
-        let all = [
-            ProbeErrorCode::NotFound,
-            ProbeErrorCode::AmbiguousTarget,
-            ProbeErrorCode::ElevationRequired,
-            ProbeErrorCode::AccessDenied,
-            ProbeErrorCode::ProcessExited,
-            ProbeErrorCode::UnsupportedEnvironment,
-            ProbeErrorCode::LayoutMismatch,
-            ProbeErrorCode::Cancelled,
-            ProbeErrorCode::ProtocolUnsupported,
-            ProbeErrorCode::ProtocolError,
-            ProbeErrorCode::ScopeUnsupported,
-            ProbeErrorCode::NotAttached,
-            ProbeErrorCode::Internal,
-        ];
-        for c in all {
-            assert!(c.name().is_some_and(|n| n.starts_with("probe.")), "{c:?}");
-            assert_ne!(c.exit(), Some(Exit::Clean), "{c:?}");
-        }
-        assert_eq!(ProbeErrorCode::Unspecified.name(), None);
-        assert_eq!(ProbeErrorCode::Cancelled.exit(), None);
-        assert_eq!(
-            ProbeErrorCode::ElevationRequired.exit().map(Exit::code),
-            Some(5)
-        );
-        assert_eq!(Exit::from_code(5), Some(Exit::ElevationRequired));
-        assert_eq!(Exit::from_code(9), None);
     }
 }

@@ -7,10 +7,11 @@ use std::sync::{Arc, Mutex};
 use prost::Message;
 use yata_daemon::probe::input::{Carrier, load_bytes, to_export};
 use yata_daemon::probe::session::{
-    Inbound, Session, SessionError, Step, Target, Undecodable, replay,
+    Failed as FailedAbout, Inbound, Session, SessionError, Step, Target, Undecodable, replay,
 };
 use yata_protocol::discipline::{Breach, RequestId};
 use yata_protocol::export;
+use yata_protocol::failure::{FailureError, RequestCode, SessionReason};
 use yata_protocol::frame::{self, FrameDecoder, FrameError};
 use yata_protocol::probe::{
     self, Failed, HandshakeAck, ProbeError, ProbeErrorCode, ProbeMessage, Progress,
@@ -244,11 +245,16 @@ fn a_cancel_is_sent_once_and_the_request_still_gets_one_answer() {
     });
     s.handshake(Target::Discover).expect("acknowledged");
     let answer = s.read(Scope::Souls, |_, _| Step::Cancel);
-    let Err(SessionError::Failed(e)) = answer else {
+    let Err(SessionError::RequestFailed {
+        id: failed_id,
+        failure,
+    }) = answer
+    else {
         panic!("expected the cancelled failure, got {answer:?}")
     };
-    assert_eq!(e.code, ProbeErrorCode::Cancelled);
-    assert_eq!(e.name(), "probe.cancelled");
+    assert_eq!(failed_id, id(1));
+    assert_eq!(failure.code, RequestCode::Cancelled);
+    assert_eq!(failure.name(), "probe.cancelled");
     s.shutdown().expect("clean");
     reader.join().expect("reader");
     assert_eq!(*cancels.lock().expect("count"), 1);
@@ -267,10 +273,10 @@ fn a_session_level_failure_ends_the_handshake() {
             .expect("w");
     });
     let answer = s.handshake(Target::Discover);
-    let Err(SessionError::Failed(e)) = answer else {
+    let Err(SessionError::SessionFailed(e)) = answer else {
         panic!("expected a failure, got {answer:?}")
     };
-    assert_eq!(e.code, ProbeErrorCode::ElevationRequired);
+    assert_eq!(e.reason, SessionReason::ElevationRequired);
     reader.join().expect("reader");
     // The reader has gone: shutting down is still clean.
     assert_eq!(s.shutdown(), Ok(()));
@@ -278,29 +284,50 @@ fn a_session_level_failure_ends_the_handshake() {
     let recorded = replay(&tape.bytes()).expect("whole");
     let failures: Vec<_> = recorded.failures().collect();
     assert_eq!(failures.len(), 1);
-    assert_eq!(failures[0].0, None);
+    assert!(matches!(failures[0], FailedAbout::Session(_)));
     assert!(recorded.ack().is_none());
 }
 
 #[test]
 fn a_failure_without_its_error_or_code_is_undecodable() {
-    for bad in [
-        Kind::Failed(Failed {
-            subject: Some(Subject::Session(SessionLevel {})),
-            error: None,
-        }),
-        failed(
-            Subject::Session(SessionLevel {}),
-            ProbeErrorCode::Unspecified,
-        ),
-    ] {
-        assert!(matches!(
-            replay(&frame_of(bad)),
-            Err(SessionError::Undecodable(
-                Undecodable::NoError | Undecodable::UnstatedCode
-            ))
-        ));
-    }
+    let no_error = Kind::Failed(Failed {
+        subject: Some(Subject::Session(SessionLevel {})),
+        error: None,
+    });
+    assert_eq!(
+        replay(&frame_of(no_error)),
+        Err(SessionError::Undecodable(Undecodable::NoError))
+    );
+    let no_code = failed(
+        Subject::Session(SessionLevel {}),
+        ProbeErrorCode::Unspecified,
+    );
+    assert_eq!(
+        replay(&frame_of(no_code)),
+        Err(SessionError::Undecodable(Undecodable::Failure(
+            FailureError::UnstatedCode
+        )))
+    );
+}
+
+#[test]
+fn a_failure_whose_subject_disagrees_with_its_code_is_undecodable() {
+    // A session-level subject with a request's code, and a request with a session's code: the
+    // subject and the code each say what the failure ends, and they must agree.
+    let session_cancelled = failed(Subject::Session(SessionLevel {}), ProbeErrorCode::Cancelled);
+    assert_eq!(
+        replay(&frame_of(session_cancelled)),
+        Err(SessionError::Undecodable(Undecodable::SubjectMismatch))
+    );
+    let mut stream = frame_of(ack());
+    stream.extend(frame_of(failed(
+        Subject::RequestId(1),
+        ProbeErrorCode::ElevationRequired,
+    )));
+    assert_eq!(
+        replay(&stream),
+        Err(SessionError::Undecodable(Undecodable::SubjectMismatch))
+    );
 }
 
 #[test]

@@ -4,6 +4,7 @@
 
 use std::path::PathBuf;
 
+use yata_core::fact::Channel;
 use yata_core::import::evidence::{
     self, Attestation, BitStatus, GroupKey, Outcome, Source, Unjoined,
 };
@@ -11,7 +12,6 @@ use yata_core::import::observation::{Coverage, Field, Mapping, RawValue, SoulFie
 use yata_core::scheme::edit::SoulBit;
 use yata_daemon::probe::convert::soul_reading;
 use yata_daemon::probe::input::{Carrier, load};
-use yata_protocol::probe::Channel;
 
 #[allow(
     clippy::expect_used,
@@ -74,7 +74,7 @@ fn the_souls_decode_to_observations_with_nothing_typed() {
     let keys: Vec<GroupKey> = r
         .souls()
         .iter()
-        .map(|s| GroupKey::of(Source::Container.value(s).as_ref()))
+        .map(|s| GroupKey::of(&Source::Container.read(s)))
         .collect();
     assert_eq!(
         keys,
@@ -157,7 +157,8 @@ fn attestations_against_synthetic_values_leave_the_inheritance_standing() {
                 bit: bit(2),
             },
         ],
-    );
+    )
+    .expect("the scheme table has no gap");
     let BitStatus::Attested {
         observed, outcome, ..
     } = &ledger.rows[1].status

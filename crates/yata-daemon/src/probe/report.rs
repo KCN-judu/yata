@@ -4,15 +4,16 @@
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
+use yata_core::fact::Channel;
 use yata_core::import::evidence::{
     BitStatus, Distinct, GroupKey, Outcome, Source, SuitLedger, Survey, Unjoined,
 };
 use yata_core::import::observation::{
     Coverage, Field, InnateReading, Mapping, SoulField, SoulObservation, SoulReading,
 };
-use yata_protocol::probe::PointerWidth;
 
-use super::input::{Carrier, Loaded};
+use super::input::{Carrier, Loaded, Width};
+use super::session::Failed;
 
 fn mapping(m: Option<&Mapping>) -> String {
     match m {
@@ -26,6 +27,7 @@ fn mapping(m: Option<&Mapping>) -> String {
 pub fn summary(loaded: &Loaded, readings: &[SoulReading]) -> String {
     let mut out = String::new();
     let carrier = match &loaded.carrier {
+        Carrier::Live { .. } => "live",
         Carrier::Recording { .. } => "recording",
         Carrier::Export { .. } => "export",
     };
@@ -37,14 +39,18 @@ pub fn summary(loaded: &Loaded, readings: &[SoulReading]) -> String {
         Some(p) => {
             let v = p.protocol_version;
             let _ = writeln!(out, "protocol      {}.{}", v.major, v.minor);
-            let _ = writeln!(out, "probe build   {}", or_none(&p.probe_build_id));
-            let _ = writeln!(out, "engine        {}", or_none(&p.engine));
-            let _ = writeln!(out, "channel       {}", p.channel.as_str_name());
+            let _ = writeln!(out, "probe build   {}", p.probe_build_id);
+            let _ = writeln!(out, "engine        {}", p.engine);
+            let channel = match p.channel {
+                Channel::DesktopMemory => "desktop memory",
+                Channel::MumuAdb => "MuMu over adb",
+            };
+            let _ = writeln!(out, "channel       {channel}");
             if let Some(t) = &p.target {
-                let width = match t.pointer_width.and_then(|w| PointerWidth::try_from(w).ok()) {
-                    Some(PointerWidth::PointerWidth32) => "32-bit",
-                    Some(PointerWidth::PointerWidth64) => "64-bit",
-                    Some(PointerWidth::Unspecified) | None => "width unknown",
+                let width = match t.width {
+                    Some(Width::Bits32) => "32-bit",
+                    Some(Width::Bits64) => "64-bit",
+                    None => "width unknown",
                 };
                 let _ = writeln!(
                     out,
@@ -61,13 +67,13 @@ pub fn summary(loaded: &Loaded, readings: &[SoulReading]) -> String {
             let _ = writeln!(out, "captured at   {c}");
         }
         Carrier::Export { captured_at: None } => {}
-        Carrier::Recording { failures } => {
-            for (id, f) in failures {
-                let subject = id.map_or_else(
-                    || "session".to_owned(),
-                    |id| format!("request {}", id.get()),
-                );
-                let _ = writeln!(out, "failed        {subject}: {} {}", f.name(), f.message);
+        Carrier::Live { failures } | Carrier::Recording { failures } => {
+            for f in failures {
+                let subject = match f {
+                    Failed::Session(_) => "session".to_owned(),
+                    Failed::Request { id, .. } => format!("request {}", id.get()),
+                };
+                let _ = writeln!(out, "failed        {subject}: {} {}", f.name(), f.message());
             }
         }
     }
@@ -93,10 +99,6 @@ pub fn summary(loaded: &Loaded, readings: &[SoulReading]) -> String {
         }
     }
     out
-}
-
-fn or_none(s: &str) -> &str {
-    if s.is_empty() { "(none)" } else { s }
 }
 
 pub fn survey(s: &Survey) -> String {

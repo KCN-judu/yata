@@ -25,7 +25,8 @@ use interprocess::os::windows::named_pipe::{
 use interprocess::os::windows::security_descriptor::SecurityDescriptor;
 use sha2::Digest;
 use widestring::U16CString;
-use yata_protocol::probe::{HandshakeAck, Log, ProbeErrorCode, Reading, Scope};
+use yata_protocol::failure::SessionReason;
+use yata_protocol::probe::{HandshakeAck, Log, Reading, Scope};
 
 use super::session::{Session, SessionError, Step, Target};
 
@@ -55,14 +56,14 @@ impl Sha256 {
         if digits.len() != 64 || !digits.iter().all(u8::is_ascii_hexdigit) {
             return None;
         }
-        let nibble = |d: u8| match d {
-            b'0'..=b'9' => d - b'0',
-            b'a'..=b'f' => d - b'a' + 10,
-            _ => d - b'A' + 10,
+        let nibble = |d: u8| {
+            char::from(d)
+                .to_digit(16)
+                .and_then(|n| u8::try_from(n).ok())
         };
         let mut out = [0u8; 32];
         for (byte, pair) in out.iter_mut().zip(digits.chunks_exact(2)) {
-            *byte = nibble(pair[0]) << 4 | nibble(pair[1]);
+            *byte = nibble(pair[0])? << 4 | nibble(pair[1])?;
         }
         Some(Sha256(out))
     }
@@ -119,6 +120,18 @@ pub enum LaunchError {
     Pipe(io::Error),
     /// The reader could not be started.
     Spawn(io::Error),
+    /// The elevation helper could not be started, or did not say what it started.
+    ElevationHelper { reason: String },
+    /// The reader's path cannot be passed to the elevation helper.
+    ReaderPathNotUnicode,
+    /// `SystemRoot` is not set, so the system's PowerShell cannot be found.
+    NoSystemRoot,
+    /// The reader file could not be read to check its hash.
+    ReaderUnreadable(io::Error),
+    /// The recording file could not be created.
+    Recorder(io::Error),
+    /// The reader's process could not be waited for after a session that succeeded.
+    Reap(io::Error),
     /// The reader did not connect within [`CONNECT_WAIT`].
     NoConnection,
     /// A process other than the reader connected (ADR-0006, rule 7).
@@ -217,11 +230,11 @@ pub fn read_souls(
     observe: &mut dyn FnMut(u64, Option<u64>) -> Step,
 ) -> Result<Outcome, LaunchError> {
     match attempt(options, Elevation::Unelevated, observe) {
-        Err(LaunchError::Session(SessionError::Failed(e)))
-            if e.code == ProbeErrorCode::ElevationRequired =>
+        Err(LaunchError::Session(SessionError::SessionFailed(f)))
+            if f.reason == SessionReason::ElevationRequired =>
         {
             let expected = options.expected_sha256.ok_or(LaunchError::NoExpectedHash)?;
-            let found = Sha256::of_file(options.reader).map_err(LaunchError::Spawn)?;
+            let found = Sha256::of_file(options.reader).map_err(LaunchError::ReaderUnreadable)?;
             if found != expected {
                 return Err(LaunchError::Unverified { found });
             }
@@ -259,7 +272,7 @@ fn attempt(
         .record
         .map(File::create)
         .transpose()
-        .map_err(LaunchError::Spawn)?
+        .map_err(LaunchError::Recorder)?
         .map(|f| Box::new(f) as Box<dyn io::Write + Send>);
     let mut session = Session::start(incoming, outgoing, recorder).with_wait(FRAME_WAIT);
     let read = session
@@ -267,13 +280,16 @@ fn attempt(
         .and_then(|ack| session.read(Scope::Souls, &mut *observe).map(|r| (ack, r)));
     let logs = session.logs().to_vec();
     let closed = session.shutdown();
-    if let Started::Child(c) = &mut started {
-        // Reaped so it does not outlive the session; its message, not its exit code, says why it
-        // stopped, and an elevation-required reader exits with code 5 after saying so.
-        c.wait().map_err(LaunchError::Spawn)?;
-    }
+    // Reaped so it does not outlive the session; its message, not its exit code, says why it
+    // stopped, and an elevation-required reader exits with code 5 after saying so. A session's
+    // own error comes first: a failure to reap is reported only after a session that succeeded.
+    let reaped = match &mut started {
+        Started::Child(c) => c.wait().map(|_| ()).map_err(LaunchError::Reap),
+        Started::Elevated { .. } => Ok(()),
+    };
     let (ack, reading) = read.map_err(LaunchError::Session)?;
     closed.map_err(LaunchError::Session)?;
+    reaped?;
     Ok(Outcome {
         ack,
         reading,
@@ -318,30 +334,28 @@ fn start_elevated(reader: &Path, pipe: &str) -> Result<u32, LaunchError> {
         .stdin(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .output()
-        .map_err(LaunchError::Spawn)?;
+        .map_err(|e| LaunchError::ElevationHelper {
+            reason: e.to_string(),
+        })?;
     if out.status.code() == Some(DECLINED_EXIT) {
         return Err(LaunchError::ElevationDeclined);
     }
     let text = String::from_utf8_lossy(&out.stdout);
-    text.trim().parse().map_err(|_| {
-        LaunchError::Spawn(io::Error::other(format!(
-            "elevated start failed: {}",
-            String::from_utf8_lossy(&out.stderr).trim()
-        )))
-    })
+    text.trim()
+        .parse()
+        .map_err(|_| LaunchError::ElevationHelper {
+            reason: String::from_utf8_lossy(&out.stderr).trim().to_owned(),
+        })
 }
 
 /// The reader's path inside a single-quoted PowerShell string.
 fn quoted(path: &Path) -> Result<String, LaunchError> {
-    let s = path
-        .to_str()
-        .ok_or_else(|| LaunchError::Spawn(io::Error::other("the reader path is not Unicode")))?;
+    let s = path.to_str().ok_or(LaunchError::ReaderPathNotUnicode)?;
     Ok(s.replace('\'', "''"))
 }
 
 fn powershell() -> Result<PathBuf, LaunchError> {
-    let root = std::env::var_os("SystemRoot")
-        .ok_or_else(|| LaunchError::Spawn(io::Error::other("SystemRoot is not set")))?;
+    let root = std::env::var_os("SystemRoot").ok_or(LaunchError::NoSystemRoot)?;
     Ok(PathBuf::from(root).join(r"System32\WindowsPowerShell\v1.0\powershell.exe"))
 }
 

@@ -344,7 +344,8 @@ mod tests {
             None,
             SoulMappings::default(),
             vec![],
-        );
+        )
+        .expect("consistent");
         assert!(matches!(
             Inventory::derive(&p, P, &BTreeMap::from([(Digest([1; 32]), unmapped)])),
             Err(InventoryError::ReadingRefused { seq: s, .. }) if s == seq(2)

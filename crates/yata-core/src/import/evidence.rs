@@ -48,9 +48,18 @@ impl Source {
         }
     }
 
-    /// The value this source names on a soul, or `None` when the soul does not hold it: an
-    /// unmapped field, a mapped field the record lacks, or an entry the record does not have. For
-    /// `@innate`, `null` is a record that says the soul has no innate attribute.
+    /// What this source finds on a soul: a field the reader does not map, nothing (a mapped
+    /// field the record lacks, or an entry the record does not have), or a value. For `@innate`,
+    /// `null` is a record that says the soul has no innate attribute.
+    pub fn read(&self, soul: &SoulObservation) -> Found {
+        let field = |f: SoulField| soul.evidence_of(f).is_none();
+        match self {
+            Source::Field(f) if field(*f) => Found::Unmapped,
+            _ => self.value(soul).map_or(Found::Absent, Found::Value),
+        }
+    }
+
+    /// The value this source names on a soul, or `None` when it holds none, mapped or not.
     pub fn value(&self, soul: &SoulObservation) -> Option<RawValue> {
         let integer = |n: u32| RawValue::Integer(i64::from(n));
         let pair = |code: u32, value: f64| RawValue::Sequence {
@@ -84,25 +93,39 @@ impl Source {
     }
 }
 
-/// A group's key: absent sorts first, then integers by value, then everything else by rendering.
+/// What a source finds on one soul.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Found {
+    /// A typed field the reader does not map.
+    Unmapped,
+    /// Nothing: a mapped field the record lacks, or an entry the record does not have.
+    Absent,
+    Value(RawValue),
+}
+
+/// A group's key: unmapped sorts first, then absent, then integers by value, then everything else
+/// by rendering.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum GroupKey {
+    Unmapped,
     Absent,
     Integer(i64),
     Other(String),
 }
 
 impl GroupKey {
-    pub fn of(value: Option<&RawValue>) -> GroupKey {
-        match value {
-            None => GroupKey::Absent,
-            Some(RawValue::Integer(n)) => GroupKey::Integer(*n),
-            Some(v) => GroupKey::Other(v.render()),
+    pub fn of(found: &Found) -> GroupKey {
+        match found {
+            Found::Unmapped => GroupKey::Unmapped,
+            Found::Absent => GroupKey::Absent,
+            Found::Value(RawValue::Integer(n)) => GroupKey::Integer(*n),
+            Found::Value(v) => GroupKey::Other(v.render()),
         }
     }
 
     pub fn render(&self) -> String {
         match self {
+            GroupKey::Unmapped => "(unmapped)".to_owned(),
             GroupKey::Absent => "(absent)".to_owned(),
             GroupKey::Integer(n) => n.to_string(),
             GroupKey::Other(s) => s.clone(),
@@ -233,23 +256,23 @@ pub fn group<'a>(
 ) -> BTreeMap<GroupKey, Vec<&'a SoulObservation>> {
     souls.into_iter().fold(BTreeMap::new(), |mut groups, soul| {
         groups
-            .entry(GroupKey::of(by.value(soul).as_ref()))
+            .entry(GroupKey::of(&by.read(soul)))
             .or_insert_with(Vec::new)
             .push(soul);
         groups
     })
 }
 
-/// How many souls hold each pair of values: rows by one source, columns by another. Absent,
-/// `null`, and each value are separate columns, which is what a presence question needs.
+/// How many souls hold each pair of values: rows by one source, columns by another. Unmapped,
+/// absent, `null`, and each value are separate columns, which is what a presence question needs.
 pub fn crosstab<'a>(
     souls: impl IntoIterator<Item = &'a SoulObservation>,
     rows: &Source,
     columns: &Source,
 ) -> BTreeMap<(GroupKey, GroupKey), u64> {
     souls.into_iter().fold(BTreeMap::new(), |mut table, soul| {
-        let r = GroupKey::of(rows.value(soul).as_ref());
-        let c = GroupKey::of(columns.value(soul).as_ref());
+        let r = GroupKey::of(&rows.read(soul));
+        let c = GroupKey::of(&columns.read(soul));
         *table.entry((r, c)).or_insert(0) += 1;
         table
     })
@@ -306,6 +329,13 @@ pub enum Unjoined {
     SuitOutOfRange { identity: String, value: i64 },
 }
 
+/// A soul bit the scheme table does not map to a set: the table has a gap, and no ledger is made
+/// that would leave the bit out.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TableGap {
+    pub bit: u16,
+}
+
 /// The suit-code ledger: every mapped scheme bit, with what the attested reading says about the
 /// code the prior tool gives it (ADR-0014).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -340,10 +370,9 @@ pub fn suit_ledger(
     suit: &Source,
     offset: i64,
     attestations: &[Attestation],
-) -> SuitLedger {
-    let mut observed: BTreeMap<SoulBit, (BTreeSet<i64>, usize)> = BTreeMap::new();
-    let mut unjoined = Vec::new();
-    for a in attestations {
+) -> Result<SuitLedger, TableGap> {
+    let join = |a: &Attestation| -> Result<(SoulBit, i64), Unjoined> {
+        let id = || a.identity.clone();
         let matching: Vec<&SoulObservation> = souls
             .iter()
             .filter(|s| {
@@ -353,38 +382,46 @@ pub fn suit_ledger(
             })
             .collect();
         let soul = match matching.as_slice() {
-            [] => {
-                unjoined.push(Unjoined::NoSoul {
-                    identity: a.identity.clone(),
-                });
-                continue;
-            }
+            [] => return Err(Unjoined::NoSoul { identity: id() }),
             [one] => *one,
             many => {
-                unjoined.push(Unjoined::Ambiguous {
-                    identity: a.identity.clone(),
+                return Err(Unjoined::Ambiguous {
+                    identity: id(),
                     souls: many.len(),
                 });
-                continue;
             }
         };
         let Some(RawValue::Integer(v)) = suit.value(soul) else {
-            unjoined.push(Unjoined::NoSuitValue {
-                identity: a.identity.clone(),
-            });
-            continue;
+            return Err(Unjoined::NoSuitValue { identity: id() });
         };
-        let Some(code) = v.checked_sub(offset) else {
-            unjoined.push(Unjoined::SuitOutOfRange {
-                identity: a.identity.clone(),
-                value: v,
-            });
-            continue;
-        };
-        let entry = observed.entry(a.bit).or_default();
-        entry.0.insert(code);
-        entry.1 += 1;
-    }
+        let code = v.checked_sub(offset).ok_or(Unjoined::SuitOutOfRange {
+            identity: id(),
+            value: v,
+        })?;
+        Ok((a.bit, code))
+    };
+    // Each attested bit's codes and attestation count; a count starts at one, so it is never 0.
+    let (mut observed, unjoined) = attestations.iter().map(join).fold(
+        (
+            BTreeMap::<SoulBit, (BTreeSet<i64>, NonZeroUsize)>::new(),
+            Vec::new(),
+        ),
+        |(mut observed, mut unjoined), joined| {
+            match joined {
+                Ok((bit, code)) => {
+                    observed
+                        .entry(bit)
+                        .and_modify(|(codes, n)| {
+                            codes.insert(code);
+                            *n = n.saturating_add(1);
+                        })
+                        .or_insert_with(|| (BTreeSet::from([code]), NonZeroUsize::MIN));
+                }
+                Err(u) => unjoined.push(u),
+            }
+            (observed, unjoined)
+        },
+    );
     let bits_of_code: BTreeMap<i64, BTreeSet<SoulBit>> =
         observed
             .iter()
@@ -395,12 +432,13 @@ pub fn suit_ledger(
                 by_code
             });
     let rows = (0..SOUL_BIT_COUNT)
-        .filter_map(|index| {
-            let bit = SoulBit::new(index)?;
-            let inherited = soul_set(index)?;
+        .map(|index| {
+            let gap = TableGap { bit: index };
+            let bit = SoulBit::new(index).ok_or(gap)?;
+            let inherited = soul_set(index).ok_or(gap)?;
             let status = match observed.remove(&bit) {
                 None => BitStatus::Unattested,
-                Some((codes, count)) => {
+                Some((codes, attestations)) => {
                     let code = i64::from(inherited.suit_code());
                     let alone = bits_of_code.get(&code).is_some_and(|b| b.len() == 1);
                     let outcome = if codes.len() == 1 && codes.contains(&code) && alone {
@@ -410,19 +448,19 @@ pub fn suit_ledger(
                     };
                     BitStatus::Attested {
                         observed: codes,
-                        attestations: NonZeroUsize::new(count)?,
+                        attestations,
                         outcome,
                     }
                 }
             };
-            Some(BitRow {
+            Ok(BitRow {
                 bit,
                 inherited,
                 status,
             })
         })
-        .collect();
-    SuitLedger { rows, unjoined }
+        .collect::<Result<_, _>>()?;
+    Ok(SuitLedger { rows, unjoined })
 }
 
 #[cfg(test)]
@@ -448,6 +486,7 @@ mod tests {
 
     fn souls(raws: Vec<RawSoul>) -> Vec<SoulObservation> {
         SoulReading::new(Coverage::Partial, None, None, SoulMappings::default(), raws)
+            .expect("consistent")
             .souls()
             .to_vec()
     }
@@ -585,7 +624,8 @@ mod tests {
             &Source::Entry("suit".into()),
             300_000,
             &[attest("s0", 0), attest("s1", 1), attest("s2", 1)],
-        );
+        )
+        .expect("the table has no gap");
         assert_eq!(l.rows.len(), usize::from(SOUL_BIT_COUNT));
         assert_eq!(outcome(&l.rows[0]), Some(Outcome::Reestablished));
         assert_eq!(outcome(&l.rows[1]), Some(Outcome::Reestablished));
@@ -607,7 +647,8 @@ mod tests {
             300_000,
             // s1 carries code 3, which the inherited table gives bit 1, not bit 0.
             &[attest("s0", 0), attest("s1", 0), attest("s2", 1)],
-        );
+        )
+        .expect("the table has no gap");
         assert_eq!(outcome(&l.rows[0]), Some(Outcome::Contradicted));
         assert!(matches!(
             &l.rows[0].status,
@@ -635,7 +676,8 @@ mod tests {
                 attest("nosuit", 0),
                 attest("low", 0),
             ],
-        );
+        )
+        .expect("the table has no gap");
         assert_eq!(
             l.unjoined,
             vec![
@@ -679,7 +721,8 @@ mod tests {
             &Source::Entry("suit".into()),
             0,
             &attestations,
-        );
+        )
+        .expect("the table has no gap");
         assert!(l.retires_inheritance());
     }
 }

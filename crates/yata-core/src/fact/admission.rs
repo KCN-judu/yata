@@ -305,6 +305,7 @@ pub(crate) mod tests {
             all_established(),
             souls,
         )
+        .expect("consistent")
     }
 
     pub(crate) fn soul(id: &str, level: u32) -> RawSoul {
@@ -336,6 +337,7 @@ pub(crate) mod tests {
 
     fn with_mappings(mappings: SoulMappings, souls: Vec<RawSoul>) -> SoulReading {
         SoulReading::new(observation::Coverage::Complete, None, None, mappings, souls)
+            .expect("consistent")
     }
 
     fn id(s: &str) -> GameSoulId {
@@ -398,7 +400,8 @@ pub(crate) mod tests {
             None,
             all_established(),
             vec![soul("a", 15)],
-        );
+        )
+        .expect("consistent");
         let a = admit_reading(&r).expect("admitted");
         assert_eq!(a.coverage, Coverage::Complete);
         assert_eq!(a.account.as_ref().map(GameAccountId::as_str), Some("acct"));
@@ -464,12 +467,16 @@ pub(crate) mod tests {
         }));
         assert_eq!(check(boss), Ok(()));
         // Fields outside the row are carried as read, mapped or not.
+        let unlocked = RawSoul {
+            locked: None,
+            ..soul("a", 15)
+        };
         let unmapped_lock = with_mappings(
             SoulMappings {
                 locked: None,
                 ..all_established()
             },
-            vec![soul("a", 15)],
+            vec![unlocked],
         );
         let row = check_soul(id("a"), &unmapped_lock.souls()[0]).expect("a row");
         assert_eq!(row.locked, Field::Unmapped);
@@ -545,12 +552,17 @@ pub(crate) mod tests {
 
     #[test]
     fn an_unmapped_row_field_is_named_as_unmapped() {
+        // A reading that does not map a field carries no value for it.
+        let unlevelled = RawSoul {
+            level: None,
+            ..soul("a", 15)
+        };
         let r = with_mappings(
             SoulMappings {
                 level: None,
                 ..all_established()
             },
-            vec![soul("a", 15)],
+            vec![unlevelled],
         );
         assert_eq!(
             check_soul(id("a"), &r.souls()[0]).map(drop),
@@ -585,11 +597,18 @@ pub(crate) mod tests {
 
     #[test]
     fn an_empty_soul_id_is_refused_by_name() {
+        // The reading refuses it when it is built, before admission sees it.
         let mut empty = soul("a", 15);
         empty.soul_id = Some(String::new());
         assert_eq!(
-            admit_reading(&complete(vec![empty])),
-            Err(AdmissionError::EmptySoulId { index: 0 })
+            SoulReading::new(
+                observation::Coverage::Complete,
+                None,
+                None,
+                all_established(),
+                vec![empty]
+            ),
+            Err(observation::ReadingDefect::EmptySoulId { index: 0 })
         );
     }
 }

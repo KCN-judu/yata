@@ -103,11 +103,12 @@ fn load(path: &Path) -> Result<Loaded, String> {
     })
 }
 
+/// Every reading, converted: one the converter refuses, a reading without records included, is
+/// an error, never skipped.
 fn readings(loaded: &Loaded) -> Result<Vec<SoulReading>, String> {
     loaded
         .readings
         .iter()
-        .filter(|r| matches!(r.records, Some(Records::Souls(_))))
         .map(|r| convert::soul_reading(r).map_err(|e| format!("import.malformed_reading: {e:?}")))
         .collect()
 }
@@ -205,30 +206,29 @@ fn suit_evidence(
     let attestations = parse_attestations(&text)?;
     with_readings(path, |_, readings| {
         let souls: Vec<SoulObservation> = all(readings).cloned().collect();
-        Ok(report::ledger(&evidence::suit_ledger(
-            &souls,
-            &identity,
-            &suit,
-            offset,
-            &attestations,
-        )))
+        let ledger = evidence::suit_ledger(&souls, &identity, &suit, offset, &attestations)
+            .map_err(|gap| format!("probe.internal: the scheme table has a gap: {gap:?}"))?;
+        Ok(report::ledger(&ledger))
     })
 }
 
-/// `identity <TAB> bit` per line; blank lines and lines starting with `#` are skipped. The bit
-/// must be a mapped soul bit.
+/// `identity <TAB> bit` per line, exactly two fields; blank lines and lines starting with `#` are
+/// skipped. The identity is not empty, and the bit is a mapped soul bit.
 pub fn parse_attestations(text: &str) -> Result<Vec<Attestation>, String> {
     text.lines()
         .enumerate()
         .map(|(i, line)| (i + 1, line.trim_end_matches('\r')))
         .filter(|(_, line)| !line.trim().is_empty() && !line.starts_with('#'))
         .map(|(n, line)| {
-            let mut fields = line.split('\t');
-            let (Some(identity), Some(bit)) = (fields.next(), fields.next()) else {
+            let fields: Vec<&str> = line.split('\t').collect();
+            let [identity, bit] = fields.as_slice() else {
                 return Err(format!(
                     "probe.attestation: line {n}: expected identity <TAB> bit"
                 ));
             };
+            if identity.trim().is_empty() {
+                return Err(format!("probe.attestation: line {n}: empty identity"));
+            }
             let bit = bit
                 .trim()
                 .parse::<u16>()
@@ -262,6 +262,8 @@ fn read(reader: &Path, rest: &[&str]) -> Result<String, String> {
     use std::num::NonZeroU32;
 
     use super::launch::{self, Elevation, LaunchError, ReadOptions, Sha256};
+    use yata_protocol::failure::SessionReason;
+
     use super::session::{SessionError, Step, Target};
 
     let mut options = ReadOptions {
@@ -308,12 +310,21 @@ fn read(reader: &Path, rest: &[&str]) -> Result<String, String> {
         LaunchError::NoExpectedHash => "import.elevation_unverified: the game needs an \
                                         elevated reader; give --reader-sha256 to check it first"
             .to_owned(),
-        LaunchError::Session(SessionError::Failed(f)) => {
+        LaunchError::Session(SessionError::SessionFailed(f)) => {
             let mut text = format!("import.probe_failed: {} {}", f.name(), f.message);
-            for c in &f.candidates {
-                text.push_str(&format!("\n  candidate pid {} {}", c.pid, c.image_name));
+            if let SessionReason::Ambiguous { candidates } = &f.reason {
+                for c in candidates {
+                    text.push_str(&format!("\n  candidate pid {} {}", c.pid, c.image_name));
+                }
             }
             text
+        }
+        LaunchError::Session(SessionError::RequestFailed { failure, .. }) => {
+            format!(
+                "import.probe_failed: {} {}",
+                failure.name(),
+                failure.message
+            )
         }
         other => format!("import.probe_failed: {other:?}"),
     })?;
@@ -330,19 +341,12 @@ fn read(reader: &Path, rest: &[&str]) -> Result<String, String> {
         text.push_str(&format!("log {} {}\n", l.code, l.message));
     }
     let loaded = Loaded {
-        carrier: input::Carrier::Recording {
+        carrier: input::Carrier::Live {
             failures: Vec::new(),
         },
-        provenance: Some(input::Provenance {
-            protocol_version: outcome
-                .ack
-                .version
-                .ok_or("probe.protocol_unsupported: no version")?,
-            probe_build_id: outcome.ack.probe_build_id.clone(),
-            engine: outcome.ack.engine.clone(),
-            channel: outcome.ack.channel(),
-            target: outcome.ack.target.clone(),
-        }),
+        provenance: Some(
+            input::provenance_of(&outcome.ack).map_err(|e| format!("probe.input: {e:?}"))?,
+        ),
         readings: vec![outcome.reading],
     };
     let readings = readings(&loaded)?;
@@ -392,5 +396,8 @@ mod tests {
         assert!(parse_attestations("abc").is_err());
         assert!(parse_attestations("abc\tx").is_err());
         assert!(parse_attestations("abc\t70").is_err());
+        // An extra field or an empty identity is a mistake in the file, not something to drop.
+        assert!(parse_attestations("abc\t3\tnote").is_err());
+        assert!(parse_attestations(" \t3").is_err());
     }
 }

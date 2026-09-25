@@ -3,16 +3,33 @@
 //! file", step 2).
 //!
 //! Conversion changes no value and repairs nothing. Every shape the schema says is refused —
-//! unset coverage, an unset oneof, an unspecified enum, a cut sequence whose full length is not
-//! above its items — is a [`ConvertError`], never a default.
+//! unset coverage or mappings, an unset oneof, an unspecified enum, an empty basis or type name,
+//! a cut sequence whose full length is not above its items, a value on an unmapped field — is a
+//! [`ConvertError`], never a default.
 
 use prost::Message;
 use yata_core::import::observation::{
     AttributeReading, Coverage, GameAttributeCode, GameLevel, GameSlot, GameStar, GameSuitCode,
-    InnateReading, Mapping, ObservedRecord, RawSoul, RawValue, SequenceKind, SoulMappings,
-    SoulReading, SubAttributeReading, UnreadReason,
+    InnateReading, Mapping, ObservedRecord, RawSoul, RawValue, ReadingDefect, SequenceKind,
+    SoulField, SoulMappings, SoulReading, SubAttributeReading, UnreadReason,
 };
 use yata_protocol::probe;
+
+/// What a mapping is for: the rule that recognised the records, or one typed field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MappingSubject {
+    Recognition,
+    Field(SoulField),
+}
+
+/// A part of a raw value left unset or unspecified.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnstatedRaw {
+    /// A value, or an entry's key or value, with no kind.
+    Value,
+    SequenceKind,
+    UnreadReason,
+}
 
 /// Why a wire reading is not a reading this build accepts: `import.malformed_reading`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -21,14 +38,28 @@ pub enum ConvertError {
     NoRecords,
     /// Coverage unspecified.
     UnstatedCoverage,
-    /// A mapping whose evidence is unset, by field name (`recognition` for the rule).
-    UnstatedEvidence { field: &'static str },
+    /// Soul records without their mappings message: a reader that maps nothing sends it empty.
+    UnstatedMappings,
+    /// A mapping whose evidence is unset.
+    UnstatedEvidence {
+        subject: MappingSubject,
+    },
+    /// An established mapping that names no basis.
+    EmptyBasis {
+        subject: MappingSubject,
+    },
     /// An innate reading with neither case set.
     UnstatedInnate,
-    /// A raw value, a sequence kind, or an unread reason unset or unspecified.
-    UnstatedValue,
+    /// An observed record whose type name is empty.
+    EmptyTypeName,
+    UnstatedRaw(UnstatedRaw),
     /// A cut sequence or mapping whose full length is not above what it holds.
-    BadLength { shown: u64, full: u64 },
+    BadLength {
+        shown: u64,
+        full: u64,
+    },
+    /// The records contradict the reading's own statements.
+    Defect(ReadingDefect),
 }
 
 /// The blob of a reading: its `Reading` as protobuf bytes. The request id is not in it, so the
@@ -49,49 +80,59 @@ pub fn soul_reading(reading: &probe::Reading) -> Result<SoulReading, ConvertErro
     let recognition = records
         .recognition
         .as_ref()
-        .map(|m| mapping(m, "recognition"))
+        .map(|m| mapping(m, MappingSubject::Recognition))
         .transpose()?;
-    let mappings = mappings(records.mappings.as_ref())?;
+    let mappings = mappings(
+        records
+            .mappings
+            .as_ref()
+            .ok_or(ConvertError::UnstatedMappings)?,
+    )?;
     let souls = records
         .souls
         .iter()
         .map(raw_soul)
         .collect::<Result<Vec<_>, _>>()?;
-    Ok(SoulReading::new(
+    SoulReading::new(
         coverage,
         reading.observed_account_id.clone(),
         recognition,
         mappings,
         souls,
-    ))
+    )
+    .map_err(ConvertError::Defect)
 }
 
-fn mapping(m: &probe::Mapping, field: &'static str) -> Result<Mapping, ConvertError> {
+fn mapping(m: &probe::Mapping, subject: MappingSubject) -> Result<Mapping, ConvertError> {
     match &m.evidence {
         Some(probe::mapping::Evidence::Inherited(_)) => Ok(Mapping::Inherited),
+        Some(probe::mapping::Evidence::Established(e)) if e.basis.is_empty() => {
+            Err(ConvertError::EmptyBasis { subject })
+        }
         Some(probe::mapping::Evidence::Established(e)) => Ok(Mapping::Established {
             basis: e.basis.clone(),
         }),
-        None => Err(ConvertError::UnstatedEvidence { field }),
+        None => Err(ConvertError::UnstatedEvidence { subject }),
     }
 }
 
-fn mappings(m: Option<&probe::SoulMappings>) -> Result<SoulMappings, ConvertError> {
-    let Some(m) = m else {
-        return Ok(SoulMappings::default());
+fn mappings(m: &probe::SoulMappings) -> Result<SoulMappings, ConvertError> {
+    let one = |m: &Option<probe::Mapping>, field| {
+        m.as_ref()
+            .map(|m| mapping(m, MappingSubject::Field(field)))
+            .transpose()
     };
-    let one = |m: &Option<probe::Mapping>, field| m.as_ref().map(|m| mapping(m, field)).transpose();
     Ok(SoulMappings {
-        soul_id: one(&m.soul_id, "soul_id")?,
-        suit_code: one(&m.suit_code, "suit_code")?,
-        star: one(&m.star, "star")?,
-        slot: one(&m.slot, "slot")?,
-        level: one(&m.level, "level")?,
-        main: one(&m.main, "main")?,
-        subs: one(&m.subs, "subs")?,
-        innate: one(&m.innate, "innate")?,
-        locked: one(&m.locked, "locked")?,
-        discarded: one(&m.discarded, "discarded")?,
+        soul_id: one(&m.soul_id, SoulField::SoulId)?,
+        suit_code: one(&m.suit_code, SoulField::SuitCode)?,
+        star: one(&m.star, SoulField::Star)?,
+        slot: one(&m.slot, SoulField::Slot)?,
+        level: one(&m.level, SoulField::Level)?,
+        main: one(&m.main, SoulField::Main)?,
+        subs: one(&m.subs, SoulField::Subs)?,
+        innate: one(&m.innate, SoulField::Innate)?,
+        locked: one(&m.locked, SoulField::Locked)?,
+        discarded: one(&m.discarded, SoulField::Discarded)?,
     })
 }
 
@@ -136,6 +177,9 @@ fn innate(i: &probe::InnateReading) -> Result<InnateReading, ConvertError> {
 }
 
 fn observed(r: &probe::ObservedRecord) -> Result<ObservedRecord, ConvertError> {
+    if r.type_name.is_empty() {
+        return Err(ConvertError::EmptyTypeName);
+    }
     Ok(ObservedRecord {
         type_name: r.type_name.clone(),
         container_key: r.container_key.as_ref().map(raw).transpose()?,
@@ -144,8 +188,11 @@ fn observed(r: &probe::ObservedRecord) -> Result<ObservedRecord, ConvertError> {
 }
 
 fn entry(e: &probe::RawEntry) -> Result<(RawValue, RawValue), ConvertError> {
-    let side =
-        |v: &Option<probe::RawValue>| v.as_ref().ok_or(ConvertError::UnstatedValue).and_then(raw);
+    let side = |v: &Option<probe::RawValue>| {
+        v.as_ref()
+            .ok_or(ConvertError::UnstatedRaw(UnstatedRaw::Value))
+            .and_then(raw)
+    };
     Ok((side(&e.key)?, side(&e.value)?))
 }
 
@@ -162,7 +209,8 @@ fn full_length(shown: usize, full: Option<u64>) -> Result<Option<u64>, ConvertEr
 
 fn raw(v: &probe::RawValue) -> Result<RawValue, ConvertError> {
     use probe::raw_value::Kind;
-    Ok(match v.kind.as_ref().ok_or(ConvertError::UnstatedValue)? {
+    let unstated = |u| ConvertError::UnstatedRaw(u);
+    Ok(match v.kind.as_ref().ok_or(unstated(UnstatedRaw::Value))? {
         Kind::Null(_) => RawValue::Null,
         Kind::Boolean(b) => RawValue::Bool(*b),
         Kind::Integer(n) => RawValue::Integer(*n),
@@ -172,7 +220,9 @@ fn raw(v: &probe::RawValue) -> Result<RawValue, ConvertError> {
             kind: match s.kind() {
                 probe::SequenceKind::List => SequenceKind::List,
                 probe::SequenceKind::Tuple => SequenceKind::Tuple,
-                probe::SequenceKind::Unspecified => return Err(ConvertError::UnstatedValue),
+                probe::SequenceKind::Unspecified => {
+                    return Err(unstated(UnstatedRaw::SequenceKind));
+                }
             },
             full_length: full_length(s.items.len(), s.full_length)?,
             items: s.items.iter().map(raw).collect::<Result<_, _>>()?,
@@ -189,7 +239,9 @@ fn raw(v: &probe::RawValue) -> Result<RawValue, ConvertError> {
                 probe::UnreadReason::Unreadable => UnreadReason::Unreadable,
                 probe::UnreadReason::Malformed => UnreadReason::Malformed,
                 probe::UnreadReason::OutOfRange => UnreadReason::OutOfRange,
-                probe::UnreadReason::Unspecified => return Err(ConvertError::UnstatedValue),
+                probe::UnreadReason::Unspecified => {
+                    return Err(unstated(UnstatedRaw::UnreadReason));
+                }
             },
         },
     })
@@ -223,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn a_value_for_an_unmapped_field_is_not_taken() {
+    fn a_value_for_an_unmapped_field_is_refused() {
         let r = reading(
             vec![SoulRecord {
                 soul_id: Some("x".into()),
@@ -235,7 +287,18 @@ mod tests {
                 ..probe::SoulMappings::default()
             },
         );
-        let reading = soul_reading(&r).expect("souls");
+        assert_eq!(
+            soul_reading(&r),
+            Err(ConvertError::Defect(ReadingDefect::ValueOnUnmappedField {
+                index: 0,
+                field: SoulField::Star
+            }))
+        );
+        let mut consistent = r.clone();
+        if let Some(Records::Souls(s)) = &mut consistent.records {
+            s.souls[0].star = None;
+        }
+        let reading = soul_reading(&consistent).expect("souls");
         let soul = &reading.souls()[0];
         assert_eq!(soul.soul_id.value().map(String::as_str), Some("x"));
         assert_eq!(soul.soul_id.evidence(), Some(Evidence::Inherited));
@@ -287,7 +350,34 @@ mod tests {
         );
         assert_eq!(
             soul_reading(&unstated),
-            Err(ConvertError::UnstatedEvidence { field: "star" })
+            Err(ConvertError::UnstatedEvidence {
+                subject: MappingSubject::Field(SoulField::Star)
+            })
+        );
+        let no_basis = reading(
+            vec![],
+            probe::SoulMappings {
+                level: Some(probe::Mapping {
+                    evidence: Some(E::Established(Established {
+                        basis: String::new(),
+                    })),
+                }),
+                ..probe::SoulMappings::default()
+            },
+        );
+        assert_eq!(
+            soul_reading(&no_basis),
+            Err(ConvertError::EmptyBasis {
+                subject: MappingSubject::Field(SoulField::Level)
+            })
+        );
+        let mut no_mappings = reading(vec![], probe::SoulMappings::default());
+        if let Some(Records::Souls(s)) = &mut no_mappings.records {
+            s.mappings = None;
+        }
+        assert_eq!(
+            soul_reading(&no_mappings),
+            Err(ConvertError::UnstatedMappings)
         );
         let no_innate_case = reading(
             vec![SoulRecord {
@@ -327,7 +417,7 @@ mod tests {
         );
         assert_eq!(
             raw(&probe::RawValue { kind: None }),
-            Err(ConvertError::UnstatedValue)
+            Err(ConvertError::UnstatedRaw(UnstatedRaw::Value))
         );
     }
 
